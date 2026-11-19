@@ -3,8 +3,8 @@ FROM metacubex/mihomo:latest AS mihomo-src
 
 # Stage 2: Cross-compile Go agent binary natively on build host
 FROM --platform=$BUILDPLATFORM golang:alpine AS go-builder
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 ARG VERSION=0.1.0
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -13,7 +13,7 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY web/embed.go ./web/embed.go
 RUN mkdir -p ./web/dist && touch ./web/dist/.keep
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
 
 # Stage 3: All-in-one Agent + Mihomo runtime image
 FROM alpine:3.21

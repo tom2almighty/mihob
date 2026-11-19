@@ -20,7 +20,8 @@ Hub environment variables:
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `MIHOB_LISTEN` | HTTP listen address | `:8080` |
+| `MIHOB_HOST` | HTTP listen host (e.g. `127.0.0.1` or `0.0.0.0`) | `0.0.0.0` |
+| `MIHOB_PORT` | HTTP listen port | `8080` |
 | `MIHOB_DATA_DIR` | Data directory for SQLite and ACME state | `./data` |
 | `MIHOB_ADMIN_USER` | Initial admin username | `admin` |
 | `MIHOB_ADMIN_PASS` | Initial admin password (auto-generated on first boot if empty) | Empty |
@@ -40,8 +41,8 @@ Agent environment variables:
 # Install frontend dependencies
 cd web && pnpm install --frozen-lockfile
 
-# Terminal 1: Start Hub backend (listens on :8080)
-go run ./cmd/mihob hub --listen :8080 --data ./data
+# Terminal 1: Start Hub backend (listens on 0.0.0.0:8080)
+go run ./cmd/mihob hub --host 0.0.0.0 --port 8080 --data ./data
 
 # Terminal 2: Start Vite dev server (listens on :5173 with API/WS proxy)
 cd web && pnpm dev
@@ -71,7 +72,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      MIHOB_LISTEN: ":8080"
+      MIHOB_HOST: "0.0.0.0"
+      MIHOB_PORT: "8080"
       MIHOB_DATA_DIR: "/data"
       MIHOB_ADMIN_USER: "admin"
       MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-mihob123456}"

@@ -9,8 +9,8 @@ RUN pnpm build
 
 # Stage 2: Cross-compile Go static binary with embedded frontend
 FROM --platform=$BUILDPLATFORM golang:alpine AS go-builder
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 ARG VERSION=0.1.0
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -19,14 +19,15 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY web/embed.go ./web/embed.go
 COPY --from=web-builder /src/web/dist ./web/dist
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
 
 # Stage 3: Minimal runtime image
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=go-builder /out/mihob /usr/local/bin/mihob
-ENV MIHOB_LISTEN=:8080 \
+ENV MIHOB_HOST=0.0.0.0 \
+    MIHOB_PORT=8080 \
     MIHOB_DATA_DIR=/data
 VOLUME ["/data"]
 EXPOSE 8080

@@ -6,7 +6,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      MIHOB_LISTEN: ":8080"
+      MIHOB_HOST: "0.0.0.0"
+      MIHOB_PORT: "8080"
       MIHOB_DATA_DIR: "/data"
       MIHOB_ADMIN_USER: "admin"
       MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-mihob123456}"

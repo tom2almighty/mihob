@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -57,11 +58,14 @@ func envOr(key, fallback string) string {
 
 func runHub(args []string) {
 	fs := flag.NewFlagSet("hub", flag.ExitOnError)
-	listen := fs.String("listen", envOr("MIHOB_LISTEN", ":8080"), "HTTP listen address")
+	host := fs.String("host", envOr("MIHOB_HOST", "0.0.0.0"), "HTTP listen host")
+	port := fs.String("port", envOr("MIHOB_PORT", "8080"), "HTTP listen port")
 	dataDir := fs.String("data", envOr("MIHOB_DATA_DIR", "./data"), "Data directory for SQLite and ACME")
 	adminUser := fs.String("admin-user", envOr("MIHOB_ADMIN_USER", "admin"), "Initial admin username")
 	adminPass := fs.String("admin-pass", envOr("MIHOB_ADMIN_PASS", ""), "Initial admin password")
 	_ = fs.Parse(args)
+
+	listenAddr := net.JoinHostPort(*host, *port)
 
 	store, err := db.Open(filepath.Join(*dataDir, "mihob.db"))
 	if err != nil {
@@ -97,13 +101,13 @@ func runHub(args []string) {
 	srv.StartBackground(ctx)
 
 	httpSrv := &http.Server{
-		Addr:              *listen,
+		Addr:              listenAddr,
 		Handler:           srv.Router(),
 		ReadHeaderTimeout: 15 * time.Second,
 	}
 
 	go func() {
-		log.Printf("[hub] mihob %s listening on %s (data=%s)", Version, *listen, *dataDir)
+		log.Printf("[hub] mihob %s listening on %s (data=%s)", Version, listenAddr, *dataDir)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("[hub] listen error: %v", err)
 		}
