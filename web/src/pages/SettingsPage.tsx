@@ -5,19 +5,13 @@ import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import {
-  Check,
   Container,
   Eye,
   EyeOff,
   Globe,
-  Languages,
   Loader2,
-  Monitor,
-  Moon,
-  Palette,
   RotateCcw,
   ShieldCheck,
-  Sun,
 } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton, ErrorState, PageHeader } from "@/components/common/CommonUI"
@@ -46,8 +40,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { normalizeLanguage, type SupportedLanguage } from "@/lib/i18n"
-import { useTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 
 const DEFAULT_AGENT_IMAGE = "ghcr.io/tom2almighty/mihob-agent:latest"
@@ -99,14 +91,12 @@ type PasswordFormValues = {
   confirm_password: string
 }
 
-type SettingsTab = "general" | "deployment" | "security" | "appearance"
+type SettingsTab = "general" | "deployment" | "security"
 
 export function SettingsPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const { admin } = useAuth()
-  const { theme, setTheme } = useTheme()
-  const currentLang = normalizeLanguage(i18n.resolvedLanguage || i18n.language)
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("general")
   const [showOldPw, setShowOldPw] = useState(false)
@@ -231,22 +221,18 @@ export function SettingsPage() {
         onValueChange={(v) => setActiveTab(v as SettingsTab)}
         className="max-w-3xl space-y-5"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
-          <TabsTrigger value="general" className="gap-1.5 py-2 text-xs sm:text-sm">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="general" className="gap-1.5 text-xs sm:text-sm">
             <Globe className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.general")}</span>
           </TabsTrigger>
-          <TabsTrigger value="deployment" className="gap-1.5 py-2 text-xs sm:text-sm">
+          <TabsTrigger value="deployment" className="gap-1.5 text-xs sm:text-sm">
             <Container className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.deployment")}</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1.5 py-2 text-xs sm:text-sm">
+          <TabsTrigger value="security" className="gap-1.5 text-xs sm:text-sm">
             <ShieldCheck className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.security")}</span>
-          </TabsTrigger>
-          <TabsTrigger value="appearance" className="gap-1.5 py-2 text-xs sm:text-sm">
-            <Palette className="size-3.5 shrink-0" />
-            <span className="truncate">{t("settings.tabs.appearance")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -670,126 +656,6 @@ export function SettingsPage() {
                 {t("settings.updatePassword")}
               </Button>
             </CardFooter>
-          </Card>
-        </TabsContent>
-
-        {/* Appearance & Language Tab */}
-        <TabsContent value="appearance" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t("settings.appearanceCardTitle")}</CardTitle>
-              <CardDescription>{t("settings.appearanceCardDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <div className="text-sm font-medium text-foreground">
-                  {t("settings.themeSectionTitle")}
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {(
-                    [
-                      {
-                        key: "light",
-                        icon: Sun,
-                        title: t("nav.themeLight"),
-                        desc: t("settings.themeLightDesc"),
-                      },
-                      {
-                        key: "dark",
-                        icon: Moon,
-                        title: t("nav.themeDark"),
-                        desc: t("settings.themeDarkDesc"),
-                      },
-                      {
-                        key: "system",
-                        icon: Monitor,
-                        title: t("nav.themeSystem"),
-                        desc: t("settings.themeSystemDesc"),
-                      },
-                    ] as const
-                  ).map((item) => {
-                    const Icon = item.icon
-                    const active = theme === item.key
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => setTheme(item.key)}
-                        className={cn(
-                          "flex flex-col items-start gap-2 rounded-lg border p-3.5 text-left transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          active
-                            ? "border-primary bg-accent/60"
-                            : "border-border bg-card hover:bg-accent/40"
-                        )}
-                      >
-                        <div className="flex w-full items-center justify-between">
-                          <div className="flex size-8 items-center justify-center rounded-md bg-muted text-foreground">
-                            <Icon className="size-4" />
-                          </div>
-                          {active && <Check className="size-4 text-foreground" />}
-                        </div>
-                        <div className="space-y-0.5">
-                          <div className="text-sm font-medium text-foreground">{item.title}</div>
-                          <div className="text-xs text-muted-foreground">{item.desc}</div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <div className="text-sm font-medium text-foreground">
-                  {t("settings.langSectionTitle")}
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(
-                    [
-                      {
-                        key: "zh-CN" as SupportedLanguage,
-                        title: t("nav.langZh"),
-                        desc: t("settings.langZhDesc"),
-                      },
-                      {
-                        key: "en-US" as SupportedLanguage,
-                        title: t("nav.langEn"),
-                        desc: t("settings.langEnDesc"),
-                      },
-                    ] as const
-                  ).map((item) => {
-                    const active = currentLang === item.key
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => void i18n.changeLanguage(item.key)}
-                        className={cn(
-                          "flex items-start justify-between gap-3 rounded-lg border p-3.5 text-left transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          active
-                            ? "border-primary bg-accent/60"
-                            : "border-border bg-card hover:bg-accent/40"
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                            <Languages className="size-4" />
-                          </div>
-                          <div className="space-y-0.5">
-                            <div className="text-sm font-medium text-foreground">{item.title}</div>
-                            <div className="text-xs text-muted-foreground">{item.desc}</div>
-                          </div>
-                        </div>
-                        {active && <Check className="mt-1 size-4 shrink-0 text-foreground" />}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

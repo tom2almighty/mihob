@@ -164,7 +164,9 @@
       "multiplier": "Multiplier",
       "multiplierDesc": "User billing ratio",
       "resetDay": "Reset Day",
-      "resetDayDesc": "Day 1 - 28",
+      "resetDayDesc": "Day 1 - 31 (clamped to month end)",
+      "resetDayValue": "Day {{day}} of month",
+      "resetDayHint": "For shorter months (e.g. February or 30-day months), resets on the last day of the month",
       "remark": "Remark",
       "remarkPlaceholder": "Provider, route, or renewal note (optional)",
       "enabled": "Enable Node",
@@ -176,7 +178,7 @@
         "trafficMin": "Traffic limit cannot be negative",
         "multiplierMin": "Multiplier must be at least 0.1",
         "multiplierMax": "Multiplier is too high",
-        "resetDayRange": "Must be between 1 and 28"
+        "resetDayRange": "Must be between 1 and 31"
       }
     },
     "install": {
@@ -434,11 +436,12 @@
       "trafficLimitDesc": "0 for unlimited",
       "template": "Mihomo Template",
       "templateDefault": "System Default Template",
-      "expireDate": "Expiration Date (empty for permanent)",
+      "expireDate": "Expiration Date",
       "plus30d": "+30d",
       "plus90d": "+90d",
       "plus1y": "+1y",
       "permanent": "Never",
+      "permanentPlaceholder": "Permanent (Never expires)",
       "authorizedNodes": "Authorized Nodes ({{count}})",
       "noNodesHint": "No nodes available. Create one in Nodes first.",
       "nodeInboundCount": "{{host}} · {{count}} inbounds",
@@ -549,12 +552,11 @@
   },
   "settings": {
     "title": "Settings",
-    "description": "Manage Hub external endpoint, subscription routing, Agent image, account security, and UI preferences",
+    "description": "Manage Hub external endpoint, subscription routing, Agent image, and account security",
     "tabs": {
       "general": "General & Sub",
       "deployment": "Node & ACME",
-      "security": "Security",
-      "appearance": "Appearance"
+      "security": "Security"
     },
     "generalCardTitle": "Hub Endpoint & Subscription Routing",
     "generalCardDesc": "Configure the external public URL and client subscription path prefix; changes take effect immediately",
@@ -590,15 +592,6 @@
     "pwStrengthStrong": "Strength: Strong",
     "updatePassword": "Update Password",
     "toastPwUpdated": "Admin password updated",
-    "appearanceCardTitle": "Theme & Language",
-    "appearanceCardDesc": "Customize the console color scheme and display language; saved automatically in your browser",
-    "themeSectionTitle": "Color Theme",
-    "themeLightDesc": "Clean and bright daytime interface",
-    "themeDarkDesc": "Low-glare dark interface for night work",
-    "themeSystemDesc": "Automatically match your OS appearance",
-    "langSectionTitle": "Display Language",
-    "langZhDesc": "Simplified Chinese interface and messages",
-    "langEnDesc": "English interface and notifications",
     "validation": {
       "subPathInvalid": "Only letters, digits, and ._-/ are allowed; reserved paths cannot be used",
       "agentImageRequired": "Agent Docker image is required",

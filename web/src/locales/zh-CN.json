@@ -164,7 +164,9 @@
       "multiplier": "计费倍率",
       "multiplierDesc": "用户扣除倍率",
       "resetDay": "每月重置日",
-      "resetDayDesc": "1 - 28 日",
+      "resetDayDesc": "1 - 31 日，小月自动在月末重置",
+      "resetDayValue": "每月 {{day}} 日",
+      "resetDayHint": "当月不足该天数时（如 2 月或小月），将在当月最后一天自动重置",
       "remark": "备注",
       "remarkPlaceholder": "机房线路、到期日等说明（选填）",
       "enabled": "启用节点",
@@ -176,7 +178,7 @@
         "trafficMin": "流量上限不能为负数",
         "multiplierMin": "倍率至少 0.1",
         "multiplierMax": "倍率过高",
-        "resetDayRange": "范围 1-28"
+        "resetDayRange": "范围 1-31"
       }
     },
     "install": {
@@ -434,11 +436,12 @@
       "trafficLimitDesc": "0 表示不限流量",
       "template": "Mihomo 订阅模板",
       "templateDefault": "跟随系统默认模板",
-      "expireDate": "到期日期（留空表示永不过期）",
+      "expireDate": "到期日期",
       "plus30d": "+30天",
       "plus90d": "+90天",
       "plus1y": "+1年",
       "permanent": "永久",
+      "permanentPlaceholder": "永久（永不过期）",
       "authorizedNodes": "授权可用节点 ({{count}})",
       "noNodesHint": "暂无节点，请先在「节点管理」创建",
       "nodeInboundCount": "{{host}} · {{count}} 协议",
@@ -549,12 +552,11 @@
   },
   "settings": {
     "title": "系统设置",
-    "description": "按模块管理 Hub 外部地址、订阅路由、节点部署镜像、账号安全与界面偏好",
+    "description": "按模块管理 Hub 外部地址、订阅路由、节点部署镜像与账号安全",
     "tabs": {
       "general": "常规与订阅",
       "deployment": "节点与证书",
-      "security": "账号与安全",
-      "appearance": "外观与语言"
+      "security": "账号与安全"
     },
     "generalCardTitle": "Hub 访问与订阅路由",
     "generalCardDesc": "配置外部公网访问域名与客户端订阅路径前缀，修改后立即生效",
@@ -590,15 +592,6 @@
     "pwStrengthStrong": "密码强度：强",
     "updatePassword": "更新密码",
     "toastPwUpdated": "管理员密码已修改",
-    "appearanceCardTitle": "界面主题与语言",
-    "appearanceCardDesc": "自定义控制台外观模式与显示语言，设置自动保存在当前浏览器",
-    "themeSectionTitle": "色彩主题",
-    "themeLightDesc": "明亮清爽的日间工作界面",
-    "themeDarkDesc": "低眩光深色夜间界面",
-    "themeSystemDesc": "自动跟随操作系统深浅色设置",
-    "langSectionTitle": "显示语言",
-    "langZhDesc": "简体中文界面与提示信息",
-    "langEnDesc": "English interface and notifications",
     "validation": {
       "subPathInvalid": "仅允许字母、数字、._-/，且不能使用系统保留路径",
       "agentImageRequired": "请输入 Agent Docker 镜像名称",
