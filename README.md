@@ -113,4 +113,4 @@ MIHOB_HUB_URL="https://hub.example.com" MIHOB_NODE_TOKEN="<token>" \
 
 ## 开源许可证
 
-本项目采用 [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) 开源许可证。
+本项目采用 [AGPL-3.0](LICENSE) 开源许可证。

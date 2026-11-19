@@ -113,4 +113,4 @@ MIHOB_HUB_URL="https://hub.example.com" MIHOB_NODE_TOKEN="<token>" \
 
 ## License
 
-Licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
+Licensed under [AGPL-3.0](LICENSE).
