@@ -1,0 +1,188 @@
+import i18n from "./i18n"
+import type {
+  Admin,
+  Certificate,
+  DashboardData,
+  Inbound,
+  InstallCommands,
+  Node,
+  PublicSubInfo,
+  SystemSettings,
+  Template,
+  User,
+} from "./types"
+
+const TOKEN_KEY = "mihob_admin_token"
+
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setStoredToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
+
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit, options?: { public?: boolean }): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (!headers.has("Content-Type") && init?.body) {
+    headers.set("Content-Type", "application/json")
+  }
+  if (!options?.public) {
+    const token = getStoredToken()
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`)
+    }
+  }
+
+  const res = await fetch(path, { ...init, headers })
+  if (res.status === 401 && !options?.public) {
+    setStoredToken(null)
+    window.dispatchEvent(new Event("mihob:unauthorized"))
+  }
+  const text = await res.text()
+  let data: unknown = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+  if (!res.ok) {
+    const msg =
+      typeof data === "object" && data && "error" in data
+        ? String((data as { error: unknown }).error)
+        : i18n.t("common.requestFailed", { status: res.status })
+    throw new ApiError(res.status, msg)
+  }
+  return data as T
+}
+
+export const queryKeys = {
+  me: ["auth", "me"] as const,
+  dashboard: ["dashboard"] as const,
+  nodes: ["nodes"] as const,
+  nodeInstall: (id: number) => ["nodes", id, "install"] as const,
+  inbounds: (nodeId: number) => ["nodes", nodeId, "inbounds"] as const,
+  certificates: ["certificates"] as const,
+  users: ["users"] as const,
+  templates: ["templates"] as const,
+  settings: ["settings"] as const,
+  publicSub: (path: string) => ["public", "sub", path] as const,
+}
+
+export const api = {
+  login: (body: { username: string; password: string }) =>
+    request<{ token: string; admin: Admin }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  me: () => request<Admin>("/api/auth/me"),
+  changePassword: (body: { old_password: string; new_password: string }) =>
+    request<{ status: string }>("/api/auth/password", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  dashboard: () => request<DashboardData>("/api/dashboard"),
+
+  // Nodes
+  listNodes: () => request<Node[]>("/api/nodes"),
+  createNode: (body: Record<string, unknown>) =>
+    request<Node>("/api/nodes", { method: "POST", body: JSON.stringify(body) }),
+  updateNode: (id: number, body: Record<string, unknown>) =>
+    request<Node>(`/api/nodes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteNode: (id: number) =>
+    request<{ status: string }>(`/api/nodes/${id}`, { method: "DELETE" }),
+  resetNodeTraffic: (id: number) =>
+    request<{ status: string }>(`/api/nodes/${id}/reset-traffic`, { method: "POST" }),
+  regenerateNodeToken: (id: number) =>
+    request<{ token: string }>(`/api/nodes/${id}/regenerate-token`, { method: "POST" }),
+  pushNodeConfig: (id: number) =>
+    request<{ status: string }>(`/api/nodes/${id}/push-config`, { method: "POST" }),
+  restartNode: (id: number) =>
+    request<{ status: string }>(`/api/nodes/${id}/restart`, { method: "POST" }),
+  getNodeInstall: (id: number) => request<InstallCommands>(`/api/nodes/${id}/install`),
+
+  // Inbounds
+  listInbounds: (nodeId: number) => request<Inbound[]>(`/api/nodes/${nodeId}/inbounds`),
+  createInbound: (nodeId: number, body: Record<string, unknown>) =>
+    request<Inbound>(`/api/nodes/${nodeId}/inbounds`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateInbound: (id: number, body: Record<string, unknown>) =>
+    request<Inbound>(`/api/inbounds/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteInbound: (id: number) =>
+    request<{ status: string }>(`/api/inbounds/${id}`, { method: "DELETE" }),
+  keygen: (type: "reality" | "ss2022_128" | "ss2022_256" | "short_id" | "password") =>
+    request<Record<string, string>>("/api/tools/keygen", {
+      method: "POST",
+      body: JSON.stringify({ type }),
+    }),
+
+  // Certificates
+  listCertificates: () => request<Certificate[]>("/api/certificates"),
+  createCertificate: (body: Record<string, unknown>) =>
+    request<Certificate>("/api/certificates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  renewCertificate: (id: number) =>
+    request<Certificate>(`/api/certificates/${id}/renew`, { method: "POST" }),
+  deleteCertificate: (id: number) =>
+    request<{ status: string }>(`/api/certificates/${id}`, { method: "DELETE" }),
+
+  // Users
+  listUsers: () => request<User[]>("/api/users"),
+  createUser: (body: Record<string, unknown>) =>
+    request<User>("/api/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (id: number, body: Record<string, unknown>) =>
+    request<User>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteUser: (id: number) =>
+    request<{ status: string }>(`/api/users/${id}`, { method: "DELETE" }),
+  resetUserTraffic: (id: number) =>
+    request<{ status: string }>(`/api/users/${id}/reset-traffic`, { method: "POST" }),
+  rotateUserToken: (id: number) =>
+    request<{ sub_token: string }>(`/api/users/${id}/rotate-token`, { method: "POST" }),
+
+  // Templates
+  listTemplates: () => request<Template[]>("/api/templates"),
+  createTemplate: (body: Record<string, unknown>) =>
+    request<Template>("/api/templates", { method: "POST", body: JSON.stringify(body) }),
+  updateTemplate: (id: number, body: Record<string, unknown>) =>
+    request<Template>(`/api/templates/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteTemplate: (id: number) =>
+    request<{ status: string }>(`/api/templates/${id}`, { method: "DELETE" }),
+  previewTemplate: (body: { user_id: number; template_id?: number | null; content?: string }) =>
+    request<{ yaml: string }>("/api/templates/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // Settings
+  getSettings: () => request<SystemSettings>("/api/settings"),
+  updateSettings: (body: SystemSettings) =>
+    request<SystemSettings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
+
+  // Public Subscription Info
+  getPublicSub: (path: string) =>
+    request<PublicSubInfo>(`/api/public/sub?path=${encodeURIComponent(path)}`, undefined, {
+      public: true,
+    }),
+}

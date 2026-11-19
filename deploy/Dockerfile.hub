@@ -1,0 +1,31 @@
+# Stage 1: Build React + Tailwind v4 frontend
+FROM node:24-alpine AS web-builder
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /src/web
+COPY web/package.json web/pnpm-workspace.yaml web/pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile || pnpm install
+COPY web/ ./
+RUN pnpm build
+
+# Stage 2: Build Go static binary with embedded frontend
+FROM golang:alpine AS go-builder
+ARG VERSION=0.1.0
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY web/embed.go ./web/embed.go
+COPY --from=web-builder /src/web/dist ./web/dist
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
+
+# Stage 3: Minimal runtime image
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
+COPY --from=go-builder /out/mihob /usr/local/bin/mihob
+ENV MIHOB_LISTEN=:8080 \
+    MIHOB_DATA_DIR=/data
+VOLUME ["/data"]
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/mihob", "hub"]

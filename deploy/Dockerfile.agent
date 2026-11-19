@@ -1,0 +1,24 @@
+# Stage 1: Official multi-arch mihomo binary
+FROM metacubex/mihomo:latest AS mihomo-src
+
+# Stage 2: Build Go agent binary
+FROM golang:alpine AS go-builder
+ARG VERSION=0.1.0
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY web/embed.go ./web/embed.go
+RUN mkdir -p ./web/dist && touch ./web/dist/.keep
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob ./cmd/mihob
+
+# Stage 3: All-in-one Agent + Mihomo runtime image
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata
+COPY --from=mihomo-src /mihomo /usr/local/bin/mihomo
+COPY --from=go-builder /out/mihob /usr/local/bin/mihob
+ENV MIHOB_DATA_DIR=/data \
+    MIHOB_MIHOMO_BIN=/usr/local/bin/mihomo
+VOLUME ["/data"]
+ENTRYPOINT ["/usr/local/bin/mihob", "agent"]

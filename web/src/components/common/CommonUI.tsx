@@ -1,0 +1,251 @@
+import { useState, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
+import { AlertTriangle, Check, Copy, Loader2, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { formatBytes } from "@/lib/format"
+import { cn } from "@/lib/utils"
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string
+  description?: string
+  actions?: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
+  )
+}
+
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  action?: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center",
+        className
+      )}
+    >
+      <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        {icon}
+      </div>
+      <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  )
+}
+
+export function ErrorState({
+  message,
+  onRetry,
+}: {
+  message?: string
+  onRetry?: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
+      <AlertTriangle className="mb-2 size-6 text-destructive" />
+      <p className="text-sm font-medium text-foreground">{t("common.loadFailed")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {message || t("common.loadFailedDesc")}
+      </p>
+      {onRetry && (
+        <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+          <RefreshCw className="mr-1.5 size-3.5" />
+          {t("common.retry")}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+export function CopyButton({
+  value,
+  label,
+  size = "icon-sm",
+  variant = "ghost",
+}: {
+  value: string
+  label?: string
+  size?: "icon" | "icon-sm" | "sm" | "default"
+  variant?: "ghost" | "outline" | "secondary"
+}) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  const resolvedLabel = label ?? t("common.copy")
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      toast.success(t("common.copySuccess"))
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      toast.error(t("common.copyError"))
+    }
+  }
+
+  const isIconOnly = size === "icon" || size === "icon-sm"
+  const btn = (
+    <Button
+      type="button"
+      variant={variant}
+      size={size === "icon-sm" ? "icon" : size}
+      className={cn(size === "icon-sm" && "size-7")}
+      onClick={handleCopy}
+      aria-label={resolvedLabel}
+    >
+      {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+      {!isIconOnly && <span className="ml-1.5">{copied ? t("common.copied") : resolvedLabel}</span>}
+    </Button>
+  )
+
+  if (!isIconOnly) return btn
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipContent>{copied ? t("common.copied") : resolvedLabel}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function TrafficProgress({
+  used,
+  limit,
+  className,
+}: {
+  used: number
+  limit: number
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const unlimited = !limit || limit <= 0
+  const ratio = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100))
+  const barColor =
+    ratio >= 100
+      ? "bg-destructive"
+      : ratio >= 80
+        ? "bg-warning"
+        : "bg-primary"
+
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <div className="flex items-center justify-between gap-2 text-xs tabular-nums">
+        <span className="font-medium text-foreground">{formatBytes(used)}</span>
+        <span className="text-muted-foreground">
+          {unlimited ? t("common.unlimited") : `/ ${formatBytes(limit)} (${ratio}%)`}
+        </span>
+      </div>
+      {!unlimited && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full rounded-full transition-all duration-200", barColor)}
+            style={{ width: `${ratio}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ConfirmDeleteDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmName,
+  confirmLabel,
+  loading,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: string
+  confirmName?: string
+  confirmLabel?: string
+  loading?: boolean
+  onConfirm: () => void
+}) {
+  const { t } = useTranslation()
+  const [typed, setTyped] = useState("")
+  const canSubmit = !confirmName || typed.trim() === confirmName
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setTyped("")
+    onOpenChange(next)
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {confirmName && (
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="confirm-target-name" className="text-xs text-muted-foreground">
+              {t("common.confirmTypePrefix")}{" "}
+              <span className="font-mono font-semibold text-foreground">{confirmName}</span>{" "}
+              {t("common.confirmTypeSuffix")}
+            </Label>
+            <Input
+              id="confirm-target-name"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={confirmName}
+              autoComplete="off"
+            />
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>{t("common.cancel")}</AlertDialogCancel>
+          <Button
+            variant="destructive"
+            disabled={!canSubmit || loading}
+            onClick={onConfirm}
+          >
+            {loading && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+            {confirmLabel ?? t("common.confirmDelete")}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}

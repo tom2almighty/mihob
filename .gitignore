@@ -1,0 +1,21 @@
+# Go build artifacts
+/mihob
+/mihob.exe
+/bin/
+/data/
+/agent-data/
+*.db
+*.db-shm
+*.db-wal
+
+# Frontend
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# Environment & IDE
+.env
+.env.local
+.vscode/
+.idea/
+*.log

@@ -1,0 +1,15 @@
+services:
+  mihob-agent:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.agent
+    container_name: mihob-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      MIHOB_HUB_URL: "${MIHOB_HUB_URL:?Set MIHOB_HUB_URL}"
+      MIHOB_NODE_TOKEN: "${MIHOB_NODE_TOKEN:?Set MIHOB_NODE_TOKEN}"
+      MIHOB_DATA_DIR: "/data"
+      TZ: "Asia/Shanghai"
+    volumes:
+      - ./agent-data:/data
