@@ -74,16 +74,7 @@ func (s *Scheduler) tickExpirationAndResets() {
 	nodes, err := s.store.ListNodes()
 	if err == nil {
 		for _, n := range nodes {
-			if n.ResetDay < 1 || n.ResetDay > 28 {
-				continue
-			}
-			if now.Day() != n.ResetDay {
-				continue
-			}
-			if n.LastResetAt != nil &&
-				n.LastResetAt.UTC().Year() == now.Year() &&
-				n.LastResetAt.UTC().Month() == now.Month() &&
-				n.LastResetAt.UTC().Day() == now.Day() {
+			if !shouldResetNodeTraffic(n.ResetDay, n.LastResetAt, now) {
 				continue
 			}
 			wasExceeded := n.IsQuotaExceeded()
@@ -95,6 +86,30 @@ func (s *Scheduler) tickExpirationAndResets() {
 			}
 		}
 	}
+}
+
+func daysInMonth(year int, month time.Month) int {
+	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func shouldResetNodeTraffic(resetDay int, lastResetAt *time.Time, now time.Time) bool {
+	if resetDay < 1 || resetDay > 31 {
+		return false
+	}
+	nowUTC := now.UTC()
+	effectiveDay := min(resetDay, daysInMonth(nowUTC.Year(), nowUTC.Month()))
+	if nowUTC.Day() != effectiveDay {
+		return false
+	}
+	if lastResetAt != nil {
+		lastUTC := lastResetAt.UTC()
+		if lastUTC.Year() == nowUTC.Year() &&
+			lastUTC.Month() == nowUTC.Month() &&
+			lastUTC.Day() == nowUTC.Day() {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Scheduler) tickACMERenew() {

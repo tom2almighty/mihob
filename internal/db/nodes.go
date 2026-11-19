@@ -78,7 +78,7 @@ func (s *Store) CreateNode(n *model.Node) error {
 	if n.TrafficMultiplier <= 0 {
 		n.TrafficMultiplier = 1.0
 	}
-	if n.ResetDay < 1 || n.ResetDay > 28 {
+	if n.ResetDay < 1 || n.ResetDay > 31 {
 		n.ResetDay = 1
 	}
 	res, err := s.db.Exec(
@@ -101,7 +101,7 @@ func (s *Store) UpdateNode(n *model.Node) error {
 	if n.TrafficMultiplier <= 0 {
 		n.TrafficMultiplier = 1.0
 	}
-	if n.ResetDay < 1 || n.ResetDay > 28 {
+	if n.ResetDay < 1 || n.ResetDay > 31 {
 		n.ResetDay = 1
 	}
 	now := time.Now().UTC()

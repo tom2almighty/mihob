@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2 } from "lucide-react"
+import { CalendarIcon, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,11 +25,15 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
 import type { Node } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+const RESET_DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
 
 type NodeFormValues = {
   name: string
@@ -55,6 +59,7 @@ export function NodeFormDialog({
   const qc = useQueryClient()
   const isEdit = Boolean(node)
   const [activeTab, setActiveTab] = useState<"basic" | "traffic">("basic")
+  const [resetDayOpen, setResetDayOpen] = useState(false)
 
   const nodeSchema = useMemo(
     () =>
@@ -71,7 +76,7 @@ export function NodeFormDialog({
           .number()
           .int()
           .min(1, t("nodes.form.validation.resetDayRange"))
-          .max(28, t("nodes.form.validation.resetDayRange")),
+          .max(31, t("nodes.form.validation.resetDayRange")),
         enabled: z.boolean(),
         remark: z.string().trim().optional(),
       }),
@@ -301,9 +306,50 @@ export function NodeFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t("nodes.form.resetDay")}</FormLabel>
-                          <FormControl>
-                            <Input type="number" min="1" max="28" className="tabular-nums" {...field} />
-                          </FormControl>
+                          <Popover open={resetDayOpen} onOpenChange={setResetDayOpen} modal>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full justify-start font-normal tabular-nums"
+                                >
+                                  <CalendarIcon className="mr-2 size-4 shrink-0 text-muted-foreground" />
+                                  <span>
+                                    {t("nodes.form.resetDayValue", { day: field.value || 1 })}
+                                  </span>
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-3" align="start">
+                              <div className="grid grid-cols-7 gap-1">
+                                {RESET_DAYS.map((day) => {
+                                  const selected = Number(field.value) === day
+                                  return (
+                                    <Button
+                                      key={day}
+                                      type="button"
+                                      variant={selected ? "default" : "ghost"}
+                                      size="sm"
+                                      className={cn(
+                                        "size-8 p-0 text-xs font-normal tabular-nums",
+                                        selected && "font-medium"
+                                      )}
+                                      onClick={() => {
+                                        field.onChange(day)
+                                        setResetDayOpen(false)
+                                      }}
+                                    >
+                                      {day}
+                                    </Button>
+                                  )
+                                })}
+                              </div>
+                              <p className="mt-2.5 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
+                                {t("nodes.form.resetDayHint")}
+                              </p>
+                            </PopoverContent>
+                          </Popover>
                           <FormDescription>{t("nodes.form.resetDayDesc")}</FormDescription>
                           <FormMessage />
                         </FormItem>
