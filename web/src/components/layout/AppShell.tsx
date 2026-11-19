@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { NavLink, useLocation, useMatch } from "react-router-dom"
+import { NavLink, useLocation, useMatch, useNavigate } from "react-router-dom"
 import {
   Check,
   FileCode2,
@@ -207,6 +207,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   })
   const { admin, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -323,6 +324,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                   {t("nav.adminAccount")}
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/settings")}>
+                  <Settings className="mr-2 size-4" />
+                  {t("nav.settings")}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                   <LogOut className="mr-2 size-4" />

@@ -1,8 +1,6 @@
 services:
   mihob-agent:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.agent
+    image: ghcr.io/tom2almighty/mihob-agent:latest
     container_name: mihob-agent
     restart: unless-stopped
     network_mode: host

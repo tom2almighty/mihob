@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, Network } from "lucide-react"
+import { Eye, EyeOff, Loader2, Network } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import { LanguageSwitcher, ThemeSwitcher } from "@/components/layout/AppShell"
@@ -31,6 +31,7 @@ export function LoginPage() {
   const { loginSuccess } = useAuth()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const loginSchema = useMemo(
     () =>
@@ -61,13 +62,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="absolute top-4 right-4 flex items-center gap-1">
         <LanguageSwitcher />
         <ThemeSwitcher />
       </div>
 
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm shadow-sm">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Network className="size-5" />
@@ -100,12 +101,31 @@ export function LoginPage() {
                   <FormItem>
                     <FormLabel>{t("login.password")}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder={t("login.passwordPlaceholder")}
-                        autoComplete="current-password"
-                        {...field}
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder={t("login.passwordPlaceholder")}
+                          autoComplete="current-password"
+                          className="pr-9"
+                          {...field}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPassword((v) => !v)}
+                          aria-label={
+                            showPassword ? t("common.hidePassword") : t("common.showPassword")
+                          }
+                        >
+                          {showPassword ? (
+                            <EyeOff className="size-3.5" />
+                          ) : (
+                            <Eye className="size-3.5" />
+                          )}
+                        </Button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

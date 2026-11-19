@@ -7,10 +7,12 @@ import {
   Plus,
   Radio,
   RotateCcw,
+  Search,
   Send,
   Server,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -51,6 +53,7 @@ export function NodesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
   const [formOpen, setFormOpen] = useState(false)
   const [editingNode, setEditingNode] = useState<Node | null>(null)
   const [installNodeId, setInstallNodeId] = useState<number | null>(null)
@@ -101,7 +104,13 @@ export function NodesPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const filtered = (query.data ?? []).filter((n) => {
+  const allNodes = query.data ?? []
+  const onlineCount = allNodes.filter((n) => n.online).length
+  const offlineCount = allNodes.length - onlineCount
+
+  const filtered = allNodes.filter((n) => {
+    if (statusFilter === "online" && !n.online) return false
+    if (statusFilter === "offline" && n.online) return false
     const q = search.trim().toLowerCase()
     if (!q) return true
     return (
@@ -110,6 +119,8 @@ export function NodesPage() {
       n.region.toLowerCase().includes(q)
     )
   })
+
+  const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
 
   return (
     <div className="space-y-6">
@@ -130,18 +141,50 @@ export function NodesPage() {
         }
       />
 
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder={t("nodes.searchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        {search && (
-          <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
-            {t("common.reset")}
-          </Button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={t("nodes.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-8 pl-9"
+          />
+          {search && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearch("")}
+              aria-label={t("common.clearSearch")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {(
+            [
+              { key: "all", label: t("nodes.filterAll"), count: allNodes.length },
+              { key: "online", label: t("nodes.online"), count: onlineCount },
+              { key: "offline", label: t("nodes.offline"), count: offlineCount },
+            ] as const
+          ).map((item) => (
+            <Button
+              key={item.key}
+              type="button"
+              variant={statusFilter === item.key ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setStatusFilter(item.key)}
+            >
+              <span>{item.label}</span>
+              <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
+            </Button>
+          ))}
+        </div>
       </div>
 
       {query.isError ? (
@@ -155,10 +198,10 @@ export function NodesPage() {
       ) : !filtered.length ? (
         <EmptyState
           icon={<Server className="size-5" />}
-          title={search ? t("nodes.emptySearchTitle") : t("nodes.emptyTitle")}
-          description={search ? t("nodes.emptySearchDesc") : t("nodes.emptyDesc")}
+          title={hasActiveFilter ? t("nodes.emptySearchTitle") : t("nodes.emptyTitle")}
+          description={hasActiveFilter ? t("nodes.emptySearchDesc") : t("nodes.emptyDesc")}
           action={
-            !search && (
+            !hasActiveFilter && (
               <Button
                 size="sm"
                 onClick={() => {

@@ -1,8 +1,6 @@
 services:
   mihob-hub:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.hub
+    image: ghcr.io/tom2almighty/mihob-hub:latest
     container_name: mihob-hub
     restart: unless-stopped
     ports:

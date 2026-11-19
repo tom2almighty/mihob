@@ -1,14 +1,36 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2 } from "lucide-react"
+import {
+  Check,
+  Container,
+  Eye,
+  EyeOff,
+  Globe,
+  Languages,
+  Loader2,
+  Monitor,
+  Moon,
+  Palette,
+  RotateCcw,
+  ShieldCheck,
+  Sun,
+} from "lucide-react"
 import { toast } from "sonner"
-import { ErrorState, PageHeader } from "@/components/common/CommonUI"
+import { CopyButton, ErrorState, PageHeader } from "@/components/common/CommonUI"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Form,
   FormControl,
@@ -19,8 +41,16 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
+import { normalizeLanguage, type SupportedLanguage } from "@/lib/i18n"
+import { useTheme } from "@/lib/theme"
+import { cn } from "@/lib/utils"
+
+const DEFAULT_AGENT_IMAGE = "ghcr.io/tom2almighty/mihob-agent:latest"
 
 const RESERVED_SUB_SEGMENTS = new Set([
   "api",
@@ -47,6 +77,15 @@ function isValidSubPath(raw: string): boolean {
   return true
 }
 
+function getPasswordStrength(pw: string): 0 | 1 | 2 | 3 {
+  if (!pw) return 0
+  let score = 0
+  if (pw.length >= 6) score++
+  if (pw.length >= 10 && /[a-zA-Z]/.test(pw) && /\d/.test(pw)) score++
+  if (pw.length >= 12 && /[^a-zA-Z0-9]/.test(pw)) score++
+  return Math.max(1, Math.min(3, score)) as 1 | 2 | 3
+}
+
 type SystemFormValues = {
   hub_public_url?: string
   sub_path: string
@@ -60,9 +99,19 @@ type PasswordFormValues = {
   confirm_password: string
 }
 
+type SettingsTab = "general" | "deployment" | "security" | "appearance"
+
 export function SettingsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
+  const { admin } = useAuth()
+  const { theme, setTheme } = useTheme()
+  const currentLang = normalizeLanguage(i18n.resolvedLanguage || i18n.language)
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general")
+  const [showOldPw, setShowOldPw] = useState(false)
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
 
   const systemSchema = useMemo(
     () =>
@@ -104,7 +153,7 @@ export function SettingsPage() {
       hub_public_url: "",
       sub_path: "sub",
       acme_email: "",
-      agent_image: "ghcr.io/tom2almighty/mihob-agent:latest",
+      agent_image: DEFAULT_AGENT_IMAGE,
     },
   })
 
@@ -123,7 +172,7 @@ export function SettingsPage() {
         hub_public_url: query.data.hub_public_url || "",
         sub_path: query.data.sub_path || "sub",
         acme_email: query.data.acme_email || "",
-        agent_image: query.data.agent_image || "ghcr.io/tom2almighty/mihob-agent:latest",
+        agent_image: query.data.agent_image || DEFAULT_AGENT_IMAGE,
       })
     }
   }, [query.data, sysForm])
@@ -154,171 +203,596 @@ export function SettingsPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const handleSysInvalid = (errors: Record<string, unknown>) => {
+    if (errors.hub_public_url || errors.sub_path) {
+      setActiveTab("general")
+    } else if (errors.agent_image || errors.acme_email) {
+      setActiveTab("deployment")
+    }
+  }
+
   const watchedPublicUrl = sysForm.watch("hub_public_url")
   const watchedSubPath = sysForm.watch("sub_path")
+  const watchedNewPw = pwForm.watch("new_password")
+  const pwStrength = getPasswordStrength(watchedNewPw || "")
+
   const previewBase = (watchedPublicUrl?.trim() || window.location.origin).replace(/\/+$/, "")
   const previewSubPath = watchedSubPath?.trim().replace(/^\/+|\/+$/g, "") || "sub"
   const subUrlPreview = `${previewBase}/${previewSubPath}/{token}`
+
+  const isSysDirty = sysForm.formState.isDirty
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("settings.title")} description={t("settings.description")} />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("settings.hubCardTitle")}</CardTitle>
-            <CardDescription>{t("settings.hubCardDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {query.isError ? (
-              <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
-            ) : query.isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as SettingsTab)}
+        className="max-w-3xl space-y-5"
+      >
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+          <TabsTrigger value="general" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <Globe className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.general")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="deployment" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <Container className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.deployment")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <ShieldCheck className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.security")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <Palette className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.appearance")}</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* System Settings Form wraps both 'general' and 'deployment' tabs */}
+        <Form {...sysForm}>
+          <form
+            id="system-settings-form"
+            onSubmit={sysForm.handleSubmit((v) => saveSysMutation.mutate(v), handleSysInvalid)}
+          >
+            <TabsContent
+              value="general"
+              forceMount
+              className="mt-0 data-[state=inactive]:hidden"
+            >
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <CardTitle className="text-base">{t("settings.generalCardTitle")}</CardTitle>
+                      <CardDescription>{t("settings.generalCardDesc")}</CardDescription>
+                    </div>
+                    {isSysDirty && (
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        {t("settings.unsavedChanges")}
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {query.isError ? (
+                    <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
+                  ) : query.isLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <>
+                      <FormField
+                        control={sysForm.control}
+                        name="hub_public_url"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between gap-2">
+                              <FormLabel>{t("settings.hubPublicUrl")}</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() =>
+                                  sysForm.setValue("hub_public_url", window.location.origin, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              >
+                                {t("settings.useCurrentOrigin")}
+                              </Button>
+                            </div>
+                            <FormControl>
+                              <Input
+                                placeholder="https://hub.example.com"
+                                className="font-mono text-xs sm:text-sm"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>{t("settings.hubPublicUrlDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Separator />
+
+                      <FormField
+                        control={sysForm.control}
+                        name="sub_path"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("settings.subPath")}</FormLabel>
+                            <FormControl>
+                              <Input placeholder="sub" className="font-mono text-xs sm:text-sm" {...field} />
+                            </FormControl>
+                            <FormDescription>{t("settings.subPathDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="rounded-lg border border-border bg-muted/35 p-3.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {t("settings.subPreviewLabel")}
+                          </span>
+                          <CopyButton value={subUrlPreview} size="icon-sm" />
+                        </div>
+                        <p className="break-all font-mono text-xs text-foreground">{subUrlPreview}</p>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+                {!query.isLoading && !query.isError && (
+                  <CardFooter className="flex items-center justify-end gap-2 border-t border-border pt-4">
+                    {isSysDirty && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => sysForm.reset()}
+                        disabled={saveSysMutation.isPending}
+                      >
+                        <RotateCcw className="mr-1.5 size-3.5" />
+                        {t("settings.discardChanges")}
+                      </Button>
+                    )}
+                    <Button type="submit" size="sm" disabled={saveSysMutation.isPending}>
+                      {saveSysMutation.isPending && (
+                        <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      )}
+                      {t("settings.saveSettings")}
+                    </Button>
+                  </CardFooter>
+                )}
+              </Card>
+            </TabsContent>
+
+            <TabsContent
+              value="deployment"
+              forceMount
+              className="mt-0 data-[state=inactive]:hidden"
+            >
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <CardTitle className="text-base">{t("settings.deployCardTitle")}</CardTitle>
+                      <CardDescription>{t("settings.deployCardDesc")}</CardDescription>
+                    </div>
+                    {isSysDirty && (
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        {t("settings.unsavedChanges")}
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {query.isError ? (
+                    <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
+                  ) : query.isLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <>
+                      <FormField
+                        control={sysForm.control}
+                        name="agent_image"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between gap-2">
+                              <FormLabel>{t("settings.agentImage")}</FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() =>
+                                  sysForm.setValue("agent_image", DEFAULT_AGENT_IMAGE, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              >
+                                {t("settings.useDefaultImage")}
+                              </Button>
+                            </div>
+                            <FormControl>
+                              <Input className="font-mono text-xs sm:text-sm" {...field} />
+                            </FormControl>
+                            <FormDescription>{t("settings.agentImageDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Separator />
+
+                      <FormField
+                        control={sysForm.control}
+                        name="acme_email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("settings.acmeEmail")}</FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="ops@example.com" {...field} />
+                            </FormControl>
+                            <FormDescription>{t("settings.acmeEmailDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                </CardContent>
+                {!query.isLoading && !query.isError && (
+                  <CardFooter className="flex items-center justify-end gap-2 border-t border-border pt-4">
+                    {isSysDirty && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => sysForm.reset()}
+                        disabled={saveSysMutation.isPending}
+                      >
+                        <RotateCcw className="mr-1.5 size-3.5" />
+                        {t("settings.discardChanges")}
+                      </Button>
+                    )}
+                    <Button type="submit" size="sm" disabled={saveSysMutation.isPending}>
+                      {saveSysMutation.isPending && (
+                        <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      )}
+                      {t("settings.saveSettings")}
+                    </Button>
+                  </CardFooter>
+                )}
+              </Card>
+            </TabsContent>
+          </form>
+        </Form>
+
+        {/* Security & Password Tab */}
+        <TabsContent value="security" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("settings.pwCardTitle")}</CardTitle>
+              <CardDescription>{t("settings.pwCardDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/35 p-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                    {(admin?.username || "A").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">
+                      {t("settings.currentAccountLabel")}
+                    </div>
+                    <div className="font-mono text-sm font-medium text-foreground">
+                      {admin?.username || "admin"}
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs font-normal">
+                  {t("settings.adminRoleBadge")}
+                </Badge>
               </div>
-            ) : (
-              <Form {...sysForm}>
+
+              <Form {...pwForm}>
                 <form
-                  onSubmit={sysForm.handleSubmit((v) => saveSysMutation.mutate(v))}
+                  id="password-settings-form"
+                  onSubmit={pwForm.handleSubmit((v) => pwMutation.mutate(v))}
                   className="space-y-4"
                 >
                   <FormField
-                    control={sysForm.control}
-                    name="hub_public_url"
+                    control={pwForm.control}
+                    name="old_password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t("settings.hubPublicUrl")}</FormLabel>
+                        <FormLabel>{t("settings.oldPassword")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="https://hub.example.com" {...field} />
+                          <div className="relative">
+                            <Input
+                              type={showOldPw ? "text" : "password"}
+                              autoComplete="current-password"
+                              className="pr-9"
+                              {...field}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowOldPw((v) => !v)}
+                              aria-label={
+                                showOldPw ? t("common.hidePassword") : t("common.showPassword")
+                              }
+                            >
+                              {showOldPw ? (
+                                <EyeOff className="size-3.5" />
+                              ) : (
+                                <Eye className="size-3.5" />
+                              )}
+                            </Button>
+                          </div>
                         </FormControl>
-                        <FormDescription>{t("settings.hubPublicUrlDesc")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <FormField
-                    control={sysForm.control}
-                    name="sub_path"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("settings.subPath")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="sub" className="font-mono text-xs" {...field} />
-                        </FormControl>
-                        <FormDescription className="space-y-1">
-                          <span className="block">{t("settings.subPathDesc")}</span>
-                          <span className="block truncate font-mono text-xs text-foreground/80">
-                            {t("settings.subPathPreview", { url: subUrlPreview })}
-                          </span>
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={pwForm.control}
+                      name="new_password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("settings.newPassword")}</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type={showNewPw ? "text" : "password"}
+                                autoComplete="new-password"
+                                className="pr-9"
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowNewPw((v) => !v)}
+                                aria-label={
+                                  showNewPw ? t("common.hidePassword") : t("common.showPassword")
+                                }
+                              >
+                                {showNewPw ? (
+                                  <EyeOff className="size-3.5" />
+                                ) : (
+                                  <Eye className="size-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={sysForm.control}
-                    name="acme_email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("settings.acmeEmail")}</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="ops@example.com" {...field} />
-                        </FormControl>
-                        <FormDescription>{t("settings.acmeEmailDesc")}</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={pwForm.control}
+                      name="confirm_password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("settings.confirmPassword")}</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type={showConfirmPw ? "text" : "password"}
+                                autoComplete="new-password"
+                                className="pr-9"
+                                {...field}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setShowConfirmPw((v) => !v)}
+                                aria-label={
+                                  showConfirmPw
+                                    ? t("common.hidePassword")
+                                    : t("common.showPassword")
+                                }
+                              >
+                                {showConfirmPw ? (
+                                  <EyeOff className="size-3.5" />
+                                ) : (
+                                  <Eye className="size-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                  <FormField
-                    control={sysForm.control}
-                    name="agent_image"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("settings.agentImage")}</FormLabel>
-                        <FormControl>
-                          <Input className="font-mono text-xs" {...field} />
-                        </FormControl>
-                        <FormDescription>{t("settings.agentImageDesc")}</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button type="submit" disabled={saveSysMutation.isPending}>
-                    {saveSysMutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-                    {t("settings.saveSettings")}
-                  </Button>
+                  {pwStrength > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[1, 2, 3].map((step) => (
+                          <div
+                            key={step}
+                            className={cn(
+                              "h-1.5 rounded-full transition-colors",
+                              pwStrength >= step
+                                ? pwStrength === 1
+                                  ? "bg-destructive"
+                                  : pwStrength === 2
+                                    ? "bg-warning"
+                                    : "bg-success"
+                                : "bg-muted"
+                            )}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {pwStrength === 1
+                          ? t("settings.pwStrengthWeak")
+                          : pwStrength === 2
+                            ? t("settings.pwStrengthMedium")
+                            : t("settings.pwStrengthStrong")}
+                      </p>
+                    </div>
+                  )}
                 </form>
               </Form>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("settings.pwCardTitle")}</CardTitle>
-            <CardDescription>{t("settings.pwCardDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...pwForm}>
-              <form
-                onSubmit={pwForm.handleSubmit((v) => pwMutation.mutate(v))}
-                className="space-y-4"
+            </CardContent>
+            <CardFooter className="flex items-center justify-end border-t border-border pt-4">
+              <Button
+                type="submit"
+                form="password-settings-form"
+                size="sm"
+                disabled={pwMutation.isPending}
               >
-                <FormField
-                  control={pwForm.control}
-                  name="old_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("settings.oldPassword")}</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="current-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={pwForm.control}
-                  name="new_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("settings.newPassword")}</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={pwForm.control}
-                  name="confirm_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("settings.confirmPassword")}</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" disabled={pwMutation.isPending}>
-                  {pwMutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-                  {t("settings.updatePassword")}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
+                {pwMutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                {t("settings.updatePassword")}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* Appearance & Language Tab */}
+        <TabsContent value="appearance" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("settings.appearanceCardTitle")}</CardTitle>
+              <CardDescription>{t("settings.appearanceCardDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <div className="text-sm font-medium text-foreground">
+                  {t("settings.themeSectionTitle")}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {(
+                    [
+                      {
+                        key: "light",
+                        icon: Sun,
+                        title: t("nav.themeLight"),
+                        desc: t("settings.themeLightDesc"),
+                      },
+                      {
+                        key: "dark",
+                        icon: Moon,
+                        title: t("nav.themeDark"),
+                        desc: t("settings.themeDarkDesc"),
+                      },
+                      {
+                        key: "system",
+                        icon: Monitor,
+                        title: t("nav.themeSystem"),
+                        desc: t("settings.themeSystemDesc"),
+                      },
+                    ] as const
+                  ).map((item) => {
+                    const Icon = item.icon
+                    const active = theme === item.key
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setTheme(item.key)}
+                        className={cn(
+                          "flex flex-col items-start gap-2 rounded-lg border p-3.5 text-left transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          active
+                            ? "border-primary bg-accent/60"
+                            : "border-border bg-card hover:bg-accent/40"
+                        )}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <div className="flex size-8 items-center justify-center rounded-md bg-muted text-foreground">
+                            <Icon className="size-4" />
+                          </div>
+                          {active && <Check className="size-4 text-foreground" />}
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium text-foreground">{item.title}</div>
+                          <div className="text-xs text-muted-foreground">{item.desc}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <div className="text-sm font-medium text-foreground">
+                  {t("settings.langSectionTitle")}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      {
+                        key: "zh-CN" as SupportedLanguage,
+                        title: t("nav.langZh"),
+                        desc: t("settings.langZhDesc"),
+                      },
+                      {
+                        key: "en-US" as SupportedLanguage,
+                        title: t("nav.langEn"),
+                        desc: t("settings.langEnDesc"),
+                      },
+                    ] as const
+                  ).map((item) => {
+                    const active = currentLang === item.key
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => void i18n.changeLanguage(item.key)}
+                        className={cn(
+                          "flex items-start justify-between gap-3 rounded-lg border p-3.5 text-left transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          active
+                            ? "border-primary bg-accent/60"
+                            : "border-border bg-card hover:bg-accent/40"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                            <Languages className="size-4" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="text-sm font-medium text-foreground">{item.title}</div>
+                            <div className="text-xs text-muted-foreground">{item.desc}</div>
+                          </div>
+                        </div>
+                        {active && <Check className="mt-1 size-4 shrink-0 text-foreground" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

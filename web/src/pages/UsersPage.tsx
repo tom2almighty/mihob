@@ -8,8 +8,10 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Search,
   Trash2,
   Users as UsersIcon,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -65,6 +67,7 @@ export function UsersPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "inactive">("all")
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
   const [subUserId, setSubUserId] = useState<number | null>(null)
@@ -97,7 +100,22 @@ export function UsersPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const filtered = (query.data ?? []).filter((u) => {
+  const getUserBucket = (u: User): "active" | "expiring" | "inactive" => {
+    if (!u.enabled) return "inactive"
+    const days = daysUntil(u.expire_at)
+    if (days !== null && days <= 0) return "inactive"
+    if (u.traffic_limit > 0 && u.traffic_used >= u.traffic_limit) return "inactive"
+    if (days !== null && days <= 7) return "expiring"
+    return "active"
+  }
+
+  const allUsers = query.data ?? []
+  const activeCount = allUsers.filter((u) => getUserBucket(u) === "active").length
+  const expiringCount = allUsers.filter((u) => getUserBucket(u) === "expiring").length
+  const inactiveCount = allUsers.filter((u) => getUserBucket(u) === "inactive").length
+
+  const filtered = allUsers.filter((u) => {
+    if (statusFilter !== "all" && getUserBucket(u) !== statusFilter) return false
     const q = search.trim().toLowerCase()
     if (!q) return true
     return (
@@ -106,6 +124,8 @@ export function UsersPage() {
       u.remark.toLowerCase().includes(q)
     )
   })
+
+  const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
 
   return (
     <div className="space-y-6">
@@ -126,18 +146,51 @@ export function UsersPage() {
         }
       />
 
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder={t("users.searchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        {search && (
-          <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
-            {t("common.reset")}
-          </Button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={t("users.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-8 pl-9"
+          />
+          {search && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearch("")}
+              aria-label={t("common.clearSearch")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {(
+            [
+              { key: "all", label: t("users.filterAll"), count: allUsers.length },
+              { key: "active", label: t("users.statusActive"), count: activeCount },
+              { key: "expiring", label: t("users.statusExpiring"), count: expiringCount },
+              { key: "inactive", label: t("users.filterInactive"), count: inactiveCount },
+            ] as const
+          ).map((item) => (
+            <Button
+              key={item.key}
+              type="button"
+              variant={statusFilter === item.key ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs"
+              onClick={() => setStatusFilter(item.key)}
+            >
+              <span>{item.label}</span>
+              <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
+            </Button>
+          ))}
+        </div>
       </div>
 
       {query.isError ? (
@@ -150,10 +203,10 @@ export function UsersPage() {
       ) : !filtered.length ? (
         <EmptyState
           icon={<UsersIcon className="size-5" />}
-          title={search ? t("users.emptySearchTitle") : t("users.emptyTitle")}
-          description={search ? t("users.emptySearchDesc") : t("users.emptyDesc")}
+          title={hasActiveFilter ? t("users.emptySearchTitle") : t("users.emptyTitle")}
+          description={hasActiveFilter ? t("users.emptySearchDesc") : t("users.emptyDesc")}
           action={
-            !search && (
+            !hasActiveFilter && (
               <Button
                 size="sm"
                 onClick={() => {
