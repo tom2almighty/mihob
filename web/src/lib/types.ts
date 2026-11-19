@@ -6,6 +6,14 @@ export type Protocol =
   | "tuic"
   | "anytls"
   | "shadowsocks"
+  | "mieru"
+  | "trusttunnel"
+  | "shadowquic"
+  | "snell"
+  | "sudoku"
+  | "http"
+  | "socks"
+  | "mixed"
 
 export const PROTOCOL_LABELS: Record<Protocol, string> = {
   vless: "VLESS",
@@ -15,6 +23,14 @@ export const PROTOCOL_LABELS: Record<Protocol, string> = {
   tuic: "TUIC v5",
   anytls: "AnyTLS",
   shadowsocks: "Shadowsocks",
+  mieru: "Mieru",
+  trusttunnel: "TrustTunnel",
+  shadowquic: "ShadowQUIC",
+  snell: "Snell",
+  sudoku: "Sudoku",
+  http: "HTTP / HTTPS",
+  socks: "SOCKS5",
+  mixed: "Mixed (HTTP+SOCKS5)",
 }
 
 export interface Admin {
@@ -70,12 +86,15 @@ export interface InboundSettings {
   grpc_service_name?: string
   xhttp_path?: string
   xhttp_mode?: string
+  xhttp_host?: string
   reality_dest?: string
   reality_server_names?: string[]
   reality_private_key?: string
   reality_public_key?: string
   reality_short_ids?: string[]
   flow?: string
+  vless_decryption?: string
+  vless_encryption?: string
   alter_id?: number
   cipher?: string
   up_mbps?: number
@@ -85,6 +104,7 @@ export interface InboundSettings {
   obfs_password?: string
   masquerade?: string
   hop_ports?: string
+  bbr_profile?: string
   congestion_controller?: string
   max_idle_time?: number
   udp_relay_mode?: string
@@ -92,6 +112,31 @@ export interface InboundSettings {
   ss_cipher?: string
   ss_server_password?: string
   udp?: boolean
+  mieru_transport?: string
+  mieru_port_range?: string
+  mieru_multiplexing?: string
+  mieru_handshake_mode?: string
+  mieru_traffic_pattern?: string
+  mieru_tcp_idle_timeout?: number
+  trusttunnel_network?: string
+  shadowquic_jls_addr?: string
+  shadowquic_jls_sni?: string
+  shadowquic_zero_rtt?: boolean
+  snell_psk?: string
+  snell_version?: number
+  snell_mode?: string
+  snell_obfs_mode?: string
+  snell_obfs_host?: string
+  sudoku_key?: string
+  sudoku_aead_method?: string
+  sudoku_table_type?: string
+  sudoku_padding_min?: number
+  sudoku_padding_max?: number
+  sudoku_enable_pure_downlink?: boolean
+  sudoku_disable_http_mask?: boolean
+  sudoku_http_mask_mode?: string
+  sudoku_path_root?: string
+  sudoku_fallback?: string
 }
 
 export interface Inbound {

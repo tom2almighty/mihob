@@ -76,7 +76,7 @@ go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob   # (bin/mihob.exe 
      - Otherwise (Mihomo/Clash clients, `curl`, `?raw=1`, `?download=1`), the Hub directly returns the rendered Mihomo YAML with `Subscription-Userinfo` and `Content-Disposition` headers.
 
 3. **Mihomo Config Generation (`internal/mihomogen/`)**
-   - Supported protocols: `vless`, `vmess`, `trojan`, `hysteria2`, `tuic`, `anytls`, `shadowsocks`.
+   - Supported protocols (15): `vless`, `vmess`, `trojan`, `hysteria2`, `tuic`, `anytls`, `shadowsocks`, `mieru`, `trusttunnel`, `shadowquic`, `snell`, `sudoku`, `http`, `socks`, `mixed`.
    - Shadowsocks 2022 (`2022-blake3-*`) derives per-user EIH subkeys (`<server_psk>:<user_subkey>`); classic SS ciphers fall back to single-password/port behavior.
    - Exclude disabled, expired, or traffic-exhausted users (and nodes over their traffic limit) from generated server `listeners:` and client proxies.
 

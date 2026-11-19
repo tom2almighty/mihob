@@ -11,7 +11,7 @@ import (
 	"github.com/mihob/mihob/internal/model"
 )
 
-func TestGenerateAllSevenProtocols(t *testing.T) {
+func TestGenerateAllFifteenProtocols(t *testing.T) {
 	priv, pub, err := crypto.GenerateRealityKeyPair()
 	if err != nil {
 		t.Fatalf("reality keypair: %v", err)
@@ -31,6 +31,8 @@ func TestGenerateAllSevenProtocols(t *testing.T) {
 	node := &model.Node{
 		ID: 1, Name: "JP-Tokyo", Host: "jp.example.com", Enabled: true, TrafficMultiplier: 1.0,
 	}
+	padMin, padMax := 5, 15
+	pureDownlink := true
 	inbounds := []model.Inbound{
 		{
 			ID: 1, NodeID: 1, Name: "vless-reality", Tag: "VLESS", Protocol: model.ProtoVLESS,
@@ -54,16 +56,20 @@ func TestGenerateAllSevenProtocols(t *testing.T) {
 		{
 			ID: 4, NodeID: 1, Name: "hy2-in", Tag: "HY2", Protocol: model.ProtoHysteria2,
 			Port: 3443, CertID: &certID, Enabled: true,
-			Settings: model.InboundSettings{UpMbps: 100, DownMbps: 500, Obfs: "salamander", ObfsPassword: "obfspass"},
+			Settings: model.InboundSettings{
+				UpMbps: 100, DownMbps: 500, Obfs: "salamander", ObfsPassword: "obfspass",
+				Masquerade: "https://example.com", BBRProfile: "conservative",
+			},
 		},
 		{
 			ID: 5, NodeID: 1, Name: "tuic-in", Tag: "TUIC", Protocol: model.ProtoTUIC,
 			Port: 4443, CertID: &certID, Enabled: true,
-			Settings: model.InboundSettings{CongestionController: "bbr"},
+			Settings: model.InboundSettings{CongestionController: "bbr", UDPRelayMode: "native"},
 		},
 		{
 			ID: 6, NodeID: 1, Name: "anytls-in", Tag: "AnyTLS", Protocol: model.ProtoAnyTLS,
 			Port: 5443, CertID: &certID, Enabled: true,
+			Settings: model.InboundSettings{PaddingScheme: "stop=8"},
 		},
 		{
 			ID: 7, NodeID: 1, Name: "ss-2022", Tag: "SS2022", Protocol: model.ProtoShadowsocks,
@@ -71,6 +77,60 @@ func TestGenerateAllSevenProtocols(t *testing.T) {
 			Settings: model.InboundSettings{
 				SSCipher: "2022-blake3-aes-128-gcm", SSServerPassword: crypto.RandomBase64(16), UDP: true,
 			},
+		},
+		{
+			ID: 8, NodeID: 1, Name: "mieru-in", Tag: "Mieru", Protocol: model.ProtoMieru,
+			Port: 7443, Enabled: true,
+			Settings: model.InboundSettings{
+				MieruTransport: "TCP", MieruPortRange: "20000-20010", MieruMultiplexing: "MULTIPLEXING_LOW",
+				MieruTCPIdleTimeout: 120,
+			},
+		},
+		{
+			ID: 9, NodeID: 1, Name: "trusttunnel-in", Tag: "TrustTunnel", Protocol: model.ProtoTrustTunnel,
+			Port: 8444, CertID: &certID, Enabled: true,
+			Settings: model.InboundSettings{
+				Security: "tls", TrustTunnelNetwork: "both", CongestionController: "bbr",
+			},
+		},
+		{
+			ID: 10, NodeID: 1, Name: "shadowquic-in", Tag: "ShadowQUIC", Protocol: model.ProtoShadowQuic,
+			Port: 9443, Enabled: true,
+			Settings: model.InboundSettings{
+				ShadowQuicJLSAddr: "www.microsoft.com:443", ShadowQuicJLSSNI: "www.microsoft.com",
+				ShadowQuicZeroRTT: true, CongestionController: "bbr", UpMbps: 100, DownMbps: 500,
+			},
+		},
+		{
+			ID: 11, NodeID: 1, Name: "snell-in", Tag: "Snell", Protocol: model.ProtoSnell,
+			Port: 10443, Enabled: true,
+			Settings: model.InboundSettings{
+				SnellPSK: crypto.RandomToken(24), SnellVersion: 4, SnellObfsMode: "http", SnellObfsHost: "bing.com",
+			},
+		},
+		{
+			ID: 12, NodeID: 1, Name: "sudoku-in", Tag: "Sudoku", Protocol: model.ProtoSudoku,
+			Port: 11443, Enabled: true,
+			Settings: model.InboundSettings{
+				SudokuKey: crypto.RandomToken(24), SudokuAEADMethod: "chacha20-poly1305",
+				SudokuTableType: "prefer_ascii", SudokuPaddingMin: &padMin, SudokuPaddingMax: &padMax,
+				SudokuEnablePureDownlink: &pureDownlink, SudokuHTTPMaskMode: "legacy",
+			},
+		},
+		{
+			ID: 13, NodeID: 1, Name: "https-in", Tag: "HTTPS", Protocol: model.ProtoHTTP,
+			Port: 12443, CertID: &certID, Enabled: true,
+			Settings: model.InboundSettings{Security: "tls"},
+		},
+		{
+			ID: 14, NodeID: 1, Name: "socks-in", Tag: "SOCKS5", Protocol: model.ProtoSocks,
+			Port: 13443, CertID: &certID, Enabled: true,
+			Settings: model.InboundSettings{Security: "tls"},
+		},
+		{
+			ID: 15, NodeID: 1, Name: "mixed-in", Tag: "Mixed", Protocol: model.ProtoMixed,
+			Port: 14443, Enabled: true,
+			Settings: model.InboundSettings{Security: "none"},
 		},
 	}
 
@@ -94,8 +154,8 @@ func TestGenerateAllSevenProtocols(t *testing.T) {
 		t.Fatalf("server yaml unmarshal failed: %v\n%s", err, bundle.ConfigYAML)
 	}
 	listeners, ok := parsedServer["listeners"].([]any)
-	if !ok || len(listeners) != 7 {
-		t.Fatalf("expected 7 listeners, got %d", len(listeners))
+	if !ok || len(listeners) != 15 {
+		t.Fatalf("expected 15 listeners, got %d", len(listeners))
 	}
 	if len(bundle.Certs) != 1 {
 		t.Fatalf("expected 1 cert file bundled, got %d", len(bundle.Certs))
@@ -111,7 +171,23 @@ func TestGenerateAllSevenProtocols(t *testing.T) {
 		t.Fatalf("client yaml unmarshal failed: %v\n%s", err, subYAML)
 	}
 	proxies, ok := parsedClient["proxies"].([]any)
-	if !ok || len(proxies) != 7 {
-		t.Fatalf("expected 7 client proxies, got %d\n%s", len(proxies), subYAML)
+	if !ok || len(proxies) != 15 {
+		t.Fatalf("expected 15 client proxies, got %d\n%s", len(proxies), subYAML)
+	}
+
+	// Verify Mieru client proxy uses port-range exclusively (not both port and port-range)
+	for _, raw := range proxies {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["type"] == "mieru" {
+			if _, hasPort := m["port"]; hasPort {
+				t.Fatalf("mieru client proxy must not set both port and port-range: %v", m)
+			}
+			if m["port-range"] != "20000-20010" {
+				t.Fatalf("expected mieru port-range 20000-20010, got %v", m["port-range"])
+			}
+		}
 	}
 }

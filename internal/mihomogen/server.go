@@ -174,10 +174,14 @@ func buildListener(
 				if mode == "" {
 					mode = "auto"
 				}
-				l["xhttp-config"] = map[string]any{
+				xCfg := map[string]any{
 					"path": p,
 					"mode": mode,
 				}
+				if in.Settings.XHTTPHost != "" {
+					xCfg["host"] = in.Settings.XHTTPHost
+				}
+				l["xhttp-config"] = xCfg
 			}
 		}
 	}
@@ -196,6 +200,9 @@ func buildListener(
 			uList = append(uList, entry)
 		}
 		l["users"] = uList
+		if strings.TrimSpace(in.Settings.VLESSDecryption) != "" {
+			l["decryption"] = strings.TrimSpace(in.Settings.VLESSDecryption)
+		}
 		attachTransport()
 		switch in.Settings.Security {
 		case "reality":
@@ -275,6 +282,9 @@ func buildListener(
 		if in.Settings.Masquerade != "" {
 			l["masquerade"] = in.Settings.Masquerade
 		}
+		if in.Settings.BBRProfile != "" {
+			l["bbr-profile"] = in.Settings.BBRProfile
+		}
 		alpn := in.Settings.ALPN
 		if len(alpn) == 0 {
 			alpn = []string{"h3"}
@@ -348,6 +358,182 @@ func buildListener(
 			}
 		}
 		l["users"] = uMap
+
+	case model.ProtoMieru:
+		transport := strings.ToUpper(strings.TrimSpace(in.Settings.MieruTransport))
+		if transport != "TCP" && transport != "UDP" {
+			transport = "TCP"
+		}
+		l["transport"] = transport
+		if pr := strings.TrimSpace(in.Settings.MieruPortRange); pr != "" {
+			l["port"] = pr
+		}
+		uMap := make(map[string]string, len(users))
+		for _, u := range users {
+			uMap[u.Username] = u.Password
+		}
+		l["users"] = uMap
+		if tp := strings.TrimSpace(in.Settings.MieruTrafficPattern); tp != "" {
+			l["traffic-pattern"] = tp
+		}
+		if in.Settings.MieruTCPIdleTimeout >= 60 {
+			l["tcp-idle-timeout"] = in.Settings.MieruTCPIdleTimeout
+		}
+
+	case model.ProtoTrustTunnel:
+		uList := make([]map[string]any, 0, len(users))
+		for _, u := range users {
+			uList = append(uList, map[string]any{
+				"username": u.Username,
+				"password": u.Password,
+			})
+		}
+		l["users"] = uList
+		switch strings.ToLower(strings.TrimSpace(in.Settings.TrustTunnelNetwork)) {
+		case "tcp":
+			l["network"] = []string{"tcp"}
+		case "quic":
+			l["network"] = []string{"quic"}
+		default:
+			l["network"] = []string{"tcp", "quic"}
+		}
+		if in.Settings.CongestionController != "" {
+			l["congestion-controller"] = in.Settings.CongestionController
+		}
+		if in.Settings.BBRProfile != "" {
+			l["bbr-profile"] = in.Settings.BBRProfile
+		}
+		if err := attachCert(true); err != nil {
+			return nil, nil, err
+		}
+
+	case model.ProtoShadowQuic:
+		addr := strings.TrimSpace(in.Settings.ShadowQuicJLSAddr)
+		if addr == "" {
+			return nil, nil, fmt.Errorf("shadowquic jls-upstream addr is required")
+		}
+		uList := make([]map[string]any, 0, len(users))
+		for _, u := range users {
+			uList = append(uList, map[string]any{
+				"username": u.Username,
+				"password": u.Password,
+			})
+		}
+		l["users"] = uList
+		jlsUpstream := map[string]any{
+			"addr": addr,
+		}
+		if jlsSNI := strings.TrimSpace(in.Settings.ShadowQuicJLSSNI); jlsSNI != "" {
+			jlsUpstream["sni"] = jlsSNI
+		}
+		l["jls-upstream"] = jlsUpstream
+		alpn := in.Settings.ALPN
+		if len(alpn) == 0 {
+			alpn = []string{"h3"}
+		}
+		l["alpn"] = alpn
+		l["zero-rtt"] = in.Settings.ShadowQuicZeroRTT
+		cc := in.Settings.CongestionController
+		if cc == "" {
+			cc = "bbr"
+		}
+		l["congestion-controller"] = cc
+		if in.Settings.UpMbps > 0 {
+			l["up"] = in.Settings.UpMbps
+		}
+		if in.Settings.DownMbps > 0 {
+			l["down"] = in.Settings.DownMbps
+		}
+		l["ignore-client-bandwidth"] = in.Settings.IgnoreClientBandwidth
+		if in.Settings.BBRProfile != "" {
+			l["bbr-profile"] = in.Settings.BBRProfile
+		}
+
+	case model.ProtoSnell:
+		psk := strings.TrimSpace(in.Settings.SnellPSK)
+		if psk == "" {
+			return nil, nil, fmt.Errorf("snell psk is required")
+		}
+		ver := in.Settings.SnellVersion
+		if ver < 1 || ver > 6 {
+			ver = 4
+		}
+		l["psk"] = psk
+		l["version"] = ver
+		if ver >= 3 {
+			l["udp"] = true
+		}
+		if ver == 6 {
+			if mode := strings.TrimSpace(in.Settings.SnellMode); mode != "" {
+				l["mode"] = mode
+			}
+		} else if obfsMode := strings.TrimSpace(in.Settings.SnellObfsMode); obfsMode != "" {
+			obfsOpts := map[string]any{
+				"mode": obfsMode,
+			}
+			if obfsHost := strings.TrimSpace(in.Settings.SnellObfsHost); obfsHost != "" {
+				obfsOpts["host"] = obfsHost
+			}
+			l["obfs-opts"] = obfsOpts
+		}
+
+	case model.ProtoSudoku:
+		key := strings.TrimSpace(in.Settings.SudokuKey)
+		if key == "" {
+			return nil, nil, fmt.Errorf("sudoku key is required")
+		}
+		l["key"] = key
+		if aead := strings.TrimSpace(in.Settings.SudokuAEADMethod); aead != "" {
+			l["aead-method"] = aead
+		}
+		if tt := strings.TrimSpace(in.Settings.SudokuTableType); tt != "" {
+			l["table-type"] = tt
+		}
+		if in.Settings.SudokuPaddingMin != nil {
+			l["padding-min"] = *in.Settings.SudokuPaddingMin
+		}
+		if in.Settings.SudokuPaddingMax != nil {
+			l["padding-max"] = *in.Settings.SudokuPaddingMax
+		}
+		if in.Settings.SudokuEnablePureDownlink != nil {
+			l["enable-pure-downlink"] = *in.Settings.SudokuEnablePureDownlink
+		}
+		if in.Settings.SudokuDisableHTTPMask {
+			l["disable-http-mask"] = true
+		} else {
+			if mode := strings.TrimSpace(in.Settings.SudokuHTTPMaskMode); mode != "" {
+				l["http-mask-mode"] = mode
+			}
+			if pr := strings.TrimSpace(in.Settings.SudokuPathRoot); pr != "" {
+				l["path-root"] = pr
+			}
+		}
+		if fb := strings.TrimSpace(in.Settings.SudokuFallback); fb != "" {
+			l["fallback"] = fb
+		}
+
+	case model.ProtoHTTP, model.ProtoSocks, model.ProtoMixed:
+		uList := make([]map[string]any, 0, len(users))
+		for _, u := range users {
+			uList = append(uList, map[string]any{
+				"username": u.Username,
+				"password": u.Password,
+			})
+		}
+		l["users"] = uList
+		if in.Protocol == model.ProtoSocks || in.Protocol == model.ProtoMixed {
+			l["udp"] = true
+		}
+		switch in.Settings.Security {
+		case "tls":
+			if err := attachCert(true); err != nil {
+				return nil, nil, err
+			}
+		case "reality":
+			if err := attachReality(); err != nil {
+				return nil, nil, err
+			}
+		}
 
 	default:
 		return nil, nil, fmt.Errorf("unsupported protocol: %s", in.Protocol)

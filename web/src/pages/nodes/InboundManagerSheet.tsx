@@ -133,16 +133,43 @@ export function InboundManagerSheet({
                           })}
                         </span>
                       )}
-                      {inb.settings?.network && (
+                      {(inb.protocol === "vless" ||
+                        inb.protocol === "vmess" ||
+                        inb.protocol === "trojan") &&
+                        inb.settings?.network && (
+                          <span>
+                            {t("nodes.inbound.networkLabel", {
+                              value: inb.settings.network.toUpperCase(),
+                            })}
+                          </span>
+                        )}
+                      {inb.protocol === "shadowsocks" && inb.settings?.ss_cipher && (
+                        <span>
+                          {t("nodes.inbound.cipherLabel", { value: inb.settings.ss_cipher })}
+                        </span>
+                      )}
+                      {inb.protocol === "mieru" && (
                         <span>
                           {t("nodes.inbound.networkLabel", {
-                            value: inb.settings.network.toUpperCase(),
+                            value: (inb.settings?.mieru_transport || "TCP").toUpperCase(),
                           })}
                         </span>
                       )}
-                      {inb.settings?.ss_cipher && (
+                      {inb.protocol === "trusttunnel" && (
                         <span>
-                          {t("nodes.inbound.cipherLabel", { value: inb.settings.ss_cipher })}
+                          {t("nodes.inbound.networkLabel", {
+                            value: (inb.settings?.trusttunnel_network || "both").toUpperCase(),
+                          })}
+                        </span>
+                      )}
+                      {inb.protocol === "snell" && (
+                        <span>v{inb.settings?.snell_version || 4}</span>
+                      )}
+                      {inb.protocol === "sudoku" && inb.settings?.sudoku_aead_method && (
+                        <span>
+                          {t("nodes.inbound.cipherLabel", {
+                            value: inb.settings.sudoku_aead_method,
+                          })}
                         </span>
                       )}
                       {inb.cert_id && (

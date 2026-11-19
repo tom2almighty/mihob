@@ -212,7 +212,7 @@ func (s *Server) handleNodeInstallCommands(w http.ResponseWriter, r *http.Reques
 	}
 	st, _ := s.store.GetSystemSettings()
 	pubURL := s.resolvePublicURL(r)
-	agentImg := "ghcr.io/mihob/mihob-agent:latest"
+	agentImg := "ghcr.io/tom2almighty/mihob-agent:latest"
 	if st != nil && st.AgentImage != "" {
 		agentImg = st.AgentImage
 	}
@@ -329,6 +329,12 @@ func (s *Server) handleCreateInbound(w http.ResponseWriter, r *http.Request) {
 			req.Settings.SSServerPassword = crypto.RandomBase64(16)
 		}
 	}
+	if req.Protocol == model.ProtoSnell && strings.TrimSpace(req.Settings.SnellPSK) == "" {
+		req.Settings.SnellPSK = crypto.RandomToken(24)
+	}
+	if req.Protocol == model.ProtoSudoku && strings.TrimSpace(req.Settings.SudokuKey) == "" {
+		req.Settings.SudokuKey = crypto.RandomToken(24)
+	}
 
 	in := &model.Inbound{
 		NodeID:   nodeID,
@@ -389,6 +395,29 @@ func (s *Server) handleUpdateInbound(w http.ResponseWriter, r *http.Request) {
 	if req.Protocol != "" {
 		existing.Protocol = req.Protocol
 	}
+	if req.Settings.Security == "reality" && req.Settings.RealityPrivateKey == "" {
+		priv, pub, err := crypto.GenerateRealityKeyPair()
+		if err == nil {
+			req.Settings.RealityPrivateKey = priv
+			req.Settings.RealityPublicKey = pub
+		}
+		if len(req.Settings.RealityShortIDs) == 0 {
+			req.Settings.RealityShortIDs = []string{crypto.GenerateShortID()}
+		}
+	}
+	if existing.Protocol == model.ProtoShadowsocks && req.Settings.SSServerPassword == "" {
+		if strings.Contains(req.Settings.SSCipher, "256") {
+			req.Settings.SSServerPassword = crypto.RandomBase64(32)
+		} else {
+			req.Settings.SSServerPassword = crypto.RandomBase64(16)
+		}
+	}
+	if existing.Protocol == model.ProtoSnell && strings.TrimSpace(req.Settings.SnellPSK) == "" {
+		req.Settings.SnellPSK = crypto.RandomToken(24)
+	}
+	if existing.Protocol == model.ProtoSudoku && strings.TrimSpace(req.Settings.SudokuKey) == "" {
+		req.Settings.SudokuKey = crypto.RandomToken(24)
+	}
 	existing.Listen = strings.TrimSpace(req.Listen)
 	existing.Port = req.Port
 	existing.CertID = req.CertID
@@ -447,6 +476,8 @@ func (s *Server) handleKeygen(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"password": crypto.RandomBase64(32)})
 	case "short_id":
 		writeJSON(w, http.StatusOK, map[string]string{"short_id": crypto.GenerateShortID()})
+	case "snell_psk", "sudoku_key":
+		writeJSON(w, http.StatusOK, map[string]string{"password": crypto.RandomToken(24)})
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"password": crypto.RandomToken(16)})
 	}
@@ -459,7 +490,7 @@ HUB_URL=""
 NODE_TOKEN=""
 INSTALL_DIR="/opt/mihob-agent"
 MIHOB_BIN_URL="${MIHOB_BIN_URL:-}"
-MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.10}"
+MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.34}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

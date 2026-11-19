@@ -5,14 +5,20 @@
 ## 核心特性
 
 - **Hub + Agent 反向隧道架构**：Agent 主动通过 WebSocket 反向连接 Hub，无需在节点服务器暴露管理端口；内置断线重连、心跳与指标上报。
-- **全协议服务端入站支持（7 种）**：
-  - `VLESS`（Reality / TLS / TCP / WS / gRPC / XHTTP，`xtls-rprx-vision`）
+- **全协议服务端入站支持（15 种）**：
+  - `VLESS`（Reality / TLS / TCP / WS / gRPC / XHTTP，`xtls-rprx-vision` 与 VLESS 原生加解密）
   - `VMess`（TLS / Reality / TCP / WS / gRPC）
   - `Trojan`（TLS / Reality / TCP / WS / gRPC）
-  - `Hysteria2`（QUIC、带宽控制、Salamander 混淆、端口跳跃）
-  - `TUIC v5`（QUIC、BBR 拥塞控制）
-  - `AnyTLS`
+  - `Hysteria2`（QUIC、带宽控制、Salamander 混淆、伪装、BBR 策略、端口跳跃）
+  - `TUIC v5`（QUIC、BBR 拥塞控制、UDP 转发模式）
+  - `AnyTLS`（自定义 Padding Scheme）
   - `Shadowsocks`（推荐 `2022-blake3-aes-128-gcm` / `2022-blake3-aes-256-gcm` 多用户模式）
+  - `Mieru`（TCP / UDP、多路复用、端口范围、多用户鉴权）
+  - `TrustTunnel`（HTTP/2 + HTTP/3 QUIC 隧道、多用户鉴权）
+  - `ShadowQUIC`（QUIC + JLS 上游伪装免证书、0-RTT、多用户鉴权）
+  - `Snell`（v1–v6、v6 流量整形模式、HTTP/TLS 混淆）
+  - `Sudoku`（AEAD + ASCII/Entropy 混淆 + HTTP Mask）
+  - `HTTP / HTTPS`、`SOCKS5`、`Mixed`（多用户鉴权 + 可选 TLS 加密）
 - **配置安全热重载**：Agent 下发新配置前自动写入证书、注入受控本地 Unix Socket、执行 `mihomo -t` 校验、备份旧配置并通过 `PUT /configs?force=true` 平滑热重载，失败自动回滚。
 - **集中证书中心**：支持 **ACME 自动签发与自动续期**（Cloudflare / 阿里云 DNS / DNSPod DNS-01 以及 HTTP-01）、**一键生成自签证书**、**手动导入 PEM**，变更自动同步至关联节点。
 - **多用户权限、时间与流量管控**：

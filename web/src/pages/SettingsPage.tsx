@@ -104,7 +104,7 @@ export function SettingsPage() {
       hub_public_url: "",
       sub_path: "sub",
       acme_email: "",
-      agent_image: "ghcr.io/mihob/mihob-agent:latest",
+      agent_image: "ghcr.io/tom2almighty/mihob-agent:latest",
     },
   })
 
@@ -123,7 +123,7 @@ export function SettingsPage() {
         hub_public_url: query.data.hub_public_url || "",
         sub_path: query.data.sub_path || "sub",
         acme_email: query.data.acme_email || "",
-        agent_image: query.data.agent_image || "ghcr.io/mihob/mihob-agent:latest",
+        agent_image: query.data.agent_image || "ghcr.io/tom2almighty/mihob-agent:latest",
       })
     }
   }, [query.data, sysForm])

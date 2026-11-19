@@ -176,10 +176,14 @@ func buildClientProxy(
 			}
 		case "xhttp":
 			p["network"] = "xhttp"
-			p["xhttp-opts"] = map[string]any{
+			xOpts := map[string]any{
 				"path": nonEmpty(in.Settings.XHTTPPath, "/"),
 				"mode": nonEmpty(in.Settings.XHTTPMode, "auto"),
 			}
+			if in.Settings.XHTTPHost != "" {
+				xOpts["host"] = in.Settings.XHTTPHost
+			}
+			p["xhttp-opts"] = xOpts
 		default:
 			p["network"] = "tcp"
 		}
@@ -216,6 +220,9 @@ func buildClientProxy(
 		}
 		if in.Settings.Flow != "" && (in.Settings.Network == "" || in.Settings.Network == "tcp") {
 			p["flow"] = in.Settings.Flow
+		}
+		if strings.TrimSpace(in.Settings.VLESSEncryption) != "" {
+			p["encryption"] = strings.TrimSpace(in.Settings.VLESSEncryption)
 		}
 		addTransport(p)
 		switch in.Settings.Security {
@@ -363,6 +370,191 @@ func buildClientProxy(
 			"password": pw,
 			"udp":      true,
 		}
+
+	case model.ProtoMieru:
+		transport := strings.ToUpper(strings.TrimSpace(in.Settings.MieruTransport))
+		if transport != "TCP" && transport != "UDP" {
+			transport = "TCP"
+		}
+		p := map[string]any{
+			"name":      name,
+			"type":      "mieru",
+			"server":    node.Host,
+			"transport": transport,
+			"udp":       true,
+			"username":  user.Username,
+			"password":  user.Password,
+		}
+		if pr := strings.TrimSpace(in.Settings.MieruPortRange); pr != "" {
+			p["port-range"] = pr
+		} else {
+			p["port"] = in.Port
+		}
+		if mux := strings.TrimSpace(in.Settings.MieruMultiplexing); mux != "" {
+			p["multiplexing"] = mux
+		}
+		if hm := strings.TrimSpace(in.Settings.MieruHandshakeMode); hm != "" {
+			p["handshake-mode"] = hm
+		}
+		if tp := strings.TrimSpace(in.Settings.MieruTrafficPattern); tp != "" {
+			p["traffic-pattern"] = tp
+		}
+		return p
+
+	case model.ProtoTrustTunnel:
+		netMode := strings.ToLower(strings.TrimSpace(in.Settings.TrustTunnelNetwork))
+		useQuic := netMode == "quic" || netMode == "both" || netMode == ""
+		p := map[string]any{
+			"name":               name,
+			"type":               "trusttunnel",
+			"server":             node.Host,
+			"port":               in.Port,
+			"username":           user.Username,
+			"password":           user.Password,
+			"sni":                sni,
+			"client-fingerprint": fp,
+			"skip-cert-verify":   skipVerify,
+			"udp":                true,
+		}
+		if len(in.Settings.ALPN) > 0 {
+			p["alpn"] = in.Settings.ALPN
+		}
+		if useQuic {
+			p["quic"] = true
+			p["congestion-controller"] = nonEmpty(in.Settings.CongestionController, "bbr")
+			if in.Settings.BBRProfile != "" {
+				p["bbr-profile"] = in.Settings.BBRProfile
+			}
+		}
+		return p
+
+	case model.ProtoShadowQuic:
+		sqSNI := strings.TrimSpace(in.Settings.ShadowQuicJLSSNI)
+		if sqSNI == "" && strings.TrimSpace(in.Settings.ShadowQuicJLSAddr) != "" {
+			sqSNI = strings.Split(strings.TrimSpace(in.Settings.ShadowQuicJLSAddr), ":")[0]
+		}
+		if sqSNI == "" {
+			sqSNI = sni
+		}
+		p := map[string]any{
+			"name":                  name,
+			"type":                  "shadowquic",
+			"server":                node.Host,
+			"port":                  in.Port,
+			"username":              user.Username,
+			"password":              user.Password,
+			"sni":                   sqSNI,
+			"alpn":                  nonEmptySlice(in.Settings.ALPN, []string{"h3"}),
+			"zero-rtt":              in.Settings.ShadowQuicZeroRTT,
+			"congestion-controller": nonEmpty(in.Settings.CongestionController, "bbr"),
+		}
+		if in.Settings.UpMbps > 0 {
+			p["up"] = fmt.Sprintf("%d Mbps", in.Settings.UpMbps)
+		}
+		if in.Settings.DownMbps > 0 {
+			p["down"] = fmt.Sprintf("%d Mbps", in.Settings.DownMbps)
+		}
+		if in.Settings.BBRProfile != "" {
+			p["bbr-profile"] = in.Settings.BBRProfile
+		}
+		return p
+
+	case model.ProtoSnell:
+		ver := in.Settings.SnellVersion
+		if ver < 1 || ver > 6 {
+			ver = 4
+		}
+		p := map[string]any{
+			"name":    name,
+			"type":    "snell",
+			"server":  node.Host,
+			"port":    in.Port,
+			"psk":     in.Settings.SnellPSK,
+			"version": ver,
+		}
+		if ver >= 3 {
+			p["udp"] = true
+		}
+		if ver == 6 {
+			if mode := strings.TrimSpace(in.Settings.SnellMode); mode != "" {
+				p["mode"] = mode
+			}
+		} else if obfsMode := strings.TrimSpace(in.Settings.SnellObfsMode); obfsMode != "" {
+			obfsOpts := map[string]any{
+				"mode": obfsMode,
+			}
+			if obfsHost := strings.TrimSpace(in.Settings.SnellObfsHost); obfsHost != "" {
+				obfsOpts["host"] = obfsHost
+			}
+			p["obfs-opts"] = obfsOpts
+		}
+		return p
+
+	case model.ProtoSudoku:
+		p := map[string]any{
+			"name":      name,
+			"type":      "sudoku",
+			"server":    node.Host,
+			"port":      in.Port,
+			"key":       in.Settings.SudokuKey,
+			"http-mask": !in.Settings.SudokuDisableHTTPMask,
+		}
+		if aead := strings.TrimSpace(in.Settings.SudokuAEADMethod); aead != "" {
+			p["aead-method"] = aead
+		}
+		if tt := strings.TrimSpace(in.Settings.SudokuTableType); tt != "" {
+			p["table-type"] = tt
+		}
+		if in.Settings.SudokuPaddingMin != nil {
+			p["padding-min"] = *in.Settings.SudokuPaddingMin
+		}
+		if in.Settings.SudokuPaddingMax != nil {
+			p["padding-max"] = *in.Settings.SudokuPaddingMax
+		}
+		if in.Settings.SudokuEnablePureDownlink != nil {
+			p["enable-pure-downlink"] = *in.Settings.SudokuEnablePureDownlink
+		}
+		if !in.Settings.SudokuDisableHTTPMask {
+			if mode := strings.TrimSpace(in.Settings.SudokuHTTPMaskMode); mode != "" {
+				p["http-mask-mode"] = mode
+			}
+			if pr := strings.TrimSpace(in.Settings.SudokuPathRoot); pr != "" {
+				p["path-root"] = pr
+			}
+		}
+		return p
+
+	case model.ProtoHTTP:
+		p := map[string]any{
+			"name":     name,
+			"type":     "http",
+			"server":   node.Host,
+			"port":     in.Port,
+			"username": user.Username,
+			"password": user.Password,
+		}
+		if in.Settings.Security == "tls" {
+			p["tls"] = true
+			p["sni"] = sni
+			p["skip-cert-verify"] = skipVerify
+		}
+		return p
+
+	case model.ProtoSocks, model.ProtoMixed:
+		p := map[string]any{
+			"name":     name,
+			"type":     "socks5",
+			"server":   node.Host,
+			"port":     in.Port,
+			"username": user.Username,
+			"password": user.Password,
+			"udp":      true,
+		}
+		if in.Settings.Security == "tls" {
+			p["tls"] = true
+			p["skip-cert-verify"] = skipVerify
+		}
+		return p
 	}
 	return nil
 }

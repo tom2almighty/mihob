@@ -130,7 +130,16 @@ export const api = {
     }),
   deleteInbound: (id: number) =>
     request<{ status: string }>(`/api/inbounds/${id}`, { method: "DELETE" }),
-  keygen: (type: "reality" | "ss2022_128" | "ss2022_256" | "short_id" | "password") =>
+  keygen: (
+    type:
+      | "reality"
+      | "ss2022_128"
+      | "ss2022_256"
+      | "short_id"
+      | "password"
+      | "snell_psk"
+      | "sudoku_key",
+  ) =>
     request<Record<string, string>>("/api/tools/keygen", {
       method: "POST",
       body: JSON.stringify({ type }),

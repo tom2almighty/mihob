@@ -213,7 +213,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 
 	// 9. Update custom sub_path & verify custom path + public sub info API
 	resp, raw = doJSON(http.MethodPut, "/api/settings", tok, map[string]any{
-		"agent_image": "ghcr.io/mihob/mihob-agent:latest",
+		"agent_image": "ghcr.io/tom2almighty/mihob-agent:latest",
 		"sub_path":    "/custom/s/",
 	})
 	if resp.StatusCode != http.StatusOK {
@@ -251,7 +251,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 
 	// Reserved path should be rejected
 	resp, _ = doJSON(http.MethodPut, "/api/settings", tok, map[string]any{
-		"agent_image": "ghcr.io/mihob/mihob-agent:latest",
+		"agent_image": "ghcr.io/tom2almighty/mihob-agent:latest",
 		"sub_path":    "api/sub",
 	})
 	if resp.StatusCode != http.StatusBadRequest {

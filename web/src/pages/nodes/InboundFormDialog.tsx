@@ -37,6 +37,7 @@ import { PROTOCOL_LABELS, type Inbound, type Protocol } from "@/lib/types"
 import {
   InboundProtocolFields,
   NEEDS_CERT_ALWAYS,
+  SUPPORTS_OPTIONAL_TLS,
   SUPPORTS_REALITY,
 } from "./InboundProtocolFields"
 import { createInboundSchema, type InboundFormValues } from "./inboundSchema"
@@ -56,7 +57,11 @@ const DEFAULT_VALUES: InboundFormValues = {
   ws_path: "/ws",
   grpc_service_name: "GunService",
   xhttp_path: "/xhttp",
+  xhttp_mode: "auto",
+  xhttp_host: "",
   flow: "xtls-rprx-vision",
+  vless_decryption: "",
+  vless_encryption: "",
   reality_dest: "www.microsoft.com:443",
   reality_server_names: "www.microsoft.com",
   reality_private_key: "",
@@ -64,12 +69,39 @@ const DEFAULT_VALUES: InboundFormValues = {
   reality_short_ids: "",
   up_mbps: 100,
   down_mbps: 500,
+  ignore_client_bandwidth: false,
   obfs: "",
   obfs_password: "",
+  masquerade: "",
   hop_ports: "",
+  bbr_profile: "",
   congestion_controller: "bbr",
+  udp_relay_mode: "native",
+  padding_scheme: "",
   ss_cipher: "2022-blake3-aes-128-gcm",
   ss_server_password: "",
+  mieru_transport: "TCP",
+  mieru_port_range: "",
+  mieru_multiplexing: "MULTIPLEXING_LOW",
+  mieru_traffic_pattern: "",
+  mieru_tcp_idle_timeout: 0,
+  trusttunnel_network: "both",
+  shadowquic_jls_addr: "www.microsoft.com:443",
+  shadowquic_jls_sni: "www.microsoft.com",
+  shadowquic_zero_rtt: true,
+  snell_psk: "",
+  snell_version: 4,
+  snell_mode: "default",
+  snell_obfs_mode: "",
+  snell_obfs_host: "",
+  sudoku_key: "",
+  sudoku_aead_method: "chacha20-poly1305",
+  sudoku_table_type: "prefer_ascii",
+  sudoku_disable_http_mask: false,
+  sudoku_http_mask_mode: "legacy",
+  sudoku_path_root: "",
+  sudoku_fallback: "",
+  sudoku_enable_pure_downlink: true,
 }
 
 export function InboundFormDialog({
@@ -122,7 +154,11 @@ export function InboundFormDialog({
         ws_path: s.ws_path || "/ws",
         grpc_service_name: s.grpc_service_name || "GunService",
         xhttp_path: s.xhttp_path || "/xhttp",
+        xhttp_mode: s.xhttp_mode || "auto",
+        xhttp_host: s.xhttp_host || "",
         flow: s.flow || "",
+        vless_decryption: s.vless_decryption || "",
+        vless_encryption: s.vless_encryption || "",
         reality_dest: s.reality_dest || "www.microsoft.com:443",
         reality_server_names: (s.reality_server_names || []).join(","),
         reality_private_key: s.reality_private_key || "",
@@ -130,12 +166,39 @@ export function InboundFormDialog({
         reality_short_ids: (s.reality_short_ids || []).join(","),
         up_mbps: s.up_mbps ?? 100,
         down_mbps: s.down_mbps ?? 500,
+        ignore_client_bandwidth: Boolean(s.ignore_client_bandwidth),
         obfs: s.obfs || "",
         obfs_password: s.obfs_password || "",
+        masquerade: s.masquerade || "",
         hop_ports: s.hop_ports || "",
+        bbr_profile: s.bbr_profile || "",
         congestion_controller: s.congestion_controller || "bbr",
+        udp_relay_mode: s.udp_relay_mode || "native",
+        padding_scheme: s.padding_scheme || "",
         ss_cipher: s.ss_cipher || "2022-blake3-aes-128-gcm",
         ss_server_password: s.ss_server_password || "",
+        mieru_transport: s.mieru_transport || "TCP",
+        mieru_port_range: s.mieru_port_range || "",
+        mieru_multiplexing: s.mieru_multiplexing || "MULTIPLEXING_LOW",
+        mieru_traffic_pattern: s.mieru_traffic_pattern || "",
+        mieru_tcp_idle_timeout: s.mieru_tcp_idle_timeout ?? 0,
+        trusttunnel_network: s.trusttunnel_network || "both",
+        shadowquic_jls_addr: s.shadowquic_jls_addr || "www.microsoft.com:443",
+        shadowquic_jls_sni: s.shadowquic_jls_sni || "www.microsoft.com",
+        shadowquic_zero_rtt: s.shadowquic_zero_rtt ?? true,
+        snell_psk: s.snell_psk || "",
+        snell_version: s.snell_version ?? 4,
+        snell_mode: s.snell_mode || "default",
+        snell_obfs_mode: s.snell_obfs_mode || "",
+        snell_obfs_host: s.snell_obfs_host || "",
+        sudoku_key: s.sudoku_key || "",
+        sudoku_aead_method: s.sudoku_aead_method || "chacha20-poly1305",
+        sudoku_table_type: s.sudoku_table_type || "prefer_ascii",
+        sudoku_disable_http_mask: Boolean(s.sudoku_disable_http_mask),
+        sudoku_http_mask_mode: s.sudoku_http_mask_mode || "legacy",
+        sudoku_path_root: s.sudoku_path_root || "",
+        sudoku_fallback: s.sudoku_fallback || "",
+        sudoku_enable_pure_downlink: s.sudoku_enable_pure_downlink ?? true,
       })
     } else {
       form.reset(DEFAULT_VALUES)
@@ -173,17 +236,41 @@ export function InboundFormDialog({
     }
   }
 
+  const generateSecret = async (field: "snell_psk" | "sudoku_key") => {
+    setKeygenLoading(true)
+    try {
+      const res = await api.keygen(field)
+      form.setValue(field, res.password)
+      toast.success(t("nodes.inbound.toastSecretGenerated"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("nodes.inbound.toastKeygenFailed"))
+    } finally {
+      setKeygenLoading(false)
+    }
+  }
+
   const mutation = useMutation({
     mutationFn: (v: InboundFormValues) => {
       const needsCert =
         NEEDS_CERT_ALWAYS.includes(v.protocol) ||
-        (SUPPORTS_REALITY.includes(v.protocol) && v.security === "tls")
+        ((SUPPORTS_REALITY.includes(v.protocol) || SUPPORTS_OPTIONAL_TLS.includes(v.protocol)) &&
+          v.security === "tls")
       const certId = v.cert_id && v.cert_id !== "none" ? Number(v.cert_id) : null
       const splitCSV = (s?: string) =>
         (s || "")
           .split(",")
           .map((x) => x.trim())
           .filter(Boolean)
+
+      const resolvedSecurity = NEEDS_CERT_ALWAYS.includes(v.protocol)
+        ? "tls"
+        : SUPPORTS_REALITY.includes(v.protocol)
+          ? v.security
+          : SUPPORTS_OPTIONAL_TLS.includes(v.protocol)
+            ? v.security === "tls"
+              ? "tls"
+              : "none"
+            : "none"
 
       const payload = {
         name: v.name,
@@ -194,18 +281,18 @@ export function InboundFormDialog({
         cert_id: needsCert ? certId : null,
         enabled: v.enabled,
         settings: {
-          security: NEEDS_CERT_ALWAYS.includes(v.protocol)
-            ? "tls"
-            : v.protocol === "shadowsocks"
-              ? "none"
-              : v.security,
+          security: resolvedSecurity,
           sni: v.sni || "",
           skip_cert_verify: v.skip_cert_verify,
           network: v.network,
           ws_path: v.ws_path,
           grpc_service_name: v.grpc_service_name,
           xhttp_path: v.xhttp_path,
+          xhttp_mode: v.xhttp_mode,
+          xhttp_host: v.xhttp_host,
           flow: v.flow,
+          vless_decryption: v.vless_decryption,
+          vless_encryption: v.vless_encryption,
           reality_dest: v.reality_dest,
           reality_server_names: splitCSV(v.reality_server_names),
           reality_private_key: v.reality_private_key,
@@ -213,13 +300,40 @@ export function InboundFormDialog({
           reality_short_ids: splitCSV(v.reality_short_ids),
           up_mbps: v.up_mbps,
           down_mbps: v.down_mbps,
+          ignore_client_bandwidth: v.ignore_client_bandwidth,
           obfs: v.obfs,
           obfs_password: v.obfs_password,
+          masquerade: v.masquerade,
           hop_ports: v.hop_ports,
+          bbr_profile: v.bbr_profile,
           congestion_controller: v.congestion_controller,
+          udp_relay_mode: v.udp_relay_mode,
+          padding_scheme: v.padding_scheme,
           ss_cipher: v.ss_cipher,
           ss_server_password: v.ss_server_password,
           udp: true,
+          mieru_transport: v.mieru_transport,
+          mieru_port_range: v.mieru_port_range,
+          mieru_multiplexing: v.mieru_multiplexing,
+          mieru_traffic_pattern: v.mieru_traffic_pattern,
+          mieru_tcp_idle_timeout: v.mieru_tcp_idle_timeout || 0,
+          trusttunnel_network: v.trusttunnel_network,
+          shadowquic_jls_addr: v.shadowquic_jls_addr,
+          shadowquic_jls_sni: v.shadowquic_jls_sni,
+          shadowquic_zero_rtt: v.shadowquic_zero_rtt,
+          snell_psk: v.snell_psk,
+          snell_version: v.snell_version,
+          snell_mode: v.snell_mode,
+          snell_obfs_mode: v.snell_obfs_mode,
+          snell_obfs_host: v.snell_obfs_host,
+          sudoku_key: v.sudoku_key,
+          sudoku_aead_method: v.sudoku_aead_method,
+          sudoku_table_type: v.sudoku_table_type,
+          sudoku_disable_http_mask: v.sudoku_disable_http_mask,
+          sudoku_http_mask_mode: v.sudoku_http_mask_mode,
+          sudoku_path_root: v.sudoku_path_root,
+          sudoku_fallback: v.sudoku_fallback,
+          sudoku_enable_pure_downlink: v.sudoku_enable_pure_downlink,
         },
       }
       return isEdit && inbound
@@ -288,8 +402,13 @@ export function InboundFormDialog({
                                 form.setValue("tag", PROTOCOL_LABELS[val])
                                 form.setValue("name", `${val}-${form.getValues("port")}`)
                               }
-                              if (NEEDS_CERT_ALWAYS.includes(val)) form.setValue("security", "tls")
-                              if (val === "shadowsocks") form.setValue("security", "none")
+                              if (NEEDS_CERT_ALWAYS.includes(val) || SUPPORTS_OPTIONAL_TLS.includes(val)) {
+                                form.setValue("security", "tls")
+                              } else if (SUPPORTS_REALITY.includes(val)) {
+                                form.setValue("security", "reality")
+                              } else {
+                                form.setValue("security", "none")
+                              }
                             }}
                           >
                             <FormControl>
@@ -379,6 +498,7 @@ export function InboundFormDialog({
                     keygenLoading={keygenLoading}
                     onGenerateReality={generateReality}
                     onGenerateSSKey={generateSSKey}
+                    onGenerateSecret={generateSecret}
                   />
                 </TabsContent>
 
@@ -394,6 +514,7 @@ export function InboundFormDialog({
                     keygenLoading={keygenLoading}
                     onGenerateReality={generateReality}
                     onGenerateSSKey={generateSSKey}
+                    onGenerateSecret={generateSecret}
                   />
                 </TabsContent>
               </div>

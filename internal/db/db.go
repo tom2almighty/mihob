@@ -245,7 +245,7 @@ func (s *Store) seedDefaults() error {
 		}
 	}
 	if _, err := s.GetSetting("agent_image"); errors.Is(err, sql.ErrNoRows) {
-		_ = s.SetSetting("agent_image", "ghcr.io/mihob/mihob-agent:latest")
+		_ = s.SetSetting("agent_image", "ghcr.io/tom2almighty/mihob-agent:latest")
 	}
 	if _, err := s.GetSetting("sub_path"); errors.Is(err, sql.ErrNoRows) {
 		_ = s.SetSetting("sub_path", "sub")
@@ -354,7 +354,7 @@ func (s *Store) SetSetting(key, value string) error {
 
 func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 	out := &model.SystemSettings{
-		AgentImage: "ghcr.io/mihob/mihob-agent:latest",
+		AgentImage: "ghcr.io/tom2almighty/mihob-agent:latest",
 		SubPath:    "sub",
 	}
 	if v, err := s.GetSetting("hub_public_url"); err == nil {

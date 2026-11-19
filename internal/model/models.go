@@ -10,6 +10,14 @@ const (
 	ProtoTUIC        = "tuic"
 	ProtoAnyTLS      = "anytls"
 	ProtoShadowsocks = "shadowsocks"
+	ProtoMieru       = "mieru"
+	ProtoTrustTunnel = "trusttunnel"
+	ProtoShadowQuic  = "shadowquic"
+	ProtoSnell       = "snell"
+	ProtoSudoku      = "sudoku"
+	ProtoHTTP        = "http"
+	ProtoSocks       = "socks"
+	ProtoMixed       = "mixed"
 )
 
 var SupportedProtocols = []string{
@@ -20,6 +28,14 @@ var SupportedProtocols = []string{
 	ProtoTUIC,
 	ProtoAnyTLS,
 	ProtoShadowsocks,
+	ProtoMieru,
+	ProtoTrustTunnel,
+	ProtoShadowQuic,
+	ProtoSnell,
+	ProtoSudoku,
+	ProtoHTTP,
+	ProtoSocks,
+	ProtoMixed,
 }
 
 func IsValidProtocol(p string) bool {
@@ -90,6 +106,7 @@ type InboundSettings struct {
 	GRPCServiceName string `json:"grpc_service_name,omitempty"`
 	XHTTPPath       string `json:"xhttp_path,omitempty"`
 	XHTTPMode       string `json:"xhttp_mode,omitempty"`
+	XHTTPHost       string `json:"xhttp_host,omitempty"`
 
 	// Reality
 	RealityDest        string   `json:"reality_dest,omitempty"`
@@ -99,13 +116,15 @@ type InboundSettings struct {
 	RealityShortIDs    []string `json:"reality_short_ids,omitempty"`
 
 	// VLESS
-	Flow string `json:"flow,omitempty"`
+	Flow            string `json:"flow,omitempty"`
+	VLESSDecryption string `json:"vless_decryption,omitempty"`
+	VLESSEncryption string `json:"vless_encryption,omitempty"`
 
 	// VMess
 	AlterID int    `json:"alter_id,omitempty"`
 	Cipher  string `json:"cipher,omitempty"`
 
-	// Hysteria2
+	// Hysteria2 / QUIC shared
 	UpMbps                int    `json:"up_mbps,omitempty"`
 	DownMbps              int    `json:"down_mbps,omitempty"`
 	IgnoreClientBandwidth bool   `json:"ignore_client_bandwidth,omitempty"`
@@ -113,8 +132,9 @@ type InboundSettings struct {
 	ObfsPassword          string `json:"obfs_password,omitempty"`
 	Masquerade            string `json:"masquerade,omitempty"`
 	HopPorts              string `json:"hop_ports,omitempty"`
+	BBRProfile            string `json:"bbr_profile,omitempty"`
 
-	// TUIC v5
+	// TUIC v5 / TrustTunnel / ShadowQUIC shared
 	CongestionController string `json:"congestion_controller,omitempty"`
 	MaxIdleTime          int    `json:"max_idle_time,omitempty"`
 	UDPRelayMode         string `json:"udp_relay_mode,omitempty"`
@@ -126,6 +146,41 @@ type InboundSettings struct {
 	SSCipher         string `json:"ss_cipher,omitempty"`
 	SSServerPassword string `json:"ss_server_password,omitempty"`
 	UDP              bool   `json:"udp,omitempty"`
+
+	// Mieru
+	MieruTransport      string `json:"mieru_transport,omitempty"`       // "TCP" | "UDP"
+	MieruPortRange      string `json:"mieru_port_range,omitempty"`      // e.g. "20000-20010"
+	MieruMultiplexing   string `json:"mieru_multiplexing,omitempty"`    // MULTIPLEXING_OFF | LOW | MIDDLE | HIGH
+	MieruHandshakeMode  string `json:"mieru_handshake_mode,omitempty"`  // HANDSHAKE_STANDARD | HANDSHAKE_NO_WAIT
+	MieruTrafficPattern string `json:"mieru_traffic_pattern,omitempty"`
+	MieruTCPIdleTimeout int    `json:"mieru_tcp_idle_timeout,omitempty"` // >= 60s
+
+	// TrustTunnel
+	TrustTunnelNetwork string `json:"trusttunnel_network,omitempty"` // "both" | "tcp" | "quic"
+
+	// ShadowQUIC
+	ShadowQuicJLSAddr string `json:"shadowquic_jls_addr,omitempty"` // e.g. "www.microsoft.com:443"
+	ShadowQuicJLSSNI  string `json:"shadowquic_jls_sni,omitempty"`
+	ShadowQuicZeroRTT bool   `json:"shadowquic_zero_rtt,omitempty"`
+
+	// Snell (single-PSK)
+	SnellPSK      string `json:"snell_psk,omitempty"`
+	SnellVersion  int    `json:"snell_version,omitempty"` // 1..6 (default 4)
+	SnellMode     string `json:"snell_mode,omitempty"`    // v6 only: default | unshaped | unsafe-raw
+	SnellObfsMode string `json:"snell_obfs_mode,omitempty"`
+	SnellObfsHost string `json:"snell_obfs_host,omitempty"`
+
+	// Sudoku (single-key)
+	SudokuKey                string `json:"sudoku_key,omitempty"`
+	SudokuAEADMethod         string `json:"sudoku_aead_method,omitempty"`
+	SudokuTableType          string `json:"sudoku_table_type,omitempty"`
+	SudokuPaddingMin         *int   `json:"sudoku_padding_min,omitempty"`
+	SudokuPaddingMax         *int   `json:"sudoku_padding_max,omitempty"`
+	SudokuEnablePureDownlink *bool  `json:"sudoku_enable_pure_downlink,omitempty"`
+	SudokuDisableHTTPMask    bool   `json:"sudoku_disable_http_mask,omitempty"`
+	SudokuHTTPMaskMode       string `json:"sudoku_http_mask_mode,omitempty"`
+	SudokuPathRoot           string `json:"sudoku_path_root,omitempty"`
+	SudokuFallback           string `json:"sudoku_fallback,omitempty"`
 }
 
 type Inbound struct {
