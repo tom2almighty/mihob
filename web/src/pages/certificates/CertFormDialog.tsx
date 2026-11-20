@@ -156,8 +156,8 @@ export function CertFormDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
           <SheetTitle>{t("certificates.form.title")}</SheetTitle>
           <SheetDescription>{t("certificates.form.desc")}</SheetDescription>
         </SheetHeader>

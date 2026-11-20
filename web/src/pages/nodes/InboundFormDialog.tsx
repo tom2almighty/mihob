@@ -7,13 +7,13 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Form,
   FormControl,
@@ -374,32 +374,35 @@ export function InboundFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
+          <SheetTitle>
             {isEdit ? t("nodes.inbound.dialogEditTitle") : t("nodes.inbound.dialogAddTitle")}
-          </DialogTitle>
-          <DialogDescription>{t("nodes.inbound.dialogDesc")}</DialogDescription>
-        </DialogHeader>
+          </SheetTitle>
+          <SheetDescription>{t("nodes.inbound.dialogDesc")}</SheetDescription>
+        </SheetHeader>
 
         <Form {...form}>
           <form
             id="inbound-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v), handleInvalid)}
-            className="flex flex-col gap-3"
+            className="flex min-h-0 flex-1 flex-col"
           >
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as "basic" | "security" | "transport")}
+              className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
-                <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
-                <TabsTrigger value="transport">{t("nodes.inbound.tabTransport")}</TabsTrigger>
-              </TabsList>
+              <div className="border-b border-border px-5 py-3">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
+                  <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
+                  <TabsTrigger value="transport">{t("nodes.inbound.tabTransport")}</TabsTrigger>
+                </TabsList>
+              </div>
 
-              <div className="mt-3 h-[380px] max-h-[58vh] overflow-y-auto px-1 py-1">
+              <div className="flex-1 overflow-y-auto px-5 py-4">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -554,7 +557,7 @@ export function InboundFormDialog({
           </form>
         </Form>
 
-        <DialogFooter>
+        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -562,8 +565,8 @@ export function InboundFormDialog({
             {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {isEdit ? t("nodes.inbound.saveAndPush") : t("nodes.inbound.createAndPush")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

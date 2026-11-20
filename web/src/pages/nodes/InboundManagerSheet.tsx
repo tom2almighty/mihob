@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Pencil, Plus, Radio, Send, Trash2 } from "lucide-react"
+import { GripVertical, Pencil, Plus, Radio, Send, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { ConfirmDeleteDialog, EmptyState, ErrorState } from "@/components/common/CommonUI"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { PROTOCOL_LABELS, type Inbound, type Node } from "@/lib/types"
+import { useDragReorder } from "@/lib/useDragReorder"
+import { cn } from "@/lib/utils"
 import { InboundFormDialog } from "./InboundFormDialog"
 
 export function InboundManagerSheet({
@@ -59,11 +61,31 @@ export function InboundManagerSheet({
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const reorderMutation = useMutation({
+    mutationFn: (ids: number[]) => api.reorderInbounds(node!.id, ids),
+    onError: () => {
+      if (node) qc.invalidateQueries({ queryKey: queryKeys.inbounds(node.id) })
+      toast.error(t("common.reorderFailed"))
+    },
+  })
+
+  const inbounds = query.data ?? []
+  const canDrag = inbounds.length > 1
+  const { draggingId, overId, getRowDragProps } = useDragReorder({
+    items: inbounds,
+    enabled: canDrag,
+    onReorder: (nextItems, nextIds) => {
+      if (!node) return
+      qc.setQueryData<Inbound[]>(queryKeys.inbounds(node.id), nextItems)
+      reorderMutation.mutate(nextIds)
+    },
+  })
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-          <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+        <SheetContent expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
             <SheetTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</SheetTitle>
             <div className="flex items-center gap-2 pt-2">
               <Button
@@ -103,12 +125,29 @@ export function InboundManagerSheet({
                 description={t("nodes.inbound.emptyDesc")}
               />
             ) : (
-              query.data.map((inb) => (
+              inbounds.map((inb) => (
                 <div
                   key={inb.id}
-                  className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3.5"
+                  {...getRowDragProps(inb.id)}
+                  className={cn(
+                    "flex items-start justify-between gap-2.5 rounded-lg border border-border bg-card p-3.5 transition-colors",
+                    draggingId === inb.id && "opacity-40",
+                    overId === inb.id && draggingId !== inb.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                  )}
                 >
-                  <div className="min-w-0 space-y-1">
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <span
+                      className={cn(
+                        "mt-0.5 inline-flex shrink-0 items-center justify-center text-muted-foreground/60",
+                        canDrag
+                          ? "cursor-grab hover:text-foreground active:cursor-grabbing"
+                          : "cursor-not-allowed opacity-40"
+                      )}
+                      aria-label={t("common.dragToReorder")}
+                    >
+                      <GripVertical className="size-4" />
+                    </span>
+                    <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary" className="font-mono text-xs">
                         {PROTOCOL_LABELS[inb.protocol]}
@@ -180,6 +219,7 @@ export function InboundManagerSheet({
                       ) : (
                         inb.tag && <span>{t("nodes.inbound.tagLabel", { value: inb.tag })}</span>
                       )}
+                    </div>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
