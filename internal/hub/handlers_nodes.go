@@ -264,12 +264,18 @@ func (s *Server) handleNodeInstallCommands(w http.ResponseWriter, r *http.Reques
 		pubURL, pubURL, node.Token,
 	)
 
+	binaryUninstall := fmt.Sprintf(
+		`curl -fsSL "%s/install/agent.sh" | sudo bash -s -- --uninstall`,
+		pubURL,
+	)
+
 	writeJSON(w, http.StatusOK, map[string]string{
-		"hub_url":        pubURL,
-		"token":          node.Token,
-		"docker_compose": dockerCompose,
-		"docker_run":     dockerRun,
-		"binary_install": binaryInstall,
+		"hub_url":          pubURL,
+		"token":            node.Token,
+		"docker_compose":   dockerCompose,
+		"docker_run":       dockerRun,
+		"binary_install":   binaryInstall,
+		"binary_uninstall": binaryUninstall,
 	})
 }
 
@@ -514,18 +520,31 @@ NODE_TOKEN=""
 INSTALL_DIR="/opt/mihob-agent"
 MIHOB_BIN_URL="${MIHOB_BIN_URL:-}"
 MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.34}"
+UNINSTALL=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --hub) HUB_URL="$2"; shift 2 ;;
     --token) NODE_TOKEN="$2"; shift 2 ;;
     --dir) INSTALL_DIR="$2"; shift 2 ;;
+    --uninstall|uninstall) UNINSTALL=1; shift ;;
     *) shift ;;
   esac
 done
 
+if [[ "$UNINSTALL" -eq 1 ]]; then
+  echo "[mihob] Uninstalling mihob-agent..."
+  systemctl disable --now mihob-agent 2>/dev/null || true
+  rm -f /etc/systemd/system/mihob-agent.service
+  systemctl daemon-reload 2>/dev/null || true
+  rm -rf "$INSTALL_DIR"
+  rm -f /usr/local/bin/mihob /usr/local/bin/mihomo
+  echo "[mihob] mihob-agent uninstalled and cleaned up."
+  exit 0
+fi
+
 if [[ -z "$HUB_URL" || -z "$NODE_TOKEN" ]]; then
-  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN>"
+  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN> | --uninstall"
   exit 1
 fi
 

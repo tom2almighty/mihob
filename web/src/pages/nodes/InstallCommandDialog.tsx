@@ -5,6 +5,7 @@ import { Cloud, RefreshCw, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton, ErrorState } from "@/components/common/CommonUI"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import type { Node } from "@/lib/types"
 
+function buildDockerCompose(
+  baseCompose: string,
+  opts: {
+    watchtowerLabel: boolean
+    watchtowerService: boolean
+    cfEnabled: boolean
+    cfToken: string
+  }
+): string {
+  let out = baseCompose.trimEnd()
+  const addLabel = opts.watchtowerLabel || opts.watchtowerService
+
+  if (addLabel) {
+    out += `\n    labels:\n      - "com.centurylinklabs.watchtower.enable=true"`
+  }
+
+  if (opts.cfEnabled) {
+    const tok = opts.cfToken.trim() || "<YOUR_CLOUDFLARE_TUNNEL_TOKEN>"
+    out += `\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel --no-autoupdate run --token "${tok}"`
+    if (addLabel) {
+      out += `\n    labels:\n      - "com.centurylinklabs.watchtower.enable=true"`
+    }
+  }
+
+  if (opts.watchtowerService) {
+    out += `\n\n  watchtower:\n    image: containrrr/watchtower:latest\n    container_name: mihob-watchtower\n    restart: unless-stopped\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n    command: --cleanup --label-enable --interval 3600`
+  }
+
+  return `${out}\n`
+}
+
 export function InstallCommandDialog({
   node,
   open,
@@ -29,6 +61,9 @@ export function InstallCommandDialog({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [watchtowerLabel, setWatchtowerLabel] = useState(false)
+  const [watchtowerService, setWatchtowerService] = useState(false)
+  const [cfEnabled, setCfEnabled] = useState(false)
   const [cfToken, setCfToken] = useState("")
 
   const query = useQuery({
@@ -95,10 +130,12 @@ export function InstallCommandDialog({
 
                 <TabsContent value="compose" className="mt-3 space-y-2.5">
                   {(() => {
-                    const trimmedToken = cfToken.trim()
-                    const composeText = trimmedToken
-                      ? `${query.data.docker_compose.trimEnd()}\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel --no-autoupdate run --token "${trimmedToken}"\n`
-                      : query.data.docker_compose
+                    const composeText = buildDockerCompose(query.data.docker_compose, {
+                      watchtowerLabel,
+                      watchtowerService,
+                      cfEnabled,
+                      cfToken,
+                    })
                     return (
                       <>
                         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -110,15 +147,50 @@ export function InstallCommandDialog({
                             variant="outline"
                           />
                         </div>
-                        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5">
-                          <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
-                          <Input
-                            value={cfToken}
-                            onChange={(e) => setCfToken(e.target.value)}
-                            placeholder={t("nodes.install.cfTokenPlaceholder")}
-                            className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
-                          />
+
+                        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                            <label className="flex cursor-pointer items-center gap-1.5">
+                              <Checkbox
+                                checked={watchtowerLabel || watchtowerService}
+                                disabled={watchtowerService}
+                                onCheckedChange={(v) => setWatchtowerLabel(Boolean(v))}
+                              />
+                              <span>{t("nodes.install.optWatchtowerLabel")}</span>
+                            </label>
+                            <label className="flex cursor-pointer items-center gap-1.5">
+                              <Checkbox
+                                checked={watchtowerService}
+                                onCheckedChange={(v) => {
+                                  const next = Boolean(v)
+                                  setWatchtowerService(next)
+                                  if (next) setWatchtowerLabel(true)
+                                }}
+                              />
+                              <span>{t("nodes.install.optWatchtowerService")}</span>
+                            </label>
+                            <label className="flex cursor-pointer items-center gap-1.5">
+                              <Checkbox
+                                checked={cfEnabled}
+                                onCheckedChange={(v) => setCfEnabled(Boolean(v))}
+                              />
+                              <span>{t("nodes.install.optCloudflared")}</span>
+                            </label>
+                          </div>
+
+                          {cfEnabled && (
+                            <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1">
+                              <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
+                              <Input
+                                value={cfToken}
+                                onChange={(e) => setCfToken(e.target.value)}
+                                placeholder={t("nodes.install.cfTokenPlaceholder")}
+                                className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
+                              />
+                            </div>
+                          )}
                         </div>
+
                         <pre className="h-[260px] max-h-[40vh] overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
                           {composeText}
                         </pre>
@@ -142,19 +214,43 @@ export function InstallCommandDialog({
                   </pre>
                 </TabsContent>
 
-                <TabsContent value="binary" className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>{t("nodes.install.binaryHint")}</span>
-                    <CopyButton
-                      value={query.data.binary_install}
-                      label={t("nodes.install.copyScript")}
-                      size="sm"
-                      variant="outline"
-                    />
+                <TabsContent value="binary" className="mt-3 space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>{t("nodes.install.binaryHint")}</span>
+                      <CopyButton
+                        value={query.data.binary_install}
+                        label={t("nodes.install.copyScript")}
+                        size="sm"
+                        variant="outline"
+                      />
+                    </div>
+                    <pre className="overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
+                      {query.data.binary_install}
+                    </pre>
                   </div>
-                  <pre className="h-[300px] max-h-[45vh] overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-                    {query.data.binary_install}
-                  </pre>
+
+                  {(() => {
+                    const uninstallCmd =
+                      query.data.binary_uninstall ||
+                      `curl -fsSL "${query.data.hub_url}/install/agent.sh" | sudo bash -s -- --uninstall`
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>{t("nodes.install.binaryUninstallHint")}</span>
+                          <CopyButton
+                            value={uninstallCmd}
+                            label={t("nodes.install.copyUninstall")}
+                            size="sm"
+                            variant="outline"
+                          />
+                        </div>
+                        <pre className="overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
+                          {uninstallCmd}
+                        </pre>
+                      </div>
+                    )
+                  })()}
                 </TabsContent>
               </Tabs>
             </>

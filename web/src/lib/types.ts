@@ -189,6 +189,7 @@ export interface User {
   ss_key_32: string
   sub_token: string
   enabled: boolean
+  all_nodes: boolean
   traffic_limit: number
   traffic_used: number
   upload_used: number
@@ -243,6 +244,7 @@ export interface InstallCommands {
   docker_compose: string
   docker_run: string
   binary_install: string
+  binary_uninstall?: string
 }
 
 export interface SystemSettings {
