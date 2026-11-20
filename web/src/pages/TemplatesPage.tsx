@@ -94,9 +94,10 @@ export function TemplatesPage() {
       {query.isError ? (
         <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
       ) : query.isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-44 w-full" />
-          <Skeleton className="h-44 w-full" />
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
       ) : !query.data?.length ? (
         <EmptyState
@@ -105,83 +106,86 @@ export function TemplatesPage() {
           description={t("templates.emptyDesc")}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {query.data.map((tmpl) => (
-            <Card key={tmpl.id} className="flex flex-col justify-between">
-              <CardHeader className="pb-3">
+            <Card key={tmpl.id} className="flex flex-col justify-between gap-2 py-4">
+              <CardHeader className="px-4 pb-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="truncate text-base">{tmpl.name}</CardTitle>
+                      <CardTitle className="truncate text-sm font-semibold">{tmpl.name}</CardTitle>
                       {tmpl.is_default && (
-                        <Badge variant="secondary" className="bg-info/15 text-info">
+                        <Badge variant="secondary" className="bg-info/15 text-xs text-info">
                           {t("templates.defaultBadge")}
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="line-clamp-2">
+                    <CardDescription className="line-clamp-2 text-xs">
                       {tmpl.description || t("common.noDescription")}
                     </CardDescription>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-0.5">
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label={t("templates.previewAria")}
-                          onClick={() => {
-                            setPreviewTmpl(tmpl)
-                            setPreviewUserId("")
-                            setRenderedYAML("")
-                          }}
-                        >
-                          <Eye className="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            aria-label={t("templates.previewAria")}
+                            onClick={() => {
+                              setPreviewTmpl(tmpl)
+                              setPreviewUserId("")
+                              setRenderedYAML("")
+                            }}
+                          >
+                            <Eye className="size-3.5" />
+                          </Button>
+                        }
+                      />
                       <TooltipContent>{t("templates.previewTooltip")}</TooltipContent>
                     </Tooltip>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label={t("templates.editAria")}
-                          onClick={() => {
-                            setEditing(tmpl)
-                            setFormOpen(true)
-                          }}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            aria-label={t("templates.editAria")}
+                            onClick={() => {
+                              setEditing(tmpl)
+                              setFormOpen(true)
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        }
+                      />
                       <TooltipContent>{t("templates.editTooltip")}</TooltipContent>
                     </Tooltip>
                     {!tmpl.is_default && (
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive hover:text-destructive"
-                            aria-label={t("templates.deleteAria")}
-                            onClick={() => setDeleting(tmpl)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </TooltipTrigger>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:text-destructive"
+                              aria-label={t("templates.deleteAria")}
+                              onClick={() => setDeleting(tmpl)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          }
+                        />
                         <TooltipContent>{t("templates.deleteTooltip")}</TooltipContent>
                       </Tooltip>
                     )}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <pre className="line-clamp-5 overflow-hidden rounded-md border border-border bg-muted/40 p-2.5 font-mono text-xs text-muted-foreground">
-                  {tmpl.content}
-                </pre>
+              <CardContent className="px-4 pt-0">
                 <div className="text-xs text-muted-foreground tabular-nums">
                   {t("common.updatedAt", {
                     date: formatDateShort(tmpl.updated_at, i18n.language),
@@ -202,7 +206,7 @@ export function TemplatesPage() {
             <DialogDescription>{t("templates.previewDesc")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap items-center gap-2 py-2">
-            <Select value={previewUserId} onValueChange={setPreviewUserId}>
+            <Select value={previewUserId} onValueChange={(v) => setPreviewUserId(v ?? "")}>
               <SelectTrigger className="w-60">
                 <SelectValue placeholder={t("templates.selectUserPlaceholder")} />
               </SelectTrigger>
