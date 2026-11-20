@@ -83,7 +83,7 @@ function SidebarNavItem({
       <span
         className={cn(
           "overflow-hidden whitespace-nowrap transition-[opacity,max-width,margin] duration-200 ease-in-out",
-          collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2.5 max-w-[160px] opacity-100"
+          collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2.5 max-w-40 opacity-100"
         )}
       >
         {label}
@@ -250,7 +250,7 @@ function SidebarFooter({
       <span
         className={cn(
           "flex min-w-0 flex-1 items-center justify-between overflow-hidden whitespace-nowrap transition-[opacity,max-width,margin] duration-200 ease-in-out",
-          collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-[160px] opacity-100"
+          collapsed ? "ml-0 max-w-0 opacity-0" : "ml-2 max-w-40 opacity-100"
         )}
       >
         <span className="truncate text-sm font-medium">{username}</span>
@@ -276,7 +276,7 @@ function SidebarFooter({
           <span
             className={cn(
               "overflow-hidden whitespace-nowrap text-xs text-muted-foreground transition-[opacity,max-width] duration-200",
-              collapsed ? "max-w-0 opacity-0" : "max-w-[100px] opacity-100"
+              collapsed ? "max-w-0 opacity-0" : "max-w-25 opacity-100"
             )}
           >
             {t("nav.preferences")}
@@ -387,7 +387,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div
             className={cn(
               "flex min-w-0 items-center overflow-hidden transition-[opacity,max-width] duration-200 ease-in-out",
-              collapsed ? "max-w-0 opacity-0" : "max-w-[160px] gap-2.5 pl-1 opacity-100"
+              collapsed ? "max-w-0 opacity-0" : "max-w-40 gap-2.5 pl-1 opacity-100"
             )}
           >
             <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
