@@ -26,6 +26,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Username     string     `json:"username"`
 		Email        string     `json:"email"`
 		Enabled      *bool      `json:"enabled"`
+		AllNodes     *bool      `json:"all_nodes"`
 		TrafficLimit int64      `json:"traffic_limit"`
 		ExpireAt     *time.Time `json:"expire_at"`
 		TemplateID   *int64     `json:"template_id"`
@@ -45,10 +46,15 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	allNodes := false
+	if req.AllNodes != nil {
+		allNodes = *req.AllNodes
+	}
 	u := &model.User{
 		Username:     req.Username,
 		Email:        strings.TrimSpace(req.Email),
 		Enabled:      enabled,
+		AllNodes:     allNodes,
 		TrafficLimit: req.TrafficLimit,
 		ExpireAt:     req.ExpireAt,
 		TemplateID:   req.TemplateID,
@@ -84,6 +90,7 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		Username     string     `json:"username"`
 		Email        string     `json:"email"`
 		Enabled      *bool      `json:"enabled"`
+		AllNodes     *bool      `json:"all_nodes"`
 		TrafficLimit int64      `json:"traffic_limit"`
 		ExpireAt     *time.Time `json:"expire_at"`
 		TemplateID   *int64     `json:"template_id"`
@@ -100,6 +107,9 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	existing.Email = strings.TrimSpace(req.Email)
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
+	}
+	if req.AllNodes != nil {
+		existing.AllNodes = *req.AllNodes
 	}
 	existing.TrafficLimit = req.TrafficLimit
 	existing.ExpireAt = req.ExpireAt

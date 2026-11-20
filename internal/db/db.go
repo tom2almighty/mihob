@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS users (
 	ss_key_32 TEXT NOT NULL,
 	sub_token TEXT NOT NULL UNIQUE,
 	enabled INTEGER NOT NULL DEFAULT 1,
+	all_nodes INTEGER NOT NULL DEFAULT 1,
 	traffic_limit INTEGER NOT NULL DEFAULT 0,
 	traffic_used INTEGER NOT NULL DEFAULT 0,
 	upload_used INTEGER NOT NULL DEFAULT 0,
@@ -182,6 +183,9 @@ CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 		return err
 	}
 	if err := s.ensureColumn("nodes", "billing_cycle", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("users", "all_nodes", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	return s.seedDefaults()

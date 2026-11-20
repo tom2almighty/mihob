@@ -238,6 +238,7 @@ type User struct {
 	SSKey32      string     `json:"ss_key_32"`
 	SubToken     string     `json:"sub_token"`
 	Enabled      bool       `json:"enabled"`
+	AllNodes     bool       `json:"all_nodes"`
 	TrafficLimit int64      `json:"traffic_limit"`
 	TrafficUsed  int64      `json:"traffic_used"`
 	UploadUsed   int64      `json:"upload_used"`
