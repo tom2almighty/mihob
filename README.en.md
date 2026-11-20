@@ -61,6 +61,37 @@ cd ..
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
 ```
 
+### Binary Deployment (Non-Docker)
+
+Download prebuilt archives from [GitHub Releases](https://github.com/tom2almighty/mihob/releases) (or compile from source as shown above):
+
+- **Hub** (`mihob_<version>_<os>_<arch>.tar.gz` / `.zip`):
+
+```bash
+tar -xzf mihob_<version>_linux_amd64.tar.gz
+chmod +x ./mihob
+
+# Start directly (flags can also be set via MIHOB_HOST / MIHOB_PORT / MIHOB_DATA_DIR / MIHOB_ADMIN_PASS)
+./mihob hub --host 0.0.0.0 --port 8080 --data ./data
+```
+
+If `MIHOB_ADMIN_PASS` is left empty on first start, an initial admin password is generated and printed to the logs. For production, run Hub under `systemd` behind a reverse proxy with HTTPS.
+
+- **Agent** (`mihob-agent_<version>_linux_<arch>.tar.gz`):
+  - **Recommended**: Open **Nodes → Deploy → Binary** in the Hub web console and run the one-line install script, which installs `mihomo`, `mihob-agent`, and registers a `systemd` service (`--update` and `--uninstall` are also supported).
+  - **Manual run** (requires `mihomo` installed on the node):
+
+```bash
+tar -xzf mihob-agent_<version>_linux_amd64.tar.gz
+chmod +x ./mihob-agent
+
+./mihob-agent \
+  --hub "https://hub.example.com" \
+  --token "<NODE_TOKEN>" \
+  --data ./agent-data \
+  --mihomo-bin /usr/local/bin/mihomo
+```
+
 ### Docker Compose (Hub)
 
 ```yaml

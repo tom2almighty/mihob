@@ -61,6 +61,37 @@ cd ..
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
 ```
 
+### 二进制方式运行（非 Docker）
+
+可从 [GitHub Releases](https://github.com/tom2almighty/mihob/releases) 下载对应平台预编译压缩包（或按上方「生产构建」自行编译）：
+
+- **Hub**（`mihob_<version>_<os>_<arch>.tar.gz` / `.zip`）：
+
+```bash
+tar -xzf mihob_<version>_linux_amd64.tar.gz
+chmod +x ./mihob
+
+# 直接启动（也可通过环境变量 MIHOB_HOST / MIHOB_PORT / MIHOB_DATA_DIR / MIHOB_ADMIN_PASS 配置）
+./mihob hub --host 0.0.0.0 --port 8080 --data ./data
+```
+
+首次启动未指定 `MIHOB_ADMIN_PASS` 时，控制台日志会打印自动生成的初始管理员密码；生产环境建议配合 `systemd` 守护运行并通过反代提供 HTTPS。
+
+- **Agent**（`mihob-agent_<version>_linux_<arch>.tar.gz`）：
+  - **推荐**：在 Hub 控制台「节点管理 → 部署 → 二进制脚本」中复制一键命令，自动安装 `mihomo`、`mihob-agent` 并注册 `systemd` 服务（同样支持 `--update` 更新与 `--uninstall` 卸载）。
+  - **手动运行**（节点需先安装 `mihomo` 可执行文件）：
+
+```bash
+tar -xzf mihob-agent_<version>_linux_amd64.tar.gz
+chmod +x ./mihob-agent
+
+./mihob-agent \
+  --hub "https://hub.example.com" \
+  --token "<NODE_TOKEN>" \
+  --data ./agent-data \
+  --mihomo-bin /usr/local/bin/mihomo
+```
+
 ### Docker Compose 启动（Hub）
 
 ```yaml
