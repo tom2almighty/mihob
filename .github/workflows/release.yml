@@ -4,33 +4,108 @@ on:
   push:
     tags:
       - "v*"
+      - "hub-v*"
+      - "agent-v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build & publish (e.g. v0.1.0)"
+        description: "Release tag to build & publish (e.g. v0.5.0, hub-v0.5.1, agent-v0.5.1)"
         required: true
         type: string
+      target:
+        description: "Build target (auto detects from tag prefix)"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - hub
+          - agent
+          - all
 
 permissions:
   contents: write
   packages: write
 
 jobs:
+  plan:
+    name: Resolve Release Plan
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+      build_hub: ${{ steps.plan.outputs.build_hub }}
+      build_agent: ${{ steps.plan.outputs.build_agent }}
+    steps:
+      - name: Determine release targets & version
+        id: plan
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+          INPUT_TARGET: ${{ inputs.target || 'auto' }}
+        run: |
+          set -euo pipefail
+          TAG="${RAW_TAG}"
+          BUILD_HUB="false"
+          BUILD_AGENT="false"
+          VERSION="${TAG}"
+
+          case "${TAG}" in
+            hub-v*)
+              VERSION="${TAG#hub-}"
+              BUILD_HUB="true"
+              ;;
+            agent-v*)
+              VERSION="${TAG#agent-}"
+              BUILD_AGENT="true"
+              ;;
+            *)
+              BUILD_HUB="true"
+              BUILD_AGENT="true"
+              ;;
+          esac
+
+          if [ "${INPUT_TARGET}" = "hub" ]; then
+            BUILD_HUB="true"
+            BUILD_AGENT="false"
+          elif [ "${INPUT_TARGET}" = "agent" ]; then
+            BUILD_HUB="false"
+            BUILD_AGENT="true"
+          elif [ "${INPUT_TARGET}" = "all" ]; then
+            BUILD_HUB="true"
+            BUILD_AGENT="true"
+          fi
+
+          PRERELEASE="false"
+          if [[ "${VERSION}" == *-* ]]; then
+            PRERELEASE="true"
+          fi
+
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "build_hub=${BUILD_HUB}" >> "${GITHUB_OUTPUT}"
+          echo "build_agent=${BUILD_AGENT}" >> "${GITHUB_OUTPUT}"
+          echo "Plan -> tag=${TAG}, version=${VERSION}, hub=${BUILD_HUB}, agent=${BUILD_AGENT}, prerelease=${PRERELEASE}"
+
   release-binaries:
     name: Build & Publish Release Binaries
     runs-on: ubuntu-latest
+    needs: plan
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ needs.plan.outputs.tag }}
 
       - name: Setup pnpm
+        if: needs.plan.outputs.build_hub == 'true'
         uses: pnpm/action-setup@v6
         with:
           version: 12
 
       - name: Setup Node.js
+        if: needs.plan.outputs.build_hub == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -38,6 +113,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install frontend dependencies & build
+        if: needs.plan.outputs.build_hub == 'true'
         working-directory: web
         run: |
           pnpm install --frozen-lockfile
@@ -49,94 +125,101 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run Go tests
+      - name: Run Go tests (Hub)
+        if: needs.plan.outputs.build_hub == 'true'
         run: go test -v ./...
+
+      - name: Run Go tests (Agent only)
+        if: needs.plan.outputs.build_hub != 'true' && needs.plan.outputs.build_agent == 'true'
+        run: go test -v ./internal/agent/... ./internal/protocol/... ./cmd/mihob-agent/...
 
       - name: Cross-compile release archives
         env:
-          VERSION: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          BUILD_HUB: ${{ needs.plan.outputs.build_hub }}
+          BUILD_AGENT: ${{ needs.plan.outputs.build_agent }}
         run: |
           set -euo pipefail
           mkdir -p dist
-          TARGETS=(
-            "linux amd64"
-            "linux arm64"
-            "darwin amd64"
-            "darwin arm64"
-            "windows amd64"
-          )
 
-          for item in "${TARGETS[@]}"; do
-            read -r GOOS GOARCH <<< "${item}"
-            EXT=""
-            if [ "${GOOS}" = "windows" ]; then
-              EXT=".exe"
-            fi
+          if [ "${BUILD_HUB}" = "true" ]; then
+            HUB_TARGETS=(
+              "linux amd64"
+              "linux arm64"
+              "darwin amd64"
+              "darwin arm64"
+              "windows amd64"
+            )
+            for item in "${HUB_TARGETS[@]}"; do
+              read -r GOOS GOARCH <<< "${item}"
+              EXT=""
+              [ "${GOOS}" = "windows" ] && EXT=".exe"
+              STAGE_DIR="dist/stage_hub_${GOOS}_${GOARCH}"
+              mkdir -p "${STAGE_DIR}"
 
-            STAGE_DIR="dist/stage_${GOOS}_${GOARCH}"
-            mkdir -p "${STAGE_DIR}"
+              echo "Building mihob (hub) ${VERSION} for ${GOOS}/${GOARCH}..."
+              CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
+                go build -trimpath \
+                -ldflags="-s -w -X main.Version=${VERSION}" \
+                -o "${STAGE_DIR}/mihob${EXT}" ./cmd/mihob
 
-            echo "Building mihob ${VERSION} for ${GOOS}/${GOARCH}..."
-            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
-              go build -trimpath \
-              -ldflags="-s -w -X main.Version=${VERSION}" \
-              -o "${STAGE_DIR}/mihob${EXT}" ./cmd/mihob
-
-            cp README.md "${STAGE_DIR}/"
-
-            ARCHIVE_BASE="mihob_${VERSION}_${GOOS}_${GOARCH}"
-            if [ "${GOOS}" = "windows" ]; then
-              (cd "${STAGE_DIR}" && zip -q -r "../${ARCHIVE_BASE}.zip" .)
-            else
-              tar -C "${STAGE_DIR}" -czf "dist/${ARCHIVE_BASE}.tar.gz" .
-            fi
-            rm -rf "${STAGE_DIR}"
-          done
-
-          (cd dist && sha256sum mihob_* > checksums.txt)
-          cat dist/checksums.txt
-
-      - name: Determine prerelease flag
-        id: meta
-        env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          if [[ "${RELEASE_TAG}" == *-* ]]; then
-            echo "prerelease=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+              cp README.md "${STAGE_DIR}/"
+              ARCHIVE_BASE="mihob_${VERSION}_${GOOS}_${GOARCH}"
+              if [ "${GOOS}" = "windows" ]; then
+                (cd "${STAGE_DIR}" && zip -q -r "../${ARCHIVE_BASE}.zip" .)
+              else
+                tar -C "${STAGE_DIR}" -czf "dist/${ARCHIVE_BASE}.tar.gz" .
+              fi
+              rm -rf "${STAGE_DIR}"
+            done
           fi
+
+          if [ "${BUILD_AGENT}" = "true" ]; then
+            AGENT_TARGETS=(
+              "linux amd64"
+              "linux arm64"
+            )
+            for item in "${AGENT_TARGETS[@]}"; do
+              read -r GOOS GOARCH <<< "${item}"
+              STAGE_DIR="dist/stage_agent_${GOOS}_${GOARCH}"
+              mkdir -p "${STAGE_DIR}"
+
+              echo "Building mihob-agent ${VERSION} for ${GOOS}/${GOARCH}..."
+              CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
+                go build -trimpath \
+                -ldflags="-s -w -X main.Version=${VERSION}" \
+                -o "${STAGE_DIR}/mihob-agent" ./cmd/mihob-agent
+
+              ARCHIVE_BASE="mihob-agent_${VERSION}_${GOOS}_${GOARCH}"
+              tar -C "${STAGE_DIR}" -czf "dist/${ARCHIVE_BASE}.tar.gz" .
+              rm -rf "${STAGE_DIR}"
+            done
+          fi
+
+          (cd dist && sha256sum mihob* > checksums.txt)
+          cat dist/checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.plan.outputs.tag }}
           generate_release_notes: true
-          prerelease: ${{ steps.meta.outputs.prerelease }}
+          prerelease: ${{ needs.plan.outputs.prerelease }}
           files: |
-            dist/mihob_*.tar.gz
-            dist/mihob_*.zip
+            dist/mihob*.tar.gz
+            dist/mihob*.zip
             dist/checksums.txt
 
-  release-docker:
-    name: Build & Push Docker Image (${{ matrix.target }})
+  release-docker-hub:
+    name: Build & Push Docker Image (hub)
     runs-on: ubuntu-latest
-    needs: release-binaries
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: hub
-            dockerfile: deploy/Dockerfile.hub
-            image: mihob-hub
-          - target: agent
-            dockerfile: deploy/Dockerfile.agent
-            image: mihob-agent
+    needs: [plan, release-binaries]
+    if: needs.plan.outputs.build_hub == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ needs.plan.outputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -155,23 +238,72 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ github.repository_owner }}/mihob-hub
           tags: |
-            type=semver,pattern={{version}},value=${{ inputs.tag || github.ref_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }}
-            type=semver,pattern={{major}},value=${{ inputs.tag || github.ref_name }}
-            type=raw,value=latest,enable=${{ !contains(inputs.tag || github.ref_name, '-') }}
+            type=semver,pattern={{version}},value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.plan.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.plan.outputs.prerelease != 'true' }}
 
       - name: Build and push multi-arch Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: deploy/Dockerfile.hub
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ inputs.tag || github.ref_name }}
-          cache-from: type=gha,scope=release-${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=release-${{ matrix.target }}
+            VERSION=${{ needs.plan.outputs.version }}
+          cache-from: type=gha,scope=release-hub
+          cache-to: type=gha,mode=max,scope=release-hub
+
+  release-docker-agent:
+    name: Build & Push Docker Image (agent)
+    runs-on: ubuntu-latest
+    needs: [plan, release-binaries]
+    if: needs.plan.outputs.build_agent == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/mihob-agent
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.plan.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.plan.outputs.prerelease != 'true' }}
+
+      - name: Build and push multi-arch Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile.agent
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.plan.outputs.version }}
+          cache-from: type=gha,scope=release-agent
+          cache-to: type=gha,mode=max,scope=release-agent

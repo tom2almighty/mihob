@@ -82,8 +82,10 @@ jobs:
       - name: Run Go tests
         run: go test -race -v ./...
 
-      - name: Build single binary with embedded Web UI
-        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
+      - name: Build Hub and Agent binaries
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob-agent ./cmd/mihob-agent
 
   docker-check:
     name: Docker Build Check (${{ matrix.target }})
