@@ -24,10 +24,9 @@ import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatBytes, formatRate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-// Compact card overrides so the full dashboard fits in a single desktop viewport without scrolling.
-const COMPACT_CARD = "gap-2.5 py-3.5"
-const COMPACT_HEADER = "px-4 pb-0"
-const COMPACT_CONTENT = "px-4"
+const CARD_BASE = "gap-3 py-4"
+const CARD_HEADER = "px-5 pb-0"
+const CARD_CONTENT = "px-5"
 
 export function DashboardPage() {
   const { t } = useTranslation()
@@ -74,8 +73,11 @@ export function DashboardPage() {
     .sort((a, b) => a.days - b.days)
     .slice(0, 5)
 
+  const topNodes = (data?.nodes ?? []).slice(0, 3)
+  const topUsers = (data?.top_users ?? []).slice(0, 3)
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <PageHeader
         title={t("dashboard.title")}
         description={t("dashboard.description")}
@@ -87,7 +89,7 @@ export function DashboardPage() {
       />
 
       {/* KPI Grid */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           loading={query.isLoading}
           title={t("dashboard.onlineNodes")}
@@ -143,10 +145,10 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Middle Row: 24h Traffic Chart + Node Renewal Countdown Chart (same row, zero extra height) */}
-      <div className="grid gap-3 lg:grid-cols-12">
-        <Card className={cn(COMPACT_CARD, "lg:col-span-8")}>
-          <CardHeader className={COMPACT_HEADER}>
+      {/* Middle Row: 24h Traffic Chart + Node Renewal Countdown Chart */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className={cn(CARD_BASE, "lg:col-span-8")}>
+          <CardHeader className={CARD_HEADER}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
                 <CardTitle className="text-sm font-semibold">{t("dashboard.chartTitle")}</CardTitle>
@@ -165,11 +167,11 @@ export function DashboardPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className={COMPACT_CONTENT}>
+          <CardContent className={CARD_CONTENT}>
             {query.isLoading ? (
-              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-56 w-full" />
             ) : (
-              <div className="h-40 w-full">
+              <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 6, right: 6, left: -8, bottom: 0 }}>
                     <defs>
@@ -230,8 +232,8 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className={cn(COMPACT_CARD, "lg:col-span-4")}>
-          <CardHeader className={COMPACT_HEADER}>
+        <Card className={cn(CARD_BASE, "lg:col-span-4")}>
+          <CardHeader className={CARD_HEADER}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <CardTitle className="truncate text-sm font-semibold">
@@ -244,11 +246,11 @@ export function DashboardPage() {
               <CalendarClock className="size-3.5 shrink-0 text-muted-foreground" />
             </div>
           </CardHeader>
-          <CardContent className={COMPACT_CONTENT}>
+          <CardContent className={CARD_CONTENT}>
             {query.isLoading ? (
-              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-56 w-full" />
             ) : nodeExpiryData.length === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 px-4 text-center">
+              <div className="flex h-56 flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 px-4 text-center">
                 <CalendarClock className="mb-1.5 size-4 text-muted-foreground" />
                 <p className="text-xs font-medium text-foreground">
                   {t("dashboard.nodeExpiryEmptyTitle")}
@@ -258,7 +260,7 @@ export function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="h-40 w-full">
+              <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={nodeExpiryData}
@@ -321,11 +323,11 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Bottom Split: Node Health + Top Users (internal scroll if many items) */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card className={COMPACT_CARD}>
-          <CardHeader className={cn(COMPACT_HEADER, "flex flex-row items-center justify-between")}>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      {/* Bottom Split: Node Status (Top 3) + Top Traffic Users (Top 3) */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className={CARD_BASE}>
+          <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between")}>
+            <div className="space-y-0.5">
               <CardTitle className="text-sm font-semibold">
                 {t("dashboard.nodeStatusTitle")}
               </CardTitle>
@@ -341,14 +343,14 @@ export function DashboardPage() {
               {t("dashboard.viewAll")}
             </Button>
           </CardHeader>
-          <CardContent className={cn(COMPACT_CONTENT, "max-h-52 space-y-2 overflow-y-auto")}>
+          <CardContent className={cn(CARD_CONTENT, "space-y-2.5")}>
             {query.isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
+              <div className="space-y-2.5">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
               </div>
-            ) : !data?.nodes.length ? (
+            ) : !topNodes.length ? (
               <EmptyState
                 className="py-6"
                 icon={<Server className="size-4" />}
@@ -356,10 +358,10 @@ export function DashboardPage() {
                 description={t("dashboard.noNodesDesc")}
               />
             ) : (
-              data.nodes.map((n) => (
+              topNodes.map((n) => (
                 <div
                   key={n.id}
-                  className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-1.5 rounded-md border border-border px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -393,9 +395,9 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className={COMPACT_CARD}>
-          <CardHeader className={cn(COMPACT_HEADER, "flex flex-row items-center justify-between")}>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <Card className={CARD_BASE}>
+          <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between")}>
+            <div className="space-y-0.5">
               <CardTitle className="text-sm font-semibold">{t("dashboard.topUsersTitle")}</CardTitle>
               <CardDescription className="text-xs">{t("dashboard.topUsersDesc")}</CardDescription>
             </div>
@@ -409,14 +411,14 @@ export function DashboardPage() {
               {t("dashboard.viewAll")}
             </Button>
           </CardHeader>
-          <CardContent className={cn(COMPACT_CONTENT, "max-h-52 space-y-2 overflow-y-auto")}>
+          <CardContent className={cn(CARD_CONTENT, "space-y-2.5")}>
             {query.isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
+              <div className="space-y-2.5">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
               </div>
-            ) : !data?.top_users.length ? (
+            ) : !topUsers.length ? (
               <EmptyState
                 className="py-6"
                 icon={<Users className="size-4" />}
@@ -424,8 +426,8 @@ export function DashboardPage() {
                 description={t("dashboard.noUsersDesc")}
               />
             ) : (
-              data.top_users.map((u) => (
-                <div key={u.id} className="space-y-1 rounded-md border border-border px-3 py-2">
+              topUsers.map((u) => (
+                <div key={u.id} className="space-y-1.5 rounded-md border border-border px-3.5 py-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{u.username}</span>
                     <Badge

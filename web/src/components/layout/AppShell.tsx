@@ -152,14 +152,14 @@ export function LanguageSwitcher({
         />
         <TooltipContent side={tooltipSide}>{t("nav.languageTooltip")}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent side={side} align={align} sideOffset={6}>
-        <DropdownMenuItem onClick={() => changeLang("zh-CN")}>
+      <DropdownMenuContent side={side} align={align} sideOffset={6} className="min-w-36">
+        <DropdownMenuItem onClick={() => changeLang("zh-CN")} className="whitespace-nowrap">
           <span className="flex-1">{t("nav.langZh")}</span>
-          {current === "zh-CN" && <Check className="ml-2 size-3.5" />}
+          {current === "zh-CN" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => changeLang("en-US")}>
+        <DropdownMenuItem onClick={() => changeLang("en-US")} className="whitespace-nowrap">
           <span className="flex-1">{t("nav.langEn")}</span>
-          {current === "en-US" && <Check className="ml-2 size-3.5" />}
+          {current === "en-US" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -200,21 +200,21 @@ export function ThemeSwitcher({
         />
         <TooltipContent side={tooltipSide}>{t("nav.themeTooltip")}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent side={side} align={align} sideOffset={6}>
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          <Sun className="mr-2 size-4" />
+      <DropdownMenuContent side={side} align={align} sideOffset={6} className="min-w-44">
+        <DropdownMenuItem onClick={() => setTheme("light")} className="whitespace-nowrap">
+          <Sun className="mr-2 size-4 shrink-0" />
           <span className="flex-1">{t("nav.themeLight")}</span>
-          {theme === "light" && <Check className="ml-2 size-3.5" />}
+          {theme === "light" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          <Moon className="mr-2 size-4" />
+        <DropdownMenuItem onClick={() => setTheme("dark")} className="whitespace-nowrap">
+          <Moon className="mr-2 size-4 shrink-0" />
           <span className="flex-1">{t("nav.themeDark")}</span>
-          {theme === "dark" && <Check className="ml-2 size-3.5" />}
+          {theme === "dark" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          <Monitor className="mr-2 size-4" />
+        <DropdownMenuItem onClick={() => setTheme("system")} className="whitespace-nowrap">
+          <Monitor className="mr-2 size-4 shrink-0" />
           <span className="flex-1">{t("nav.themeSystem")}</span>
-          {theme === "system" && <Check className="ml-2 size-3.5" />}
+          {theme === "system" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -44,7 +44,7 @@ export function LoginPage() {
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "admin", password: "" },
+    defaultValues: { username: "", password: "" },
   })
 
   const onSubmit = async (values: LoginValues) => {
@@ -88,7 +88,11 @@ export function LoginPage() {
                   <FormItem>
                     <FormLabel>{t("login.username")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="admin" autoComplete="username" {...field} />
+                      <Input
+                        placeholder={t("login.usernamePlaceholder")}
+                        autoComplete="username"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
