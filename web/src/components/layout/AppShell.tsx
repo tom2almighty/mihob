@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -313,9 +314,11 @@ function SidebarFooter({
             sideOffset={8}
             className="w-48"
           >
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-              {t("nav.adminAccount")} · {username}
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                {t("nav.adminAccount")} · {username}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {

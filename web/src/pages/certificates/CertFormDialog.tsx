@@ -236,9 +236,9 @@ export function CertFormDialog({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>{t("certificates.form.provider")}</FormLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                            <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
                               <FormControl>
-                                <SelectTrigger>
+                                <SelectTrigger className="w-full">
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
