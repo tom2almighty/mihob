@@ -11,6 +11,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/mihob-agent/ ./cmd/mihob-agent/
 COPY internal/agent/ ./internal/agent/
+COPY internal/crypto/ ./internal/crypto/
 COPY internal/protocol/ ./internal/protocol/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob-agent ./cmd/mihob-agent
 
