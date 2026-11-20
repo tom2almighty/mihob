@@ -8,13 +8,13 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Form,
   FormControl,
@@ -124,13 +124,13 @@ export function TemplateFormDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] flex-col sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+        <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+          <SheetTitle>
             {isEdit ? t("templates.form.editTitle") : t("templates.form.createTitle")}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {t("templates.form.descBefore")}{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{PROXIES}}"}</code>{" "}
             {t("templates.form.descMiddle")}{" "}
@@ -138,14 +138,14 @@ export function TemplateFormDialog({
               {"{{PROXY_NAMES}}"}
             </code>{" "}
             {t("templates.form.descAfter")}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <Form {...form}>
           <form
             id="template-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
-            className="space-y-4 overflow-y-auto px-1 py-2"
+            className="flex-1 space-y-4 overflow-y-auto px-5 py-4"
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -212,7 +212,7 @@ export function TemplateFormDialog({
           </form>
         </Form>
 
-        <DialogFooter>
+        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -220,8 +220,8 @@ export function TemplateFormDialog({
             {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {t("templates.form.saveTemplate")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -10,13 +10,13 @@ import { toast } from "sonner"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Form,
   FormControl,
@@ -200,33 +200,36 @@ export function NodeFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+        <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+          <SheetTitle>
             {isEdit ? t("nodes.form.editTitle") : t("nodes.form.createTitle")}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {isEdit ? t("nodes.form.editDesc") : t("nodes.form.createDesc")}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <Form {...form}>
           <form
             id="node-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v), handleInvalid)}
-            className="flex flex-col gap-3"
+            className="flex min-h-0 flex-1 flex-col"
           >
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as "basic" | "traffic")}
+              className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic">{t("nodes.form.tabBasic")}</TabsTrigger>
-                <TabsTrigger value="traffic">{t("nodes.form.tabTraffic")}</TabsTrigger>
-              </TabsList>
+              <div className="border-b border-border px-5 py-3">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="basic">{t("nodes.form.tabBasic")}</TabsTrigger>
+                  <TabsTrigger value="traffic">{t("nodes.form.tabTraffic")}</TabsTrigger>
+                </TabsList>
+              </div>
 
-              <div className="mt-3 h-[370px] max-h-[58vh] overflow-y-auto px-1 py-1">
+              <div className="flex-1 overflow-y-auto px-5 py-4">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -434,7 +437,7 @@ export function NodeFormDialog({
           </form>
         </Form>
 
-        <DialogFooter>
+        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -442,8 +445,8 @@ export function NodeFormDialog({
             {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {isEdit ? t("nodes.form.saveChanges") : t("nodes.createNode")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -8,13 +8,13 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Form,
   FormControl,
@@ -155,30 +155,33 @@ export function CertFormDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t("certificates.form.title")}</DialogTitle>
-          <DialogDescription>{t("certificates.form.desc")}</DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+        <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+          <SheetTitle>{t("certificates.form.title")}</SheetTitle>
+          <SheetDescription>{t("certificates.form.desc")}</SheetDescription>
+        </SheetHeader>
 
         <Form {...form}>
           <form
             id="cert-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
-            className="flex flex-col gap-3"
+            className="flex min-h-0 flex-1 flex-col"
           >
             <Tabs
               value={source}
               onValueChange={(val) => form.setValue("source", val as CertFormValues["source"])}
+              className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="acme">{t("certificates.form.optAcme")}</TabsTrigger>
-                <TabsTrigger value="self_signed">{t("certificates.form.optSelfSigned")}</TabsTrigger>
-                <TabsTrigger value="manual">{t("certificates.form.optManual")}</TabsTrigger>
-              </TabsList>
+              <div className="border-b border-border px-5 py-3">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="acme">{t("certificates.form.optAcme")}</TabsTrigger>
+                  <TabsTrigger value="self_signed">{t("certificates.form.optSelfSigned")}</TabsTrigger>
+                  <TabsTrigger value="manual">{t("certificates.form.optManual")}</TabsTrigger>
+                </TabsList>
+              </div>
 
-              <div className="mt-3 h-[400px] max-h-[58vh] space-y-4 overflow-y-auto px-1 py-1">
+              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -420,7 +423,7 @@ export function CertFormDialog({
           </form>
         </Form>
 
-        <DialogFooter>
+        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -432,8 +435,8 @@ export function CertFormDialog({
                 ? t("certificates.form.submitSelfSigned")
                 : t("certificates.form.submitManual")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

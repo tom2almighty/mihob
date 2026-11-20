@@ -258,8 +258,10 @@ export function UsersPage() {
                       {formatDateShort(u.expire_at, i18n.language)}
                     </TableCell>
                     <TableCell className="text-xs tabular-nums">
-                      <Badge variant="outline">
-                        {t("users.nodeCount", { count: u.node_ids.length })}
+                      <Badge variant={u.all_nodes ? "secondary" : "outline"}>
+                        {u.all_nodes
+                          ? t("users.allNodesBadge", { count: u.node_ids.length })
+                          : t("users.nodeCount", { count: u.node_ids.length })}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -297,7 +299,7 @@ export function UsersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
+                              variant="destructive"
                               onClick={() => setDeleting(u)}
                             >
                               <Trash2 className="mr-2 size-4" />

@@ -188,7 +188,7 @@ export function CertificatesPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-8 text-destructive hover:text-destructive"
+                                className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 aria-label={t("certificates.deleteAria")}
                                 onClick={() => setDeleting(c)}
                               >

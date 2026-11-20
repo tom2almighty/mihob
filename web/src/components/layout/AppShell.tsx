@@ -30,7 +30,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/lib/auth"
@@ -422,7 +421,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Tooltip>
         </div>
 
-        <Separator className="bg-sidebar-border" />
         <SidebarNav collapsed={collapsed} />
         <SidebarFooter collapsed={collapsed} />
       </aside>
@@ -430,7 +428,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0">
-          <SheetHeader className="flex h-14 flex-row items-center gap-2.5 border-b border-sidebar-border px-5">
+          <SheetHeader className="flex h-14 flex-row items-center gap-2.5 px-5">
             <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Network className="size-4" />
             </div>
@@ -443,7 +441,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-12 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm lg:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm lg:px-6">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

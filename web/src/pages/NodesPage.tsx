@@ -390,7 +390,7 @@ export function NodesPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
+                            variant="destructive"
                             onClick={() => setDeletingNode(n)}
                           >
                             <Trash2 className="mr-2 size-4" />
