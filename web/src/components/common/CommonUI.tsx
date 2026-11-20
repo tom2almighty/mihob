@@ -138,7 +138,7 @@ export function CopyButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipTrigger render={btn} />
       <TooltipContent>{copied ? t("common.copied") : resolvedLabel}</TooltipContent>
     </Tooltip>
   )

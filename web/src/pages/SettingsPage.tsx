@@ -242,11 +242,7 @@ export function SettingsPage() {
             id="system-settings-form"
             onSubmit={sysForm.handleSubmit((v) => saveSysMutation.mutate(v), handleSysInvalid)}
           >
-            <TabsContent
-              value="general"
-              forceMount
-              className="mt-0 data-[state=inactive]:hidden"
-            >
+            <TabsContent value="general" keepMounted className="mt-0">
               <Card>
                 <CardHeader>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -360,11 +356,7 @@ export function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent
-              value="deployment"
-              forceMount
-              className="mt-0 data-[state=inactive]:hidden"
-            >
+            <TabsContent value="deployment" keepMounted className="mt-0">
               <Card>
                 <CardHeader>
                   <div className="flex flex-wrap items-center justify-between gap-2">

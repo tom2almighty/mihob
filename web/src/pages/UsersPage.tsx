@@ -269,16 +269,18 @@ export function UsersPage() {
                           {t("users.btnSub")}
                         </Button>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8"
-                              aria-label={t("users.moreActions")}
-                            >
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                aria-label={t("users.moreActions")}
+                              >
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            }
+                          />
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               onClick={() => {

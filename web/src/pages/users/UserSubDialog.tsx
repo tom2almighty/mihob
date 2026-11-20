@@ -85,11 +85,14 @@ export function UserSubDialog({
                   size="sm"
                   variant="outline"
                 />
-                <Button variant="outline" size="sm" asChild>
-                  <a href={subURL} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-1.5 size-3.5" />
-                    {t("users.sub.openPage")}
-                  </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<a href={subURL} target="_blank" rel="noreferrer" />}
+                  nativeButton={false}
+                >
+                  <ExternalLink className="mr-1.5 size-3.5" />
+                  {t("users.sub.openPage")}
                 </Button>
                 <Button
                   type="button"

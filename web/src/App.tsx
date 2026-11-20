@@ -80,7 +80,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={200}>
+        <TooltipProvider delay={200}>
           <AuthProvider>
             <BrowserRouter>
               <Suspense fallback={<FullScreenLoader />}>

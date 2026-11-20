@@ -165,33 +165,37 @@ export function CertificatesPage() {
                       <div className="flex items-center justify-end gap-1">
                         {c.source !== "manual" && (
                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8"
-                                aria-label={t("certificates.renewAria")}
-                                disabled={renewMutation.isPending}
-                                onClick={() => renewMutation.mutate(c.id)}
-                              >
-                                <RefreshCw className="size-3.5" />
-                              </Button>
-                            </TooltipTrigger>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8"
+                                  aria-label={t("certificates.renewAria")}
+                                  disabled={renewMutation.isPending}
+                                  onClick={() => renewMutation.mutate(c.id)}
+                                >
+                                  <RefreshCw className="size-3.5" />
+                                </Button>
+                              }
+                            />
                             <TooltipContent>{t("certificates.renewTooltip")}</TooltipContent>
                           </Tooltip>
                         )}
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-destructive hover:text-destructive"
-                              aria-label={t("certificates.deleteAria")}
-                              onClick={() => setDeleting(c)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-destructive hover:text-destructive"
+                                aria-label={t("certificates.deleteAria")}
+                                onClick={() => setDeleting(c)}
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            }
+                          />
                           <TooltipContent>{t("certificates.deleteTooltip")}</TooltipContent>
                         </Tooltip>
                       </div>

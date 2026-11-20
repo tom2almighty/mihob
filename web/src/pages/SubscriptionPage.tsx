@@ -104,8 +104,8 @@ export function SubscriptionPage() {
               title={t("subPage.notFoundTitle")}
               description={t("subPage.notFoundDesc")}
               action={
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/login">{t("subPage.backToLogin")}</Link>
+                <Button variant="outline" size="sm" render={<Link to="/login" />} nativeButton={false}>
+                  {t("subPage.backToLogin")}
                 </Button>
               }
             />
@@ -166,19 +166,21 @@ export function SubscriptionPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
-                    asChild
+                    render={<a href={clashImportURL} />}
+                    nativeButton={false}
                     disabled={info.status === "disabled" || info.status === "expired" || info.status === "exhausted"}
                   >
-                    <a href={clashImportURL}>
-                      <ExternalLink className="mr-1.5 size-3.5" />
-                      {t("subPage.importClient")}
-                    </a>
+                    <ExternalLink className="mr-1.5 size-3.5" />
+                    {t("subPage.importClient")}
                   </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <a href={info.download_url} download>
-                      <Download className="mr-1.5 size-3.5" />
-                      {t("subPage.downloadYaml")}
-                    </a>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    render={<a href={info.download_url} download />}
+                    nativeButton={false}
+                  >
+                    <Download className="mr-1.5 size-3.5" />
+                    {t("subPage.downloadYaml")}
                   </Button>
                 </div>
               </CardContent>
