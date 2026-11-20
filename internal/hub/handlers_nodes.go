@@ -610,22 +610,70 @@ download_agent_bin() {
     return 0
   fi
 
-  local api_url
-  if [[ "$MIHOB_VERSION" == "latest" ]]; then
-    api_url="https://api.github.com/repos/${MIHOB_REPO}/releases?per_page=15"
-  else
-    api_url="https://api.github.com/repos/${MIHOB_REPO}/releases/tags/${MIHOB_VERSION}"
-  fi
+  local asset_url=""
+  local legacy_url=""
+  local bin_inside="mihob-agent"
+  local agent_re="https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob-agent_[^\"]*_linux_${GO_ARCH}\.tar\.gz"
+  local legacy_re="https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob_[^\"]*_linux_${GO_ARCH}\.tar\.gz"
 
   echo "[mihob] Resolving mihob-agent (${MIHOB_VERSION}, linux/${GO_ARCH}) from ${MIHOB_REPO}..."
-  local json
-  json="$(curl -fsSL -H "Accept: application/vnd.github+json" "$api_url")"
 
-  local asset_url
-  asset_url="$(printf '%s' "$json" | grep -Eo "https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob-agent_[^\"]*_linux_${GO_ARCH}\.tar\.gz" | head -n 1 || true)"
-  local bin_inside="mihob-agent"
-  if [[ -z "$asset_url" ]]; then
-    asset_url="$(printf '%s' "$json" | grep -Eo "https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob_[^\"]*_linux_${GO_ARCH}\.tar\.gz" | head -n 1 || true)"
+  if [[ "$MIHOB_VERSION" == "latest" ]]; then
+    local latest_json=""
+    latest_json="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${MIHOB_REPO}/releases/latest" 2>/dev/null || true)"
+    if [[ -n "$latest_json" ]]; then
+      asset_url="$(printf '%s' "$latest_json" | grep -Eo "$agent_re" | head -n 1 || true)"
+      if [[ -z "$asset_url" ]]; then
+        legacy_url="$(printf '%s' "$latest_json" | grep -Eo "$legacy_re" | head -n 1 || true)"
+      fi
+    fi
+
+    if [[ -z "$asset_url" ]]; then
+      local page json page_filtered
+      for page in 1 2 3; do
+        json="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${MIHOB_REPO}/releases?per_page=100&page=${page}" 2>/dev/null || true)"
+        if [[ -z "$json" || "$json" == "[]" ]]; then
+          break
+        fi
+
+        page_filtered="$json"
+        if command -v jq >/dev/null 2>&1; then
+          page_filtered="$(printf '%s' "$json" | jq -c '[.[] | select(.draft == false and .prerelease == false)]' 2>/dev/null || printf '%s' "$json")"
+        fi
+
+        asset_url="$(printf '%s' "$page_filtered" | grep -Eo "$agent_re" | head -n 1 || true)"
+        if [[ -n "$asset_url" ]]; then
+          break
+        fi
+        if [[ -z "$legacy_url" ]]; then
+          legacy_url="$(printf '%s' "$page_filtered" | grep -Eo "$legacy_re" | head -n 1 || true)"
+        fi
+      done
+    fi
+  else
+    local tag_json=""
+    local tag_candidates=("$MIHOB_VERSION")
+    if [[ "$MIHOB_VERSION" != agent-* ]]; then
+      tag_candidates+=("agent-${MIHOB_VERSION}")
+    fi
+
+    local cand
+    for cand in "${tag_candidates[@]}"; do
+      tag_json="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${MIHOB_REPO}/releases/tags/${cand}" 2>/dev/null || true)"
+      if [[ -n "$tag_json" ]]; then
+        asset_url="$(printf '%s' "$tag_json" | grep -Eo "$agent_re" | head -n 1 || true)"
+        if [[ -n "$asset_url" ]]; then
+          break
+        fi
+        if [[ -z "$legacy_url" ]]; then
+          legacy_url="$(printf '%s' "$tag_json" | grep -Eo "$legacy_re" | head -n 1 || true)"
+        fi
+      fi
+    done
+  fi
+
+  if [[ -z "$asset_url" && -n "$legacy_url" ]]; then
+    asset_url="$legacy_url"
     bin_inside="mihob"
   fi
 
