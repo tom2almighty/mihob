@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { YamlEditor } from "@/components/common/YamlEditor"
 import { api, queryKeys } from "@/lib/api"
 import type { Template } from "@/lib/types"
 
@@ -125,8 +125,8 @@ export function TemplateFormDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
+      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
           <SheetTitle>
             {isEdit ? t("templates.form.editTitle") : t("templates.form.createTitle")}
           </SheetTitle>
@@ -145,7 +145,7 @@ export function TemplateFormDialog({
           <form
             id="template-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
-            className="flex-1 space-y-4 overflow-y-auto px-5 py-4"
+            className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4"
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -179,14 +179,15 @@ export function TemplateFormDialog({
               control={form.control}
               name="content"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-1 flex-col">
                   <FormLabel>{t("templates.form.content")}</FormLabel>
                   <FormControl>
-                    <Textarea
-                      rows={16}
-                      spellCheck={false}
-                      className="font-mono text-xs leading-relaxed"
-                      {...field}
+                    <YamlEditor
+                      name={field.name}
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      minHeightClass="min-h-[380px] flex-1"
                     />
                   </FormControl>
                   <FormMessage />

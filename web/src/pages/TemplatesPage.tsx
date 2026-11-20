@@ -10,6 +10,7 @@ import {
   ErrorState,
   PageHeader,
 } from "@/components/common/CommonUI"
+import { YamlCodeBlock } from "@/components/common/YamlEditor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -241,11 +242,7 @@ export function TemplatesPage() {
               />
             )}
           </div>
-          {renderedYAML && (
-            <pre className="flex-1 overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-              {renderedYAML}
-            </pre>
-          )}
+          {renderedYAML && <YamlCodeBlock value={renderedYAML} className="flex-1" />}
         </DialogContent>
       </Dialog>
 

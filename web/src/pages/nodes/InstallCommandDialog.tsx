@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Cloud, RefreshCw, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton, ErrorState } from "@/components/common/CommonUI"
+import { YamlCodeBlock } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -14,10 +15,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import type { Node } from "@/lib/types"
+
+type CfProtocol = "auto" | "http2" | "quic"
+type CfEdgeIp = "auto" | "4" | "6"
+type CfHaConnections = "4" | "2" | "1"
+type CfLogLevel = "info" | "warn" | "error"
 
 function buildDockerCompose(
   baseCompose: string,
@@ -26,6 +40,10 @@ function buildDockerCompose(
     watchtowerService: boolean
     cfEnabled: boolean
     cfToken: string
+    cfProtocol: CfProtocol
+    cfEdgeIp: CfEdgeIp
+    cfHaConnections: CfHaConnections
+    cfLogLevel: CfLogLevel
   }
 ): string {
   let out = baseCompose.trimEnd()
@@ -37,7 +55,13 @@ function buildDockerCompose(
 
   if (opts.cfEnabled) {
     const tok = opts.cfToken.trim() || "<YOUR_CLOUDFLARE_TUNNEL_TOKEN>"
-    out += `\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel --no-autoupdate run --token "${tok}"`
+    const cfFlags = ["--no-autoupdate"]
+    if (opts.cfProtocol !== "auto") cfFlags.push(`--protocol ${opts.cfProtocol}`)
+    if (opts.cfEdgeIp !== "auto") cfFlags.push(`--edge-ip-version ${opts.cfEdgeIp}`)
+    if (opts.cfHaConnections !== "4") cfFlags.push(`--ha-connections ${opts.cfHaConnections}`)
+    if (opts.cfLogLevel !== "info") cfFlags.push(`--loglevel ${opts.cfLogLevel}`)
+
+    out += `\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel ${cfFlags.join(" ")} run --token "${tok}"`
     if (addLabel) {
       out += `\n    labels:\n      - "com.centurylinklabs.watchtower.enable=true"`
     }
@@ -65,6 +89,10 @@ export function InstallCommandDialog({
   const [watchtowerService, setWatchtowerService] = useState(false)
   const [cfEnabled, setCfEnabled] = useState(false)
   const [cfToken, setCfToken] = useState("")
+  const [cfProtocol, setCfProtocol] = useState<CfProtocol>("auto")
+  const [cfEdgeIp, setCfEdgeIp] = useState<CfEdgeIp>("auto")
+  const [cfHaConnections, setCfHaConnections] = useState<CfHaConnections>("4")
+  const [cfLogLevel, setCfLogLevel] = useState<CfLogLevel>("info")
 
   const query = useQuery({
     queryKey: node ? queryKeys.nodeInstall(node.id) : ["nodes", "install", "none"],
@@ -135,6 +163,10 @@ export function InstallCommandDialog({
                       watchtowerService,
                       cfEnabled,
                       cfToken,
+                      cfProtocol,
+                      cfEdgeIp,
+                      cfHaConnections,
+                      cfLogLevel,
                     })
                     return (
                       <>
@@ -148,7 +180,7 @@ export function InstallCommandDialog({
                           />
                         </div>
 
-                        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
+                        <div className="space-y-2.5 rounded-md border border-border bg-muted/30 p-2.5">
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                             <label className="flex cursor-pointer items-center gap-1.5">
                               <Checkbox
@@ -179,21 +211,105 @@ export function InstallCommandDialog({
                           </div>
 
                           {cfEnabled && (
-                            <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1">
-                              <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
-                              <Input
-                                value={cfToken}
-                                onChange={(e) => setCfToken(e.target.value)}
-                                placeholder={t("nodes.install.cfTokenPlaceholder")}
-                                className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
-                              />
+                            <div className="space-y-2.5 border-t border-border/60 pt-2.5">
+                              <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1">
+                                <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
+                                <Input
+                                  value={cfToken}
+                                  onChange={(e) => setCfToken(e.target.value)}
+                                  placeholder={t("nodes.install.cfTokenPlaceholder")}
+                                  className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
+                                />
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfProtocol")}
+                                  </Label>
+                                  <Select
+                                    value={cfProtocol}
+                                    onValueChange={(v) => v && setCfProtocol(v as CfProtocol)}
+                                  >
+                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="auto">
+                                        {t("nodes.install.cfProtocolAuto")}
+                                      </SelectItem>
+                                      <SelectItem value="http2">http2</SelectItem>
+                                      <SelectItem value="quic">quic</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfEdgeIp")}
+                                  </Label>
+                                  <Select
+                                    value={cfEdgeIp}
+                                    onValueChange={(v) => v && setCfEdgeIp(v as CfEdgeIp)}
+                                  >
+                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="auto">
+                                        {t("nodes.install.cfEdgeIpAuto")}
+                                      </SelectItem>
+                                      <SelectItem value="4">{t("nodes.install.cfEdgeIp4")}</SelectItem>
+                                      <SelectItem value="6">{t("nodes.install.cfEdgeIp6")}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfHaConnections")}
+                                  </Label>
+                                  <Select
+                                    value={cfHaConnections}
+                                    onValueChange={(v) =>
+                                      v && setCfHaConnections(v as CfHaConnections)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="4">
+                                        {t("nodes.install.cfHaDefault")}
+                                      </SelectItem>
+                                      <SelectItem value="2">2</SelectItem>
+                                      <SelectItem value="1">1</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfLogLevel")}
+                                  </Label>
+                                  <Select
+                                    value={cfLogLevel}
+                                    onValueChange={(v) => v && setCfLogLevel(v as CfLogLevel)}
+                                  >
+                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="info">
+                                        {t("nodes.install.cfLogInfo")}
+                                      </SelectItem>
+                                      <SelectItem value="warn">warn</SelectItem>
+                                      <SelectItem value="error">error</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
 
-                        <pre className="h-[260px] max-h-[40vh] overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-                          {composeText}
-                        </pre>
+                        <YamlCodeBlock value={composeText} className="h-[260px] max-h-[40vh]" />
                       </>
                     )
                   })()}

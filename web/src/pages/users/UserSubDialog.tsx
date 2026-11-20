@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { ExternalLink, Eye, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton } from "@/components/common/CommonUI"
+import { YamlCodeBlock } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -158,11 +159,7 @@ export function UserSubDialog({
                   </Button>
                 </div>
               </div>
-              {previewYAML && (
-                <pre className="max-h-72 overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-                  {previewYAML}
-                </pre>
-              )}
+              {previewYAML && <YamlCodeBlock value={previewYAML} className="max-h-72" />}
             </div>
           </div>
         )}
