@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
-import { formatRate } from "@/lib/format"
+import { daysUntil, formatDateShort, formatRate } from "@/lib/format"
 import type { Node } from "@/lib/types"
 import { InboundManagerSheet } from "./nodes/InboundManagerSheet"
 import { InstallCommandDialog } from "./nodes/InstallCommandDialog"
@@ -270,11 +270,13 @@ export function NodesPage() {
                         </Badge>
                         {n.config_status === "error" ? (
                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge variant="destructive" className="cursor-help text-xs">
-                                {t("nodes.configError")}
-                              </Badge>
-                            </TooltipTrigger>
+                            <TooltipTrigger
+                              render={
+                                <Badge variant="destructive" className="cursor-help text-xs">
+                                  {t("nodes.configError")}
+                                </Badge>
+                              }
+                            />
                             <TooltipContent className="max-w-xs break-words">
                               {n.config_error || t("nodes.configErrorFallback")}
                             </TooltipContent>
@@ -309,8 +311,13 @@ export function NodesPage() {
                   </TableCell>
 
                   <TableCell className="text-xs tabular-nums">
-                    <div className="text-foreground">
-                      {t("nodes.multiplierText", { value: n.traffic_multiplier })}
+                    <div className="flex flex-wrap items-center gap-1.5 text-foreground">
+                      <span>{t("nodes.multiplierText", { value: n.traffic_multiplier })}</span>
+                      {n.billing_cycle && (
+                        <Badge variant="outline" className="px-1.5 py-0 text-[11px] font-normal">
+                          {t(`nodes.billingCycles.${n.billing_cycle}` as "nodes.billingCycles.monthly")}
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-muted-foreground">
                       {t("nodes.protocolResetText", {
@@ -318,6 +325,22 @@ export function NodesPage() {
                         day: n.reset_day,
                       })}
                     </div>
+                    {n.expire_at && (() => {
+                      const days = daysUntil(n.expire_at)
+                      const tone =
+                        days !== null && days <= 0
+                          ? "text-destructive font-medium"
+                          : days !== null && days <= 14
+                            ? "text-warning font-medium"
+                            : "text-muted-foreground"
+                      return (
+                        <div className={tone}>
+                          {days !== null && days <= 0
+                            ? t("nodes.expired")
+                            : `${formatDateShort(n.expire_at)} (${t("nodes.daysLeft", { days: days ?? 0 })})`}
+                        </div>
+                      )
+                    })()}
                   </TableCell>
 
                   <TableCell className="text-right">
@@ -331,16 +354,18 @@ export function NodesPage() {
                         {t("nodes.btnDeploy")}
                       </Button>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label={t("nodes.moreActions")}
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label={t("nodes.moreActions")}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          }
+                        />
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() => {

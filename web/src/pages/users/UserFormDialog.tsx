@@ -3,13 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { format, isValid, parse } from "date-fns"
-import { enUS, zhCN } from "date-fns/locale"
+import { format } from "date-fns"
 import { z } from "zod"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -29,7 +28,6 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -41,9 +39,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
-import { normalizeLanguage } from "@/lib/i18n"
 import type { User } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 type UserFormValues = {
   username: string
@@ -63,12 +59,6 @@ function toLocalDateInput(iso: string | null): string {
   return format(d, "yyyy-MM-dd")
 }
 
-function parseDateInput(value?: string): Date | undefined {
-  if (!value) return undefined
-  const parsed = parse(value, "yyyy-MM-dd", new Date())
-  return isValid(parsed) ? parsed : undefined
-}
-
 export function UserFormDialog({
   open,
   onOpenChange,
@@ -78,13 +68,10 @@ export function UserFormDialog({
   onOpenChange: (open: boolean) => void
   user: User | null
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const isEdit = Boolean(user)
   const [activeTab, setActiveTab] = useState<"basic" | "nodes">("basic")
-  const [expireOpen, setExpireOpen] = useState(false)
-  const calendarLocale = normalizeLanguage(i18n.resolvedLanguage || i18n.language) === "zh-CN" ? zhCN : enUS
-  const currentYear = new Date().getFullYear()
 
   const userSchema = useMemo(
     () =>
@@ -158,23 +145,6 @@ export function UserFormDialog({
       })
     }
   }, [open, user, form])
-
-  const addDays = (days: number) => {
-    const d = new Date()
-    d.setDate(d.getDate() + days)
-    form.setValue("expire_date", format(d, "yyyy-MM-dd"), {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-  }
-
-  const setPermanent = () => {
-    form.setValue("expire_date", "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    setExpireOpen(false)
-  }
 
   const mutation = useMutation({
     mutationFn: (v: UserFormValues) => {
@@ -252,11 +222,7 @@ export function UserFormDialog({
               </TabsList>
 
               <div className="mt-3 h-[410px] max-h-[58vh] overflow-y-auto px-1 py-1">
-                <TabsContent
-                  value="basic"
-                  forceMount
-                  className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                >
+                <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
@@ -330,91 +296,19 @@ export function UserFormDialog({
                   <FormField
                     control={form.control}
                     name="expire_date"
-                    render={({ field }) => {
-                      const selectedDate = parseDateInput(field.value)
-                      const isPermanent = !selectedDate
-                      return (
-                        <FormItem>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <FormLabel>{t("users.form.expireDate")}</FormLabel>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => addDays(30)}
-                              >
-                                {t("users.form.plus30d")}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => addDays(90)}
-                              >
-                                {t("users.form.plus90d")}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => addDays(365)}
-                              >
-                                {t("users.form.plus1y")}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant={isPermanent ? "secondary" : "ghost"}
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={setPermanent}
-                              >
-                                {t("users.form.permanent")}
-                              </Button>
-                            </div>
-                          </div>
-                          <Popover open={expireOpen} onOpenChange={setExpireOpen} modal>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start font-normal tabular-nums",
-                                    isPermanent && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 size-4 shrink-0 text-muted-foreground" />
-                                  <span>
-                                    {selectedDate
-                                      ? format(selectedDate, "yyyy-MM-dd")
-                                      : t("users.form.permanentPlaceholder")}
-                                  </span>
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                locale={calendarLocale}
-                                captionLayout="dropdown"
-                                selected={selectedDate}
-                                defaultMonth={selectedDate ?? new Date()}
-                                startMonth={new Date(currentYear - 1, 0)}
-                                endMonth={new Date(currentYear + 20, 11)}
-                                onSelect={(date) => {
-                                  field.onChange(date ? format(date, "yyyy-MM-dd") : "")
-                                  setExpireOpen(false)
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </FormItem>
-                      )
-                    }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("users.form.expireDate")}</FormLabel>
+                        <FormControl>
+                          <DatePickerWithPresets
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t("users.form.permanentPlaceholder")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
 
                   <FormField
@@ -447,11 +341,7 @@ export function UserFormDialog({
                   />
                 </TabsContent>
 
-                <TabsContent
-                  value="nodes"
-                  forceMount
-                  className="mt-0 space-y-3 data-[state=inactive]:hidden"
-                >
+                <TabsContent value="nodes" keepMounted className="mt-0 space-y-3">
                   <div className="flex items-center justify-between">
                     <FormLabel>
                       {t("users.form.authorizedNodes", { count: selectedNodeIds.length })}

@@ -54,6 +54,8 @@ export interface Node {
   traffic_multiplier: number
   reset_day: number
   last_reset_at: string | null
+  expire_at: string | null
+  billing_cycle: string
   remark: string
   mihomo_version: string
   agent_version: string
@@ -75,6 +77,7 @@ export interface Node {
 }
 
 export interface InboundSettings {
+  proxy_name?: string
   security?: "none" | "tls" | "reality"
   sni?: string
   alpn?: string[]
@@ -215,6 +218,7 @@ export interface DashboardData {
   summary: {
     total_nodes: number
     online_nodes: number
+    expiring_soon_nodes: number
     total_users: number
     active_users: number
     expiring_soon_users: number

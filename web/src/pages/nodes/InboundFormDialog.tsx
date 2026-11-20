@@ -17,6 +17,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -45,6 +46,7 @@ import { createInboundSchema, type InboundFormValues } from "./inboundSchema"
 const DEFAULT_VALUES: InboundFormValues = {
   name: "vless-443",
   tag: "VLESS",
+  proxy_name: "",
   protocol: "vless",
   port: 443,
   listen: "0.0.0.0",
@@ -106,11 +108,13 @@ const DEFAULT_VALUES: InboundFormValues = {
 
 export function InboundFormDialog({
   nodeId,
+  nodeName,
   inbound,
   open,
   onOpenChange,
 }: {
   nodeId: number
+  nodeName: string
   inbound: Inbound | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -142,6 +146,7 @@ export function InboundFormDialog({
       form.reset({
         name: inbound.name,
         tag: inbound.tag || "",
+        proxy_name: s.proxy_name || "",
         protocol: inbound.protocol,
         port: inbound.port,
         listen: inbound.listen || "0.0.0.0",
@@ -281,6 +286,7 @@ export function InboundFormDialog({
         cert_id: needsCert ? certId : null,
         enabled: v.enabled,
         settings: {
+          proxy_name: v.proxy_name || "",
           security: resolvedSecurity,
           sni: v.sni || "",
           skip_cert_verify: v.skip_cert_verify,
@@ -382,11 +388,7 @@ export function InboundFormDialog({
               </TabsList>
 
               <div className="mt-3 h-[380px] max-h-[58vh] overflow-y-auto px-1 py-1">
-                <TabsContent
-                  value="basic"
-                  forceMount
-                  className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                >
+                <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
@@ -396,15 +398,17 @@ export function InboundFormDialog({
                           <FormLabel>{t("nodes.inbound.protocol")}</FormLabel>
                           <Select
                             value={field.value}
-                            onValueChange={(val: Protocol) => {
-                              field.onChange(val)
+                            onValueChange={(val) => {
+                              if (!val) return
+                              const proto = val as Protocol
+                              field.onChange(proto)
                               if (!isEdit) {
-                                form.setValue("tag", PROTOCOL_LABELS[val])
-                                form.setValue("name", `${val}-${form.getValues("port")}`)
+                                form.setValue("tag", PROTOCOL_LABELS[proto])
+                                form.setValue("name", `${proto}-${form.getValues("port")}`)
                               }
-                              if (NEEDS_CERT_ALWAYS.includes(val) || SUPPORTS_OPTIONAL_TLS.includes(val)) {
+                              if (NEEDS_CERT_ALWAYS.includes(proto) || SUPPORTS_OPTIONAL_TLS.includes(proto)) {
                                 form.setValue("security", "tls")
-                              } else if (SUPPORTS_REALITY.includes(val)) {
+                              } else if (SUPPORTS_REALITY.includes(proto)) {
                                 form.setValue("security", "reality")
                               } else {
                                 form.setValue("security", "none")
@@ -412,7 +416,7 @@ export function InboundFormDialog({
                             }}
                           >
                             <FormControl>
-                              <SelectTrigger>
+                              <SelectTrigger className="w-full">
                                 <SelectValue />
                               </SelectTrigger>
                             </FormControl>
@@ -474,6 +478,30 @@ export function InboundFormDialog({
 
                   <FormField
                     control={form.control}
+                    name="proxy_name"
+                    render={({ field }) => {
+                      const tagVal = form.watch("tag")?.trim()
+                      const protoVal = form.watch("protocol")
+                      const defaultPreview = tagVal
+                        ? `${nodeName} · ${tagVal}`
+                        : `${nodeName} · ${protoVal.toUpperCase()}`
+                      return (
+                        <FormItem>
+                          <FormLabel>{t("nodes.inbound.proxyName")}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={defaultPreview} {...field} />
+                          </FormControl>
+                          <FormDescription>
+                            {t("nodes.inbound.proxyNameDesc", { preview: defaultPreview })}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+
+                  <FormField
+                    control={form.control}
                     name="enabled"
                     render={({ field }) => (
                       <FormItem className="flex items-center justify-between rounded-md border border-border p-3">
@@ -486,11 +514,7 @@ export function InboundFormDialog({
                   />
                 </TabsContent>
 
-                <TabsContent
-                  value="security"
-                  forceMount
-                  className="mt-0 data-[state=inactive]:hidden"
-                >
+                <TabsContent value="security" keepMounted className="mt-0">
                   <InboundProtocolFields
                     form={form}
                     certs={certsQuery.data ?? []}
@@ -502,11 +526,7 @@ export function InboundFormDialog({
                   />
                 </TabsContent>
 
-                <TabsContent
-                  value="transport"
-                  forceMount
-                  className="mt-0 data-[state=inactive]:hidden"
-                >
+                <TabsContent value="transport" keepMounted className="mt-0">
                   <InboundProtocolFields
                     form={form}
                     certs={certsQuery.data ?? []}

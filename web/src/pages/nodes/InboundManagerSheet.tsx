@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
@@ -66,7 +65,6 @@ export function InboundManagerSheet({
         <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
           <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
             <SheetTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</SheetTitle>
-            <SheetDescription>{t("nodes.inbound.sheetDesc")}</SheetDescription>
             <div className="flex items-center gap-2 pt-2">
               <Button
                 size="sm"
@@ -175,39 +173,49 @@ export function InboundManagerSheet({
                       {inb.cert_id && (
                         <span>{t("nodes.inbound.certLabel", { id: inb.cert_id })}</span>
                       )}
-                      {inb.tag && <span>{t("nodes.inbound.tagLabel", { value: inb.tag })}</span>}
+                      {inb.settings?.proxy_name ? (
+                        <span>
+                          {t("nodes.inbound.proxyNameLabel", { value: inb.settings.proxy_name })}
+                        </span>
+                      ) : (
+                        inb.tag && <span>{t("nodes.inbound.tagLabel", { value: inb.tag })}</span>
+                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          aria-label={t("nodes.inbound.editAria")}
-                          onClick={() => {
-                            setEditing(inb)
-                            setFormOpen(true)
-                          }}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            aria-label={t("nodes.inbound.editAria")}
+                            onClick={() => {
+                              setEditing(inb)
+                              setFormOpen(true)
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        }
+                      />
                       <TooltipContent>{t("nodes.inbound.editTooltip")}</TooltipContent>
                     </Tooltip>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-destructive hover:text-destructive"
-                          aria-label={t("nodes.inbound.deleteAria")}
-                          onClick={() => setDeleting(inb)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-destructive hover:text-destructive"
+                            aria-label={t("nodes.inbound.deleteAria")}
+                            onClick={() => setDeleting(inb)}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        }
+                      />
                       <TooltipContent>{t("nodes.inbound.deleteTooltip")}</TooltipContent>
                     </Tooltip>
                   </div>
@@ -221,6 +229,7 @@ export function InboundManagerSheet({
       {node && (
         <InboundFormDialog
           nodeId={node.id}
+          nodeName={node.name}
           inbound={editing}
           open={formOpen}
           onOpenChange={setFormOpen}

@@ -5,6 +5,7 @@ export function createInboundSchema(t: TFunction) {
   return z.object({
     name: z.string().trim().min(1, t("nodes.inbound.validation.nameRequired")),
     tag: z.string().trim().optional(),
+    proxy_name: z.string().trim().optional(),
     protocol: z.enum([
       "vless",
       "vmess",

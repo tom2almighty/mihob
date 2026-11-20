@@ -3,9 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { format } from "date-fns"
 import { z } from "zod"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,25 +27,38 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
 import type { Node } from "@/lib/types"
-import { cn } from "@/lib/utils"
-
-const RESET_DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
 
 type NodeFormValues = {
   name: string
   host: string
   region?: string
   traffic_limit_gb: number
+  traffic_used_gb?: number
   traffic_multiplier: number
   reset_day: number
+  expire_date?: string
+  billing_cycle?: string
   enabled: boolean
   remark?: string
+}
+
+function toLocalDateInput(iso: string | null): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return format(d, "yyyy-MM-dd")
 }
 
 export function NodeFormDialog({
@@ -59,7 +74,6 @@ export function NodeFormDialog({
   const qc = useQueryClient()
   const isEdit = Boolean(node)
   const [activeTab, setActiveTab] = useState<"basic" | "traffic">("basic")
-  const [resetDayOpen, setResetDayOpen] = useState(false)
 
   const nodeSchema = useMemo(
     () =>
@@ -68,6 +82,7 @@ export function NodeFormDialog({
         host: z.string().trim().min(1, t("nodes.form.validation.hostRequired")),
         region: z.string().trim().optional(),
         traffic_limit_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficMin")),
+        traffic_used_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficUsedMin")).optional(),
         traffic_multiplier: z.coerce
           .number()
           .min(0.1, t("nodes.form.validation.multiplierMin"))
@@ -77,6 +92,8 @@ export function NodeFormDialog({
           .int()
           .min(1, t("nodes.form.validation.resetDayRange"))
           .max(31, t("nodes.form.validation.resetDayRange")),
+        expire_date: z.string().optional(),
+        billing_cycle: z.string().optional(),
         enabled: z.boolean(),
         remark: z.string().trim().optional(),
       }),
@@ -90,8 +107,11 @@ export function NodeFormDialog({
       host: "",
       region: "",
       traffic_limit_gb: 0,
+      traffic_used_gb: 0,
       traffic_multiplier: 1,
       reset_day: 1,
+      expire_date: "",
+      billing_cycle: "none",
       enabled: true,
       remark: "",
     },
@@ -106,8 +126,11 @@ export function NodeFormDialog({
           host: node.host,
           region: node.region || "",
           traffic_limit_gb: bytesToGB(node.traffic_limit),
+          traffic_used_gb: bytesToGB(node.traffic_used),
           traffic_multiplier: node.traffic_multiplier || 1,
           reset_day: node.reset_day || 1,
+          expire_date: toLocalDateInput(node.expire_at),
+          billing_cycle: node.billing_cycle || "none",
           enabled: node.enabled,
           remark: node.remark || "",
         })
@@ -117,8 +140,11 @@ export function NodeFormDialog({
           host: "",
           region: "",
           traffic_limit_gb: 0,
+          traffic_used_gb: 0,
           traffic_multiplier: 1,
           reset_day: 1,
+          expire_date: "",
+          billing_cycle: "none",
           enabled: true,
           remark: "",
         })
@@ -128,15 +154,24 @@ export function NodeFormDialog({
 
   const mutation = useMutation({
     mutationFn: (values: NodeFormValues) => {
-      const payload = {
+      let expire_at: string | null = null
+      if (values.expire_date) {
+        expire_at = new Date(`${values.expire_date}T23:59:59`).toISOString()
+      }
+      const payload: Record<string, unknown> = {
         name: values.name,
         host: values.host,
         region: values.region || "",
         traffic_limit: gbToBytes(values.traffic_limit_gb),
         traffic_multiplier: values.traffic_multiplier,
         reset_day: values.reset_day,
+        expire_at,
+        billing_cycle: values.billing_cycle && values.billing_cycle !== "none" ? values.billing_cycle : "",
         enabled: values.enabled,
         remark: values.remark || "",
+      }
+      if (isEdit && node && form.formState.dirtyFields.traffic_used_gb) {
+        payload.traffic_used = gbToBytes(values.traffic_used_gb ?? 0)
       }
       return isEdit && node ? api.updateNode(node.id, payload) : api.createNode(payload)
     },
@@ -152,7 +187,14 @@ export function NodeFormDialog({
   const handleInvalid = (errors: Record<string, unknown>) => {
     if (errors.name || errors.host || errors.region || errors.remark) {
       setActiveTab("basic")
-    } else if (errors.traffic_limit_gb || errors.traffic_multiplier || errors.reset_day) {
+    } else if (
+      errors.traffic_limit_gb ||
+      errors.traffic_used_gb ||
+      errors.traffic_multiplier ||
+      errors.reset_day ||
+      errors.expire_date ||
+      errors.billing_cycle
+    ) {
       setActiveTab("traffic")
     }
   }
@@ -184,12 +226,8 @@ export function NodeFormDialog({
                 <TabsTrigger value="traffic">{t("nodes.form.tabTraffic")}</TabsTrigger>
               </TabsList>
 
-              <div className="mt-3 h-[340px] max-h-[58vh] overflow-y-auto px-1 py-1">
-                <TabsContent
-                  value="basic"
-                  forceMount
-                  className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                >
+              <div className="mt-3 h-[370px] max-h-[58vh] overflow-y-auto px-1 py-1">
+                <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
@@ -265,25 +303,45 @@ export function NodeFormDialog({
                   />
                 </TabsContent>
 
-                <TabsContent
-                  value="traffic"
-                  forceMount
-                  className="mt-0 space-y-4 data-[state=inactive]:hidden"
-                >
-                  <FormField
-                    control={form.control}
-                    name="traffic_limit_gb"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("nodes.form.trafficLimit")}</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.5" min="0" className="tabular-nums" {...field} />
-                        </FormControl>
-                        <FormDescription>{t("nodes.form.trafficLimitDesc")}</FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                <TabsContent value="traffic" keepMounted className="mt-0 space-y-4">
+                  <div className={isEdit ? "grid gap-4 sm:grid-cols-2" : undefined}>
+                    <FormField
+                      control={form.control}
+                      name="traffic_limit_gb"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("nodes.form.trafficLimit")}</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.5" min="0" className="tabular-nums" {...field} />
+                          </FormControl>
+                          <FormDescription>{t("nodes.form.trafficLimitDesc")}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {isEdit && (
+                      <FormField
+                        control={form.control}
+                        name="traffic_used_gb"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("nodes.form.trafficUsed")}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="tabular-nums"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>{t("nodes.form.trafficUsedDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
+                  </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -306,51 +364,65 @@ export function NodeFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>{t("nodes.form.resetDay")}</FormLabel>
-                          <Popover open={resetDayOpen} onOpenChange={setResetDayOpen} modal>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="w-full justify-start font-normal tabular-nums"
-                                >
-                                  <CalendarIcon className="mr-2 size-4 shrink-0 text-muted-foreground" />
-                                  <span>
-                                    {t("nodes.form.resetDayValue", { day: field.value || 1 })}
-                                  </span>
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-64 p-3" align="start">
-                              <div className="grid grid-cols-7 gap-1">
-                                {RESET_DAYS.map((day) => {
-                                  const selected = Number(field.value) === day
-                                  return (
-                                    <Button
-                                      key={day}
-                                      type="button"
-                                      variant={selected ? "default" : "ghost"}
-                                      size="sm"
-                                      className={cn(
-                                        "size-8 p-0 text-xs font-normal tabular-nums",
-                                        selected && "font-medium"
-                                      )}
-                                      onClick={() => {
-                                        field.onChange(day)
-                                        setResetDayOpen(false)
-                                      }}
-                                    >
-                                      {day}
-                                    </Button>
-                                  )
-                                })}
-                              </div>
-                              <p className="mt-2.5 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
-                                {t("nodes.form.resetDayHint")}
-                              </p>
-                            </PopoverContent>
-                          </Popover>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={31}
+                              step={1}
+                              className="tabular-nums"
+                              {...field}
+                            />
+                          </FormControl>
                           <FormDescription>{t("nodes.form.resetDayDesc")}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="billing_cycle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("nodes.form.billingCycle")}</FormLabel>
+                          <Select
+                            value={field.value || "none"}
+                            onValueChange={(v) => field.onChange(v ?? "none")}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">{t("nodes.billingCycles.none")}</SelectItem>
+                              <SelectItem value="monthly">{t("nodes.billingCycles.monthly")}</SelectItem>
+                              <SelectItem value="quarterly">{t("nodes.billingCycles.quarterly")}</SelectItem>
+                              <SelectItem value="semiannual">{t("nodes.billingCycles.semiannual")}</SelectItem>
+                              <SelectItem value="yearly">{t("nodes.billingCycles.yearly")}</SelectItem>
+                              <SelectItem value="onetime">{t("nodes.billingCycles.onetime")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="expire_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("nodes.form.expireDate")}</FormLabel>
+                          <FormControl>
+                            <DatePickerWithPresets
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder={t("nodes.form.expireDatePlaceholder")}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
