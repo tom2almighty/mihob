@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { GripVertical, Pencil, Plus, Radio, Send, Trash2 } from "lucide-react"
@@ -18,7 +18,7 @@ import { api, queryKeys } from "@/lib/api"
 import { PROTOCOL_LABELS, type Inbound, type Node } from "@/lib/types"
 import { useDragReorder } from "@/lib/useDragReorder"
 import { cn } from "@/lib/utils"
-import { InboundFormDialog } from "./InboundFormDialog"
+import { InboundFormView } from "./InboundFormDialog"
 
 export function InboundManagerSheet({
   node,
@@ -31,9 +31,16 @@ export function InboundManagerSheet({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [formOpen, setFormOpen] = useState(false)
+  const [view, setView] = useState<"list" | "form">("list")
   const [editing, setEditing] = useState<Inbound | null>(null)
   const [deleting, setDeleting] = useState<Inbound | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setView("list")
+      setEditing(null)
+    }
+  }, [open])
 
   const query = useQuery({
     queryKey: node ? queryKeys.inbounds(node.id) : ["inbounds", "none"],
@@ -85,32 +92,45 @@ export function InboundManagerSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-          <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-            <SheetTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</SheetTitle>
-            <div className="flex items-center gap-2 pt-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditing(null)
-                  setFormOpen(true)
-                }}
-              >
-                <Plus className="mr-1.5 size-4" />
-                {t("nodes.inbound.addProtocol")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pushMutation.isPending}
-                onClick={() => pushMutation.mutate()}
-              >
-                <Send className="mr-1.5 size-3.5" />
-                {t("nodes.inbound.pushNow")}
-              </Button>
-            </div>
-          </SheetHeader>
+          {view === "form" && node ? (
+            <InboundFormView
+              nodeId={node.id}
+              nodeName={node.name}
+              inbound={editing}
+              onBack={() => {
+                setView("list")
+                setEditing(null)
+              }}
+            />
+          ) : (
+            <>
+              <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
+                <SheetTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</SheetTitle>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditing(null)
+                      setView("form")
+                    }}
+                  >
+                    <Plus className="mr-1.5 size-4" />
+                    {t("nodes.inbound.addProtocol")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pushMutation.isPending}
+                    onClick={() => pushMutation.mutate()}
+                  >
+                    <Send className="mr-1.5 size-3.5" />
+                    {t("nodes.inbound.pushNow")}
+                  </Button>
+                </div>
+              </SheetHeader>
 
-          <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="space-y-3 group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
             {query.isLoading ? (
               <div className="space-y-2.5">
                 <Skeleton className="h-20 w-full" />
@@ -233,7 +253,7 @@ export function InboundManagerSheet({
                             aria-label={t("nodes.inbound.editAria")}
                             onClick={() => {
                               setEditing(inb)
-                              setFormOpen(true)
+                              setView("form")
                             }}
                           >
                             <Pencil className="size-3.5" />
@@ -262,19 +282,12 @@ export function InboundManagerSheet({
                 </div>
               ))
             )}
-          </div>
+                </div>
+              </div>
+            </>
+          )}
         </SheetContent>
       </Sheet>
-
-      {node && (
-        <InboundFormDialog
-          nodeId={node.id}
-          nodeName={node.name}
-          inbound={editing}
-          open={formOpen}
-          onOpenChange={setFormOpen}
-        />
-      )}
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

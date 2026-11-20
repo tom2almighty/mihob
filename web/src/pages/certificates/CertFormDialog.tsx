@@ -181,7 +181,8 @@ export function CertFormDialog({
                 </TabsList>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="space-y-4 group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -418,6 +419,7 @@ export function CertFormDialog({
                     />
                   </div>
                 )}
+                </div>
               </div>
             </Tabs>
           </form>

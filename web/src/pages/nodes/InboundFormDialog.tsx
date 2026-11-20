@@ -3,12 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
@@ -110,18 +108,16 @@ const DEFAULT_VALUES: InboundFormValues = {
   sudoku_enable_pure_downlink: true,
 }
 
-export function InboundFormDialog({
+export function InboundFormView({
   nodeId,
   nodeName,
   inbound,
-  open,
-  onOpenChange,
+  onBack,
 }: {
   nodeId: number
   nodeName: string
   inbound: Inbound | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  onBack: () => void
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -134,7 +130,6 @@ export function InboundFormDialog({
   const certsQuery = useQuery({
     queryKey: queryKeys.certificates,
     queryFn: api.listCertificates,
-    enabled: open,
   })
 
   const form = useForm<InboundFormValues>({
@@ -143,7 +138,6 @@ export function InboundFormDialog({
   })
 
   useEffect(() => {
-    if (!open) return
     setActiveTab("basic")
     if (inbound) {
       const s = inbound.settings || {}
@@ -216,7 +210,7 @@ export function InboundFormDialog({
     } else {
       form.reset(DEFAULT_VALUES)
     }
-  }, [open, inbound, form])
+  }, [inbound, form])
 
   const generateReality = async () => {
     setKeygenLoading(true)
@@ -362,7 +356,7 @@ export function InboundFormDialog({
       qc.invalidateQueries({ queryKey: queryKeys.inbounds(nodeId) })
       qc.invalidateQueries({ queryKey: queryKeys.nodes })
       toast.success(isEdit ? t("nodes.inbound.toastUpdated") : t("nodes.inbound.toastCreated"))
-      onOpenChange(false)
+      onBack()
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -374,35 +368,47 @@ export function InboundFormDialog({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-          <SheetTitle>
-            {isEdit ? t("nodes.inbound.dialogEditTitle") : t("nodes.inbound.dialogAddTitle")}
-          </SheetTitle>
-          <SheetDescription>{t("nodes.inbound.dialogDesc")}</SheetDescription>
-        </SheetHeader>
-
-        <Form {...form}>
-          <form
-            id="inbound-form"
-            onSubmit={form.handleSubmit((v) => mutation.mutate(v), handleInvalid)}
-            className="flex min-h-0 flex-1 flex-col"
+    <>
+      <SheetHeader className="border-b border-border px-5 pt-4 pr-20 pb-3.5">
+        <div className="mb-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onBack}
           >
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => setActiveTab(v as "basic" | "security" | "transport")}
-              className="flex min-h-0 flex-1 flex-col gap-0"
-            >
-              <div className="border-b border-border px-5 py-3">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
-                  <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
-                  <TabsTrigger value="transport">{t("nodes.inbound.tabTransport")}</TabsTrigger>
-                </TabsList>
-              </div>
+            <ArrowLeft className="mr-1 size-3.5" />
+            {t("nodes.inbound.backToList")}
+          </Button>
+        </div>
+        <SheetTitle>
+          {isEdit ? t("nodes.inbound.dialogEditTitle") : t("nodes.inbound.dialogAddTitle")}
+        </SheetTitle>
+        <SheetDescription>{t("nodes.inbound.dialogDesc")}</SheetDescription>
+      </SheetHeader>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
+      <Form {...form}>
+        <form
+          id="inbound-form"
+          onSubmit={form.handleSubmit((v) => mutation.mutate(v), handleInvalid)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as "basic" | "security" | "transport")}
+            className="flex min-h-0 flex-1 flex-col gap-0"
+          >
+            <div className="border-b border-border px-5 py-3">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
+                <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
+                <TabsTrigger value="transport">{t("nodes.inbound.tabTransport")}</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -553,20 +559,20 @@ export function InboundFormDialog({
                   />
                 </TabsContent>
               </div>
-            </Tabs>
-          </form>
-        </Form>
+            </div>
+          </Tabs>
+        </form>
+      </Form>
 
-        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" form="inbound-form" disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-            {isEdit ? t("nodes.inbound.saveAndPush") : t("nodes.inbound.createAndPush")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
+        <Button variant="outline" onClick={onBack} disabled={mutation.isPending}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" form="inbound-form" disabled={mutation.isPending}>
+          {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+          {isEdit ? t("nodes.inbound.saveAndPush") : t("nodes.inbound.createAndPush")}
+        </Button>
+      </SheetFooter>
+    </>
   )
 }

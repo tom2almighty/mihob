@@ -230,6 +230,7 @@ export function NodeFormDialog({
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -432,6 +433,7 @@ export function NodeFormDialog({
                     />
                   </div>
                 </TabsContent>
+                </div>
               </div>
             </Tabs>
           </form>

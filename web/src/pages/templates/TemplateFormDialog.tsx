@@ -125,7 +125,7 @@ export function TemplateFormDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl">
         <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
           <SheetTitle>
             {isEdit ? t("templates.form.editTitle") : t("templates.form.createTitle")}
