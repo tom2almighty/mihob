@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
+import { GripVertical, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import {
   ConfirmDeleteDialog,
@@ -24,6 +24,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatDateShort } from "@/lib/format"
 import type { Certificate } from "@/lib/types"
+import { useDragReorder } from "@/lib/useDragReorder"
+import { cn } from "@/lib/utils"
 import { CertFormDialog } from "./certificates/CertFormDialog"
 
 export function CertificatesPage() {
@@ -60,6 +62,25 @@ export function CertificatesPage() {
       setDeleting(null)
     },
     onError: (err: Error) => toast.error(err.message),
+  })
+
+  const reorderMutation = useMutation({
+    mutationFn: (ids: number[]) => api.reorderCertificates(ids),
+    onError: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.certificates })
+      toast.error(t("common.reorderFailed"))
+    },
+  })
+
+  const certs = query.data ?? []
+  const canDrag = certs.length > 1
+  const { draggingId, overId, getRowDragProps } = useDragReorder({
+    items: certs,
+    enabled: canDrag,
+    onReorder: (nextItems, nextIds) => {
+      qc.setQueryData<Certificate[]>(queryKeys.certificates, nextItems)
+      reorderMutation.mutate(nextIds)
+    },
   })
 
   return (
@@ -99,6 +120,7 @@ export function CertificatesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8 px-2" />
                 <TableHead>{t("certificates.colName")}</TableHead>
                 <TableHead>{t("certificates.colSource")}</TableHead>
                 <TableHead>{t("certificates.colIssuer")}</TableHead>
@@ -107,7 +129,7 @@ export function CertificatesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {query.data.map((c) => {
+              {certs.map((c) => {
                 const days = daysUntil(c.not_after)
                 const badgeClass =
                   days === null
@@ -118,7 +140,34 @@ export function CertificatesPage() {
                         ? "bg-warning/15 text-warning"
                         : "bg-success/15 text-success"
                 return (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    {...getRowDragProps(c.id)}
+                    className={cn(
+                      draggingId === c.id && "opacity-40",
+                      overId === c.id && draggingId !== c.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                    )}
+                  >
+                    <TableCell className="w-8 px-2">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span
+                              className={cn(
+                                "inline-flex items-center justify-center text-muted-foreground/60",
+                                canDrag
+                                  ? "cursor-grab hover:text-foreground active:cursor-grabbing"
+                                  : "cursor-not-allowed opacity-40"
+                              )}
+                              aria-label={t("common.dragToReorder")}
+                            >
+                              <GripVertical className="size-4" />
+                            </span>
+                          }
+                        />
+                        <TooltipContent side="right">{t("common.dragToReorder")}</TooltipContent>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
                         <div className="font-medium text-foreground">{c.name}</div>

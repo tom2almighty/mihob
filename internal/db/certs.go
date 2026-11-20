@@ -46,7 +46,7 @@ FROM certificates
 `
 
 func (s *Store) ListCertificates() ([]model.Certificate, error) {
-	rows, err := s.db.Query(certSelectSQL + ` ORDER BY id DESC`)
+	rows, err := s.db.Query(certSelectSQL + ` ORDER BY sort_order ASC, id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +60,20 @@ func (s *Store) ListCertificates() ([]model.Certificate, error) {
 		out = append(out, *c)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) ReorderCertificates(ids []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE certificates SET sort_order = ? WHERE id = ?`, i+1, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) GetCertificate(id int64) (*model.Certificate, error) {

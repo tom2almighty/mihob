@@ -44,7 +44,7 @@ FROM users
 `
 
 func (s *Store) loadAllNodeIDs() ([]int64, error) {
-	rows, err := s.db.Query(`SELECT id FROM nodes ORDER BY id ASC`)
+	rows, err := s.db.Query(`SELECT id FROM nodes ORDER BY sort_order ASC, id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,10 @@ func (s *Store) loadUserNodes(userID int64, allNodes bool) ([]int64, error) {
 	if allNodes {
 		return s.loadAllNodeIDs()
 	}
-	rows, err := s.db.Query(`SELECT node_id FROM user_nodes WHERE user_id = ? ORDER BY node_id ASC`, userID)
+	rows, err := s.db.Query(
+		`SELECT un.node_id FROM user_nodes un JOIN nodes n ON n.id = un.node_id WHERE un.user_id = ? ORDER BY n.sort_order ASC, n.id DESC`,
+		userID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +84,7 @@ func (s *Store) loadUserNodes(userID int64, allNodes bool) ([]int64, error) {
 }
 
 func (s *Store) ListUsers() ([]model.User, error) {
-	rows, err := s.db.Query(userSelectSQL + ` ORDER BY id DESC`)
+	rows, err := s.db.Query(userSelectSQL + ` ORDER BY sort_order ASC, id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +108,20 @@ func (s *Store) ListUsers() ([]model.User, error) {
 		out[i].NodeIDs = ids
 	}
 	return out, nil
+}
+
+func (s *Store) ReorderUsers(ids []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE users SET sort_order = ? WHERE id = ?`, i+1, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) GetUser(id int64) (*model.User, error) {

@@ -50,7 +50,7 @@ FROM nodes n
 `
 
 func (s *Store) ListNodes() ([]model.Node, error) {
-	rows, err := s.db.Query(nodeSelectSQL + ` ORDER BY n.id DESC`)
+	rows, err := s.db.Query(nodeSelectSQL + ` ORDER BY n.sort_order ASC, n.id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +64,20 @@ func (s *Store) ListNodes() ([]model.Node, error) {
 		out = append(out, *n)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) ReorderNodes(ids []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE nodes SET sort_order = ? WHERE id = ?`, i+1, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) GetNode(id int64) (*model.Node, error) {
@@ -214,7 +228,7 @@ func scanInbound(row interface{ Scan(...any) error }) (*model.Inbound, error) {
 func (s *Store) ListInboundsByNode(nodeID int64) ([]model.Inbound, error) {
 	rows, err := s.db.Query(
 		`SELECT id, node_id, name, tag, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at
-		 FROM inbounds WHERE node_id = ? ORDER BY id ASC`, nodeID,
+		 FROM inbounds WHERE node_id = ? ORDER BY sort_order ASC, id ASC`, nodeID,
 	)
 	if err != nil {
 		return nil, err
@@ -229,6 +243,20 @@ func (s *Store) ListInboundsByNode(nodeID int64) ([]model.Inbound, error) {
 		out = append(out, *in)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) ReorderInbounds(nodeID int64, ids []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for i, id := range ids {
+		if _, err := tx.Exec(`UPDATE inbounds SET sort_order = ? WHERE id = ? AND node_id = ?`, i+1, id, nodeID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) GetInbound(id int64) (*model.Inbound, error) {

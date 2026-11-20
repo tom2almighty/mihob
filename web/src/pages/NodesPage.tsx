@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import {
+  GripVertical,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -45,6 +46,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatDateShort, formatRate } from "@/lib/format"
 import type { Node } from "@/lib/types"
+import { useDragReorder } from "@/lib/useDragReorder"
+import { cn } from "@/lib/utils"
 import { InboundManagerSheet } from "./nodes/InboundManagerSheet"
 import { InstallCommandDialog } from "./nodes/InstallCommandDialog"
 import { NodeFormDialog } from "./nodes/NodeFormDialog"
@@ -104,6 +107,17 @@ export function NodesPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const reorderMutation = useMutation({
+    mutationFn: (ids: number[]) => api.reorderNodes(ids),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard })
+    },
+    onError: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      toast.error(t("common.reorderFailed"))
+    },
+  })
+
   const allNodes = query.data ?? []
   const onlineCount = allNodes.filter((n) => n.online).length
   const offlineCount = allNodes.length - onlineCount
@@ -121,6 +135,16 @@ export function NodesPage() {
   })
 
   const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
+  const canDrag = !hasActiveFilter && filtered.length > 1
+
+  const { draggingId, overId, getRowDragProps } = useDragReorder({
+    items: allNodes,
+    enabled: canDrag,
+    onReorder: (nextItems, nextIds) => {
+      qc.setQueryData<Node[]>(queryKeys.nodes, nextItems)
+      reorderMutation.mutate(nextIds)
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -220,6 +244,7 @@ export function NodesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8 px-2" />
                 <TableHead>{t("nodes.colNode")}</TableHead>
                 <TableHead>{t("nodes.colStatus")}</TableHead>
                 <TableHead>{t("nodes.colRate")}</TableHead>
@@ -230,7 +255,36 @@ export function NodesPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((n) => (
-                <TableRow key={n.id}>
+                <TableRow
+                  key={n.id}
+                  {...getRowDragProps(n.id)}
+                  className={cn(
+                    draggingId === n.id && "opacity-40",
+                    overId === n.id && draggingId !== n.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                  )}
+                >
+                  <TableCell className="w-8 px-2">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span
+                            className={cn(
+                              "inline-flex items-center justify-center text-muted-foreground/60",
+                              canDrag
+                                ? "cursor-grab hover:text-foreground active:cursor-grabbing"
+                                : "cursor-not-allowed opacity-40"
+                            )}
+                            aria-label={t("common.dragToReorder")}
+                          >
+                            <GripVertical className="size-4" />
+                          </span>
+                        }
+                      />
+                      <TooltipContent side="right">
+                        {canDrag ? t("common.dragToReorder") : t("common.dragDisabledFiltered")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell>
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">

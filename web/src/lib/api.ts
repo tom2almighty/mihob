@@ -100,6 +100,11 @@ export const api = {
 
   // Nodes
   listNodes: () => request<Node[]>("/api/nodes"),
+  reorderNodes: (ids: number[]) =>
+    request<{ status: string }>("/api/nodes/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    }),
   createNode: (body: Record<string, unknown>) =>
     request<Node>("/api/nodes", { method: "POST", body: JSON.stringify(body) }),
   updateNode: (id: number, body: Record<string, unknown>) =>
@@ -118,6 +123,11 @@ export const api = {
 
   // Inbounds
   listInbounds: (nodeId: number) => request<Inbound[]>(`/api/nodes/${nodeId}/inbounds`),
+  reorderInbounds: (nodeId: number, ids: number[]) =>
+    request<{ status: string }>(`/api/nodes/${nodeId}/inbounds/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    }),
   createInbound: (nodeId: number, body: Record<string, unknown>) =>
     request<Inbound>(`/api/nodes/${nodeId}/inbounds`, {
       method: "POST",
@@ -147,6 +157,11 @@ export const api = {
 
   // Certificates
   listCertificates: () => request<Certificate[]>("/api/certificates"),
+  reorderCertificates: (ids: number[]) =>
+    request<{ status: string }>("/api/certificates/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    }),
   createCertificate: (body: Record<string, unknown>) =>
     request<Certificate>("/api/certificates", {
       method: "POST",
@@ -159,6 +174,11 @@ export const api = {
 
   // Users
   listUsers: () => request<User[]>("/api/users"),
+  reorderUsers: (ids: number[]) =>
+    request<{ status: string }>("/api/users/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    }),
   createUser: (body: Record<string, unknown>) =>
     request<User>("/api/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id: number, body: Record<string, unknown>) =>

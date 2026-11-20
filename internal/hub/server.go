@@ -92,6 +92,7 @@ func (s *Server) Router() http.Handler {
 			// Nodes
 			pr.Get("/nodes", s.handleListNodes)
 			pr.Post("/nodes", s.handleCreateNode)
+			pr.Put("/nodes/reorder", s.handleReorderNodes)
 			pr.Get("/nodes/{id}", s.handleGetNode)
 			pr.Put("/nodes/{id}", s.handleUpdateNode)
 			pr.Delete("/nodes/{id}", s.handleDeleteNode)
@@ -104,6 +105,7 @@ func (s *Server) Router() http.Handler {
 			// Inbounds
 			pr.Get("/nodes/{id}/inbounds", s.handleListInbounds)
 			pr.Post("/nodes/{id}/inbounds", s.handleCreateInbound)
+			pr.Put("/nodes/{id}/inbounds/reorder", s.handleReorderInbounds)
 			pr.Put("/inbounds/{id}", s.handleUpdateInbound)
 			pr.Delete("/inbounds/{id}", s.handleDeleteInbound)
 			pr.Post("/tools/keygen", s.handleKeygen)
@@ -111,12 +113,14 @@ func (s *Server) Router() http.Handler {
 			// Certificates
 			pr.Get("/certificates", s.handleListCertificates)
 			pr.Post("/certificates", s.handleCreateCertificate)
+			pr.Put("/certificates/reorder", s.handleReorderCertificates)
 			pr.Post("/certificates/{id}/renew", s.handleRenewCertificate)
 			pr.Delete("/certificates/{id}", s.handleDeleteCertificate)
 
 			// Users
 			pr.Get("/users", s.handleListUsers)
 			pr.Post("/users", s.handleCreateUser)
+			pr.Put("/users/reorder", s.handleReorderUsers)
 			pr.Put("/users/{id}", s.handleUpdateUser)
 			pr.Delete("/users/{id}", s.handleDeleteUser)
 			pr.Post("/users/{id}/reset-traffic", s.handleResetUserTraffic)

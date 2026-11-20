@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import {
+  GripVertical,
   Link2,
   MoreHorizontal,
   Pencil,
@@ -40,9 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatDateShort } from "@/lib/format"
 import type { User } from "@/lib/types"
+import { useDragReorder } from "@/lib/useDragReorder"
+import { cn } from "@/lib/utils"
 import { UserFormDialog } from "./users/UserFormDialog"
 import { UserSubDialog } from "./users/UserSubDialog"
 
@@ -100,6 +104,14 @@ export function UsersPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const reorderMutation = useMutation({
+    mutationFn: (ids: number[]) => api.reorderUsers(ids),
+    onError: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users })
+      toast.error(t("common.reorderFailed"))
+    },
+  })
+
   const getUserBucket = (u: User): "active" | "expiring" | "inactive" => {
     if (!u.enabled) return "inactive"
     const days = daysUntil(u.expire_at)
@@ -126,6 +138,16 @@ export function UsersPage() {
   })
 
   const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
+  const canDrag = !hasActiveFilter && filtered.length > 1
+
+  const { draggingId, overId, getRowDragProps } = useDragReorder({
+    items: allUsers,
+    enabled: canDrag,
+    onReorder: (nextItems, nextIds) => {
+      qc.setQueryData<User[]>(queryKeys.users, nextItems)
+      reorderMutation.mutate(nextIds)
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -225,6 +247,7 @@ export function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8 px-2" />
                 <TableHead>{t("users.colUser")}</TableHead>
                 <TableHead>{t("users.colStatus")}</TableHead>
                 <TableHead className="w-56">{t("users.colTraffic")}</TableHead>
@@ -237,7 +260,36 @@ export function UsersPage() {
               {filtered.map((u) => {
                 const st = getUserStatus(u, t)
                 return (
-                  <TableRow key={u.id}>
+                  <TableRow
+                    key={u.id}
+                    {...getRowDragProps(u.id)}
+                    className={cn(
+                      draggingId === u.id && "opacity-40",
+                      overId === u.id && draggingId !== u.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                    )}
+                  >
+                    <TableCell className="w-8 px-2">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span
+                              className={cn(
+                                "inline-flex items-center justify-center text-muted-foreground/60",
+                                canDrag
+                                  ? "cursor-grab hover:text-foreground active:cursor-grabbing"
+                                  : "cursor-not-allowed opacity-40"
+                              )}
+                              aria-label={t("common.dragToReorder")}
+                            >
+                              <GripVertical className="size-4" />
+                            </span>
+                          }
+                        />
+                        <TooltipContent side="right">
+                          {canDrag ? t("common.dragToReorder") : t("common.dragDisabledFiltered")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
                         <div className="font-medium text-foreground">{u.username}</div>

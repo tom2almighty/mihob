@@ -188,6 +188,18 @@ CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 	if err := s.ensureColumn("users", "all_nodes", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("nodes", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("inbounds", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("users", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("certificates", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 	return s.seedDefaults()
 }
 
