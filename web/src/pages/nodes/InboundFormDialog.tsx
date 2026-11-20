@@ -7,11 +7,11 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -369,7 +369,7 @@ export function InboundFormView({
 
   return (
     <>
-      <SheetHeader className="border-b border-border px-5 pt-4 pr-20 pb-3.5">
+      <DialogHeader className="shrink-0 border-b border-border px-6 pt-4 pr-20 pb-3.5">
         <div className="mb-1">
           <Button
             type="button"
@@ -382,11 +382,11 @@ export function InboundFormView({
             {t("nodes.inbound.backToList")}
           </Button>
         </div>
-        <SheetTitle>
+        <DialogTitle>
           {isEdit ? t("nodes.inbound.dialogEditTitle") : t("nodes.inbound.dialogAddTitle")}
-        </SheetTitle>
-        <SheetDescription>{t("nodes.inbound.dialogDesc")}</SheetDescription>
-      </SheetHeader>
+        </DialogTitle>
+        <DialogDescription>{t("nodes.inbound.dialogDesc")}</DialogDescription>
+      </DialogHeader>
 
       <Form {...form}>
         <form
@@ -399,7 +399,7 @@ export function InboundFormView({
             onValueChange={(v) => setActiveTab(v as "basic" | "security" | "transport")}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
-            <div className="border-b border-border px-5 py-3">
+            <div className="shrink-0 border-b border-border px-6 py-2.5">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
                 <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
@@ -407,8 +407,8 @@ export function InboundFormView({
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              <div className="group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="group-data-[expanded=true]/dialog:mx-auto group-data-[expanded=true]/dialog:w-full group-data-[expanded=true]/dialog:max-w-4xl">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -564,7 +564,7 @@ export function InboundFormView({
         </form>
       </Form>
 
-      <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
+      <DialogFooter>
         <Button variant="outline" onClick={onBack} disabled={mutation.isPending}>
           {t("common.cancel")}
         </Button>
@@ -572,7 +572,7 @@ export function InboundFormView({
           {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
           {isEdit ? t("nodes.inbound.saveAndPush") : t("nodes.inbound.createAndPush")}
         </Button>
-      </SheetFooter>
+      </DialogFooter>
     </>
   )
 }

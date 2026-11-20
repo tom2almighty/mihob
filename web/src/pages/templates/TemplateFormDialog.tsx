@@ -8,13 +8,13 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -124,13 +124,16 @@ export function TemplateFormDialog({
   })
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-          <SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        expandable
+        className="flex h-[min(760px,90vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
+          <DialogTitle>
             {isEdit ? t("templates.form.editTitle") : t("templates.form.createTitle")}
-          </SheetTitle>
-          <SheetDescription>
+          </DialogTitle>
+          <DialogDescription>
             {t("templates.form.descBefore")}{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{PROXIES}}"}</code>{" "}
             {t("templates.form.descMiddle")}{" "}
@@ -138,14 +141,14 @@ export function TemplateFormDialog({
               {"{{PROXY_NAMES}}"}
             </code>{" "}
             {t("templates.form.descAfter")}
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         <Form {...form}>
           <form
             id="template-form"
             onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
-            className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4"
+            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4"
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -213,7 +216,7 @@ export function TemplateFormDialog({
           </form>
         </Form>
 
-        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -221,8 +224,8 @@ export function TemplateFormDialog({
             {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {t("templates.form.saveTemplate")}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

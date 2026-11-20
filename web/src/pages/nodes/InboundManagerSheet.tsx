@@ -7,11 +7,11 @@ import { ConfirmDeleteDialog, EmptyState, ErrorState } from "@/components/common
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
@@ -90,8 +90,11 @@ export function InboundManagerSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          expandable
+          className="flex h-[min(660px,88vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        >
           {view === "form" && node ? (
             <InboundFormView
               nodeId={node.id}
@@ -104,8 +107,8 @@ export function InboundManagerSheet({
             />
           ) : (
             <>
-              <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-                <SheetTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</SheetTitle>
+              <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
+                <DialogTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</DialogTitle>
                 <div className="flex items-center gap-2 pt-2">
                   <Button
                     size="sm"
@@ -127,10 +130,10 @@ export function InboundManagerSheet({
                     {t("nodes.inbound.pushNow")}
                   </Button>
                 </div>
-              </SheetHeader>
+              </DialogHeader>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="space-y-3 group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                <div className="space-y-3 group-data-[expanded=true]/dialog:mx-auto group-data-[expanded=true]/dialog:w-full group-data-[expanded=true]/dialog:max-w-4xl">
             {query.isLoading ? (
               <div className="space-y-2.5">
                 <Skeleton className="h-20 w-full" />
@@ -286,8 +289,8 @@ export function InboundManagerSheet({
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDeleteDialog
         open={Boolean(deleting)}

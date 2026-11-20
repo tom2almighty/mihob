@@ -201,14 +201,17 @@ export function TemplatesPage() {
       <TemplateFormDialog open={formOpen} onOpenChange={setFormOpen} template={editing} />
 
       <Dialog open={Boolean(previewTmpl)} onOpenChange={(o) => !o && setPreviewTmpl(null)}>
-        <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent
+          expandable
+          className="flex h-[min(760px,90vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+        >
+          <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
             <DialogTitle>{t("templates.previewTitle", { name: previewTmpl?.name ?? "" })}</DialogTitle>
             <DialogDescription>{t("templates.previewDesc")}</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-wrap items-center gap-2 py-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-6 py-3">
             <Select value={previewUserId} onValueChange={(v) => setPreviewUserId(v ?? "")}>
-              <SelectTrigger className="w-60">
+              <SelectTrigger className="w-60 bg-background">
                 <SelectValue placeholder={t("templates.selectUserPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -242,7 +245,15 @@ export function TemplatesPage() {
               />
             )}
           </div>
-          {renderedYAML && <YamlCodeBlock value={renderedYAML} className="flex-1" />}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-4">
+            {renderedYAML ? (
+              <YamlCodeBlock value={renderedYAML} className="min-h-0 flex-1" />
+            ) : (
+              <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                {t("templates.previewDesc")}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

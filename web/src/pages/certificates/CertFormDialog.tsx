@@ -8,13 +8,13 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -155,12 +155,12 @@ export function CertFormDialog({
   })
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-          <SheetTitle>{t("certificates.form.title")}</SheetTitle>
-          <SheetDescription>{t("certificates.form.desc")}</SheetDescription>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(640px,86vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-14 pb-4">
+          <DialogTitle>{t("certificates.form.title")}</DialogTitle>
+          <DialogDescription>{t("certificates.form.desc")}</DialogDescription>
+        </DialogHeader>
 
         <Form {...form}>
           <form
@@ -173,7 +173,7 @@ export function CertFormDialog({
               onValueChange={(val) => form.setValue("source", val as CertFormValues["source"])}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <div className="border-b border-border px-5 py-3">
+              <div className="shrink-0 border-b border-border px-6 py-2.5">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="acme">{t("certificates.form.optAcme")}</TabsTrigger>
                   <TabsTrigger value="self_signed">{t("certificates.form.optSelfSigned")}</TabsTrigger>
@@ -181,8 +181,8 @@ export function CertFormDialog({
                 </TabsList>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="space-y-4 group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -425,7 +425,7 @@ export function CertFormDialog({
           </form>
         </Form>
 
-        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -437,8 +437,8 @@ export function CertFormDialog({
                 ? t("certificates.form.submitSelfSigned")
                 : t("certificates.form.submitManual")}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

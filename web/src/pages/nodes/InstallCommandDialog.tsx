@@ -114,8 +114,11 @@ export function InstallCommandDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent
+        expandable
+        className="flex h-[min(660px,88vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <Terminal className="size-4" />
             {t("nodes.install.title", { name: node?.name ?? "" })}
@@ -123,17 +126,20 @@ export function InstallCommandDialog({
           <DialogDescription>{t("nodes.install.desc")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto py-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {query.isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-9 w-64" />
-              <Skeleton className="h-[300px] max-h-[45vh] w-full" />
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-4">
+              <Skeleton className="h-10 w-full shrink-0" />
+              <Skeleton className="h-9 w-full shrink-0" />
+              <Skeleton className="min-h-0 w-full flex-1" />
             </div>
           ) : query.isError ? (
-            <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
+            <div className="flex flex-1 items-center justify-center px-6 py-4">
+              <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
+            </div>
           ) : query.data ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-6 py-2.5 text-xs">
                 <div className="min-w-0 space-y-0.5">
                   <span className="text-muted-foreground">{t("nodes.install.hubUrl")}</span>{" "}
                   <span className="font-mono text-foreground">{query.data.hub_url}</span>
@@ -149,16 +155,19 @@ export function InstallCommandDialog({
                 </Button>
               </div>
 
-              <Tabs defaultValue="compose">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="compose">{t("nodes.install.tabCompose")}</TabsTrigger>
-                  <TabsTrigger value="docker">{t("nodes.install.tabDocker")}</TabsTrigger>
-                  <TabsTrigger value="binary">{t("nodes.install.tabBinary")}</TabsTrigger>
-                </TabsList>
+              <Tabs defaultValue="compose" className="flex min-h-0 flex-1 flex-col gap-0">
+                <div className="shrink-0 border-b border-border px-6 py-2.5">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="compose">{t("nodes.install.tabCompose")}</TabsTrigger>
+                    <TabsTrigger value="docker">{t("nodes.install.tabDocker")}</TabsTrigger>
+                    <TabsTrigger value="binary">{t("nodes.install.tabBinary")}</TabsTrigger>
+                  </TabsList>
+                </div>
 
                 <TabsContent
                   value="compose"
-                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-2.5"
+                  keepMounted
+                  className="mt-0 flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-6 py-4"
                 >
                   {(() => {
                     const composeText = buildDockerCompose(query.data.docker_compose, {
@@ -183,7 +192,7 @@ export function InstallCommandDialog({
                           />
                         </div>
 
-                        <div className="shrink-0 space-y-2.5 rounded-md border border-border bg-muted/30 p-2.5">
+                        <div className="max-h-[48%] shrink-0 space-y-2.5 overflow-y-auto rounded-md border border-border bg-muted/30 p-2.5">
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                             <label className="flex cursor-pointer items-center gap-1.5">
                               <Checkbox
@@ -324,7 +333,8 @@ export function InstallCommandDialog({
 
                 <TabsContent
                   value="docker"
-                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-2"
+                  keepMounted
+                  className="mt-0 flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-6 py-4"
                 >
                   <div className="flex shrink-0 items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>{t("nodes.install.dockerHint")}</span>
@@ -342,7 +352,8 @@ export function InstallCommandDialog({
 
                 <TabsContent
                   value="binary"
-                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-3 overflow-y-auto pr-0.5"
+                  keepMounted
+                  className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4"
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

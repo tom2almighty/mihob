@@ -28,13 +28,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
@@ -207,14 +207,14 @@ export function UserFormDialog({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" expandable className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <SheetHeader className="border-b border-border px-5 pt-5 pr-20 pb-4">
-          <SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(640px,86vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-14 pb-4">
+          <DialogTitle>
             {isEdit ? t("users.form.editTitle") : t("users.form.createTitle")}
-          </SheetTitle>
-          <SheetDescription>{t("users.form.desc")}</SheetDescription>
-        </SheetHeader>
+          </DialogTitle>
+          <DialogDescription>{t("users.form.desc")}</DialogDescription>
+        </DialogHeader>
 
         <Form {...form}>
           <form
@@ -227,7 +227,7 @@ export function UserFormDialog({
               onValueChange={(v) => setActiveTab(v as "basic" | "nodes")}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <div className="border-b border-border px-5 py-3">
+              <div className="shrink-0 border-b border-border px-6 py-2.5">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="basic">{t("users.form.tabBasic")}</TabsTrigger>
                   <TabsTrigger value="nodes">
@@ -238,8 +238,7 @@ export function UserFormDialog({
                 </TabsList>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="group-data-[expanded=true]/sheet:mx-auto group-data-[expanded=true]/sheet:w-full group-data-[expanded=true]/sheet:max-w-3xl">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                 <TabsContent value="basic" keepMounted className="mt-0 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <FormField
@@ -462,13 +461,12 @@ export function UserFormDialog({
                     )}
                   </div>
                 </TabsContent>
-                </div>
               </div>
             </Tabs>
           </form>
         </Form>
 
-        <SheetFooter className="flex-row justify-end gap-2 border-t border-border px-5 py-4">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             {t("common.cancel")}
           </Button>
@@ -476,8 +474,8 @@ export function UserFormDialog({
             {mutation.isPending && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {isEdit ? t("users.form.saveAndSync") : t("users.createUser")}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

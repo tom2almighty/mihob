@@ -68,15 +68,18 @@ export function UserSubDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent
+        expandable
+        className="flex h-[min(640px,86vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
           <DialogTitle>{t("users.sub.title", { username: user?.username ?? "" })}</DialogTitle>
           <DialogDescription>{t("users.sub.desc")}</DialogDescription>
         </DialogHeader>
 
         {user && (
-          <div className="space-y-4 overflow-y-auto py-1">
-            <div className="space-y-1.5">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+            <div className="shrink-0 space-y-1.5">
               <Label>{t("users.sub.subUrlLabel")}</Label>
               <div className="flex flex-wrap items-center gap-2">
                 <Input readOnly value={subURL} className="min-w-0 flex-1 font-mono text-xs" />
@@ -110,7 +113,7 @@ export function UserSubDialog({
               </div>
             </div>
 
-            <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
+            <div className="grid shrink-0 gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">UUID (VLESS / VMess / TUIC)</span>
@@ -129,8 +132,8 @@ export function UserSubDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              <div className="flex shrink-0 items-center justify-between">
                 <span className="text-xs font-medium text-foreground">
                   {t("users.sub.previewTitle")}
                 </span>
@@ -159,7 +162,7 @@ export function UserSubDialog({
                   </Button>
                 </div>
               </div>
-              {previewYAML && <YamlCodeBlock value={previewYAML} className="max-h-72" />}
+              {previewYAML && <YamlCodeBlock value={previewYAML} className="min-h-[200px] flex-1" />}
             </div>
           </div>
         )}
