@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation } from "react-router-dom"
@@ -6,11 +5,8 @@ import {
   Activity,
   AlertTriangle,
   CalendarClock,
-  ChevronDown,
-  ChevronUp,
   Download,
   ExternalLink,
-  FileCode2,
   Link2Off,
   Network,
   Server,
@@ -25,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, queryKeys } from "@/lib/api"
 import { daysUntil, formatBytes, formatDateTime } from "@/lib/format"
-import { PROTOCOL_LABELS, type Protocol, type PublicSubInfo } from "@/lib/types"
+import type { PublicSubInfo } from "@/lib/types"
 
 function getStatusBadge(status: PublicSubInfo["status"], t: ReturnType<typeof useTranslation>["t"]) {
   switch (status) {
@@ -45,7 +41,6 @@ function getStatusBadge(status: PublicSubInfo["status"], t: ReturnType<typeof us
 export function SubscriptionPage() {
   const { t, i18n } = useTranslation()
   const location = useLocation()
-  const [yamlExpanded, setYamlExpanded] = useState(false)
 
   const query = useQuery({
     queryKey: queryKeys.publicSub(location.pathname),
@@ -95,7 +90,6 @@ export function SubscriptionPage() {
               <Skeleton className="h-32 w-full rounded-xl" />
               <Skeleton className="h-32 w-full rounded-xl" />
             </div>
-            <Skeleton className="h-48 w-full rounded-xl" />
           </div>
         ) : query.isError || !info ? (
           <div className="mx-auto mt-12 max-w-md">
@@ -251,122 +245,6 @@ export function SubscriptionPage() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Authorized Nodes List */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t("subPage.nodesCardTitle")}</CardTitle>
-                <CardDescription>{t("subPage.nodesCardDesc")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {info.nodes.length === 0 ? (
-                  <EmptyState
-                    icon={<Server className="size-5" />}
-                    title={t("subPage.noNodesTitle")}
-                    description={t("subPage.noNodesDesc")}
-                  />
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {info.nodes.map((node) => (
-                      <div
-                        key={node.name}
-                        className="flex flex-col justify-between gap-2.5 rounded-lg border border-border bg-card p-3.5"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              className={`size-2 shrink-0 rounded-full ${
-                                node.online ? "bg-success" : "bg-muted-foreground/40"
-                              }`}
-                            />
-                            <span className="truncate text-sm font-medium text-foreground">
-                              {node.name}
-                            </span>
-                            {node.region && (
-                              <Badge variant="secondary" className="text-xs font-normal">
-                                {node.region}
-                              </Badge>
-                            )}
-                          </div>
-                          <Badge
-                            variant={node.online ? "secondary" : "outline"}
-                            className={
-                              node.online
-                                ? "bg-success/15 text-xs text-success"
-                                : "text-xs text-muted-foreground"
-                            }
-                          >
-                            {node.online ? t("nodes.online") : t("nodes.offline")}
-                          </Badge>
-                        </div>
-
-                        {node.protocols.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {node.protocols.map((proto) => (
-                              <Badge
-                                key={proto}
-                                variant="outline"
-                                className="font-mono text-xs font-normal"
-                              >
-                                {PROTOCOL_LABELS[proto as Protocol] ?? proto}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Collapsible Mihomo YAML Config Preview */}
-            {info.yaml && (
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <FileCode2 className="size-4 text-muted-foreground" />
-                      {t("subPage.yamlTitle")}
-                    </CardTitle>
-                    <CardDescription>{t("subPage.yamlDesc")}</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CopyButton
-                      value={info.yaml}
-                      label={t("subPage.copyYaml")}
-                      size="sm"
-                      variant="outline"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setYamlExpanded((prev) => !prev)}
-                    >
-                      {yamlExpanded ? (
-                        <>
-                          <ChevronUp className="mr-1.5 size-3.5" />
-                          {t("subPage.hideYaml")}
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="mr-1.5 size-3.5" />
-                          {t("subPage.showYaml")}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardHeader>
-                {yamlExpanded && (
-                  <CardContent>
-                    <pre className="max-h-96 overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-                      {info.yaml}
-                    </pre>
-                  </CardContent>
-                )}
-              </Card>
-            )}
           </div>
         )}
       </main>
