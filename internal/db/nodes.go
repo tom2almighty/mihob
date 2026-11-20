@@ -12,11 +12,11 @@ import (
 func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	var n model.Node
 	var enabled int
-	var lastReset, lastSeen sql.NullTime
+	var lastReset, expireAt, lastSeen sql.NullTime
 	err := row.Scan(
 		&n.ID, &n.Name, &n.Host, &n.Region, &n.Token, &enabled,
 		&n.TrafficLimit, &n.TrafficUsed, &n.UploadUsed, &n.DownloadUsed,
-		&n.TrafficMultiplier, &n.ResetDay, &lastReset, &n.Remark,
+		&n.TrafficMultiplier, &n.ResetDay, &lastReset, &expireAt, &n.BillingCycle, &n.Remark,
 		&n.MihomoVersion, &n.AgentVersion, &n.ConfigHash, &n.ConfigStatus,
 		&n.ConfigError, &lastSeen, &n.CreatedAt, &n.UpdatedAt, &n.InboundCount,
 	)
@@ -28,6 +28,10 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 		t := lastReset.Time
 		n.LastResetAt = &t
 	}
+	if expireAt.Valid {
+		t := expireAt.Time
+		n.ExpireAt = &t
+	}
 	if lastSeen.Valid {
 		t := lastSeen.Time
 		n.LastSeenAt = &t
@@ -38,7 +42,7 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 const nodeSelectSQL = `
 SELECT n.id, n.name, n.host, n.region, n.token, n.enabled,
        n.traffic_limit, n.traffic_used, n.upload_used, n.download_used,
-       n.traffic_multiplier, n.reset_day, n.last_reset_at, n.remark,
+       n.traffic_multiplier, n.reset_day, n.last_reset_at, n.expire_at, n.billing_cycle, n.remark,
        n.mihomo_version, n.agent_version, n.config_hash, n.config_status,
        n.config_error, n.last_seen_at, n.created_at, n.updated_at,
        (SELECT COUNT(1) FROM inbounds i WHERE i.node_id = n.id) AS inbound_count
@@ -82,10 +86,10 @@ func (s *Store) CreateNode(n *model.Node) error {
 		n.ResetDay = 1
 	}
 	res, err := s.db.Exec(
-		`INSERT INTO nodes(name, host, region, token, enabled, traffic_limit, traffic_multiplier, reset_day, remark, config_status, created_at, updated_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		`INSERT INTO nodes(name, host, region, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, config_status, created_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
 		n.Name, n.Host, n.Region, n.Token, boolToInt(n.Enabled),
-		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.Remark, now, now,
+		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, now,
 	)
 	if err != nil {
 		return err
@@ -106,9 +110,21 @@ func (s *Store) UpdateNode(n *model.Node) error {
 	}
 	now := time.Now().UTC()
 	_, err := s.db.Exec(
-		`UPDATE nodes SET name=?, host=?, region=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, remark=?, updated_at=? WHERE id=?`,
+		`UPDATE nodes SET name=?, host=?, region=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, updated_at=? WHERE id=?`,
 		n.Name, n.Host, n.Region, boolToInt(n.Enabled),
-		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.Remark, now, n.ID,
+		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, n.ID,
+	)
+	return err
+}
+
+func (s *Store) SetNodeTraffic(id, trafficUsed int64) error {
+	if trafficUsed < 0 {
+		trafficUsed = 0
+	}
+	now := time.Now().UTC()
+	_, err := s.db.Exec(
+		`UPDATE nodes SET traffic_used=?, upload_used=0, download_used=?, updated_at=? WHERE id=?`,
+		trafficUsed, trafficUsed, now, id,
 	)
 	return err
 }

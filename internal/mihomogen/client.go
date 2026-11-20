@@ -33,11 +33,14 @@ func RenderUserSubscription(
 			if !in.Enabled {
 				continue
 			}
-			displayName := nw.Node.Name
-			if in.Tag != "" {
-				displayName = fmt.Sprintf("%s · %s", nw.Node.Name, in.Tag)
-			} else if len(nw.Inbounds) > 1 {
-				displayName = fmt.Sprintf("%s · %s", nw.Node.Name, strings.ToUpper(in.Protocol))
+			displayName := strings.TrimSpace(in.Settings.ProxyName)
+			if displayName == "" {
+				displayName = nw.Node.Name
+				if in.Tag != "" {
+					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, in.Tag)
+				} else if len(nw.Inbounds) > 1 {
+					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, strings.ToUpper(in.Protocol))
+				}
 			}
 			nameCount[displayName]++
 			if nameCount[displayName] > 1 {

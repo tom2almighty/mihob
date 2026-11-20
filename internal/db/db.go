@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS nodes (
 	traffic_multiplier REAL NOT NULL DEFAULT 1.0,
 	reset_day INTEGER NOT NULL DEFAULT 1,
 	last_reset_at DATETIME,
+	expire_at DATETIME,
+	billing_cycle TEXT NOT NULL DEFAULT '',
 	remark TEXT NOT NULL DEFAULT '',
 	mihomo_version TEXT NOT NULL DEFAULT '',
 	agent_version TEXT NOT NULL DEFAULT '',
@@ -176,7 +178,41 @@ CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate schema: %w", err)
 	}
+	if err := s.ensureColumn("nodes", "expire_at", "DATETIME"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("nodes", "billing_cycle", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	return s.seedDefaults()
+}
+
+func (s *Store) ensureColumn(table, column, definition string) error {
+	rows, err := s.db.Query(fmt.Sprintf(`PRAGMA table_info(%s)`, table))
+	if err != nil {
+		return fmt.Errorf("pragma table_info(%s): %w", table, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, definition)); err != nil {
+		return fmt.Errorf("alter table %s add column %s: %w", table, column, err)
+	}
+	return nil
 }
 
 const DefaultMihomoTemplate = `# Mihob Default Mihomo Client Template

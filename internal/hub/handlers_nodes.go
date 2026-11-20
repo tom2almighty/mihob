@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -45,14 +46,16 @@ func (s *Server) handleGetNode(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name              string  `json:"name"`
-		Host              string  `json:"host"`
-		Region            string  `json:"region"`
-		Enabled           *bool   `json:"enabled"`
-		TrafficLimit      int64   `json:"traffic_limit"`
-		TrafficMultiplier float64 `json:"traffic_multiplier"`
-		ResetDay          int     `json:"reset_day"`
-		Remark            string  `json:"remark"`
+		Name              string     `json:"name"`
+		Host              string     `json:"host"`
+		Region            string     `json:"region"`
+		Enabled           *bool      `json:"enabled"`
+		TrafficLimit      int64      `json:"traffic_limit"`
+		TrafficMultiplier float64    `json:"traffic_multiplier"`
+		ResetDay          int        `json:"reset_day"`
+		ExpireAt          *time.Time `json:"expire_at"`
+		BillingCycle      string     `json:"billing_cycle"`
+		Remark            string     `json:"remark"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -74,6 +77,8 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		TrafficLimit:      req.TrafficLimit,
 		TrafficMultiplier: req.TrafficMultiplier,
 		ResetDay:          req.ResetDay,
+		ExpireAt:          req.ExpireAt,
+		BillingCycle:      strings.TrimSpace(req.BillingCycle),
 		Remark:            strings.TrimSpace(req.Remark),
 	}
 	if err := s.store.CreateNode(node); err != nil {
@@ -95,14 +100,17 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name              string  `json:"name"`
-		Host              string  `json:"host"`
-		Region            string  `json:"region"`
-		Enabled           *bool   `json:"enabled"`
-		TrafficLimit      int64   `json:"traffic_limit"`
-		TrafficMultiplier float64 `json:"traffic_multiplier"`
-		ResetDay          int     `json:"reset_day"`
-		Remark            string  `json:"remark"`
+		Name              string     `json:"name"`
+		Host              string     `json:"host"`
+		Region            string     `json:"region"`
+		Enabled           *bool      `json:"enabled"`
+		TrafficLimit      int64      `json:"traffic_limit"`
+		TrafficUsed       *int64     `json:"traffic_used"`
+		TrafficMultiplier float64    `json:"traffic_multiplier"`
+		ResetDay          int        `json:"reset_day"`
+		ExpireAt          *time.Time `json:"expire_at"`
+		BillingCycle      string     `json:"billing_cycle"`
+		Remark            string     `json:"remark"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -121,11 +129,26 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	existing.TrafficLimit = req.TrafficLimit
 	existing.TrafficMultiplier = req.TrafficMultiplier
 	existing.ResetDay = req.ResetDay
+	existing.ExpireAt = req.ExpireAt
+	existing.BillingCycle = strings.TrimSpace(req.BillingCycle)
 	existing.Remark = strings.TrimSpace(req.Remark)
 
 	if err := s.store.UpdateNode(existing); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if req.TrafficUsed != nil {
+		val := *req.TrafficUsed
+		if val < 0 {
+			val = 0
+		}
+		if err := s.store.SetNodeTraffic(existing.ID, val); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		existing.TrafficUsed = val
+		existing.UploadUsed = 0
+		existing.DownloadUsed = val
 	}
 	s.ws.PushConfigToNodes([]int64{existing.ID})
 	s.ws.EnrichNode(existing)

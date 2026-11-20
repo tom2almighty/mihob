@@ -191,3 +191,50 @@ func TestGenerateAllFifteenProtocols(t *testing.T) {
 		}
 	}
 }
+
+func TestCustomInboundProxyName(t *testing.T) {
+	node := &model.Node{ID: 1, Name: "JP-Tokyo", Host: "jp.example.com", Enabled: true}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 1, Name: "ss-1", Tag: "SS", Protocol: model.ProtoShadowsocks,
+			Port: 6443, Enabled: true,
+			Settings: model.InboundSettings{
+				ProxyName:        "🇯🇵 东京专线 Custom",
+				SSCipher:         "2022-blake3-aes-128-gcm",
+				SSServerPassword: crypto.RandomBase64(16),
+			},
+		},
+		{
+			ID: 2, NodeID: 1, Name: "ss-2", Tag: "SS2", Protocol: model.ProtoShadowsocks,
+			Port: 6444, Enabled: true,
+			Settings: model.InboundSettings{
+				SSCipher:         "2022-blake3-aes-128-gcm",
+				SSServerPassword: crypto.RandomBase64(16),
+			},
+		},
+	}
+	subYAML, err := RenderUserSubscription(&user, []NodeWithInbounds{{Node: *node, Inbounds: inbounds}}, map[int64]*model.Certificate{}, db.DefaultMihomoTemplate)
+	if err != nil {
+		t.Fatalf("RenderUserSubscription failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(subYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	proxies := parsed["proxies"].([]any)
+	if len(proxies) != 2 {
+		t.Fatalf("expected 2 proxies, got %d", len(proxies))
+	}
+	p0 := proxies[0].(map[string]any)
+	p1 := proxies[1].(map[string]any)
+	if p0["name"] != "🇯🇵 东京专线 Custom" {
+		t.Fatalf("expected custom proxy name, got %v", p0["name"])
+	}
+	if p1["name"] != "JP-Tokyo · SS2" {
+		t.Fatalf("expected default proxy name, got %v", p1["name"])
+	}
+}

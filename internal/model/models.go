@@ -69,6 +69,8 @@ type Node struct {
 	TrafficMultiplier float64    `json:"traffic_multiplier"`
 	ResetDay          int        `json:"reset_day"`
 	LastResetAt       *time.Time `json:"last_reset_at"`
+	ExpireAt          *time.Time `json:"expire_at"`
+	BillingCycle      string     `json:"billing_cycle"`
 	Remark            string     `json:"remark"`
 	MihomoVersion     string     `json:"mihomo_version"`
 	AgentVersion      string     `json:"agent_version"`
@@ -92,6 +94,9 @@ type Node struct {
 }
 
 type InboundSettings struct {
+	// Custom client proxy display name (overrides "<NodeName> · <Tag>" when non-empty)
+	ProxyName string `json:"proxy_name,omitempty"`
+
 	// Security: "none" | "tls" | "reality"
 	Security          string   `json:"security,omitempty"`
 	SNI               string   `json:"sni,omitempty"`

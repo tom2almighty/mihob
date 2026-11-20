@@ -93,12 +93,16 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UTC()
-	var onlineNodes, totalConnections int
+	var onlineNodes, totalConnections, expiringSoonNodes int
 	var totalUpRate, totalDownRate, totalNodeTraffic int64
+	nodeExpiryWindow := now.Add(14 * 24 * time.Hour)
 	for i := range nodes {
 		s.ws.EnrichNode(&nodes[i])
 		if nodes[i].Online {
 			onlineNodes++
+		}
+		if nodes[i].ExpireAt != nil && nodes[i].ExpireAt.Before(nodeExpiryWindow) {
+			expiringSoonNodes++
 		}
 		totalConnections += nodes[i].ActiveConnections
 		totalUpRate += nodes[i].UpRate
@@ -137,6 +141,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"summary": map[string]any{
 			"total_nodes":         len(nodes),
 			"online_nodes":        onlineNodes,
+			"expiring_soon_nodes": expiringSoonNodes,
 			"total_users":         len(users),
 			"active_users":        activeUsers,
 			"expiring_soon_users": expiringSoonUsers,
