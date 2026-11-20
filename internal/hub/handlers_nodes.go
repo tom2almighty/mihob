@@ -279,6 +279,11 @@ func (s *Server) handleNodeInstallCommands(w http.ResponseWriter, r *http.Reques
 		pubURL, pubURL, node.Token,
 	)
 
+	binaryUpdate := fmt.Sprintf(
+		`curl -fsSL "%s/install/agent.sh" | sudo bash -s -- --update`,
+		pubURL,
+	)
+
 	binaryUninstall := fmt.Sprintf(
 		`curl -fsSL "%s/install/agent.sh" | sudo bash -s -- --uninstall`,
 		pubURL,
@@ -290,6 +295,7 @@ func (s *Server) handleNodeInstallCommands(w http.ResponseWriter, r *http.Reques
 		"docker_compose":   dockerCompose,
 		"docker_run":       dockerRun,
 		"binary_install":   binaryInstall,
+		"binary_update":    binaryUpdate,
 		"binary_uninstall": binaryUninstall,
 	})
 }
@@ -553,15 +559,20 @@ set -euo pipefail
 HUB_URL=""
 NODE_TOKEN=""
 INSTALL_DIR="/opt/mihob-agent"
+MIHOB_REPO="${MIHOB_REPO:-tom2almighty/mihob}"
+MIHOB_VERSION="${MIHOB_VERSION:-latest}"
 MIHOB_BIN_URL="${MIHOB_BIN_URL:-}"
 MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.34}"
 UNINSTALL=0
+UPDATE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --hub) HUB_URL="$2"; shift 2 ;;
     --token) NODE_TOKEN="$2"; shift 2 ;;
     --dir) INSTALL_DIR="$2"; shift 2 ;;
+    --version) MIHOB_VERSION="$2"; shift 2 ;;
+    --update|update) UPDATE=1; shift ;;
     --uninstall|uninstall) UNINSTALL=1; shift ;;
     *) shift ;;
   esac
@@ -573,14 +584,9 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
   rm -f /etc/systemd/system/mihob-agent.service
   systemctl daemon-reload 2>/dev/null || true
   rm -rf "$INSTALL_DIR"
-  rm -f /usr/local/bin/mihob /usr/local/bin/mihomo
+  rm -f /usr/local/bin/mihob-agent /usr/local/bin/mihob /usr/local/bin/mihomo
   echo "[mihob] mihob-agent uninstalled and cleaned up."
   exit 0
-fi
-
-if [[ -z "$HUB_URL" || -z "$NODE_TOKEN" ]]; then
-  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN> | --uninstall"
-  exit 1
 fi
 
 ARCH="$(uname -m)"
@@ -589,6 +595,70 @@ case "$ARCH" in
   aarch64|arm64) GO_ARCH="arm64" ;;
   *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
+
+download_agent_bin() {
+  local target_bin="/usr/local/bin/mihob-agent"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  if [[ -n "$MIHOB_BIN_URL" ]]; then
+    echo "[mihob] Downloading agent binary from MIHOB_BIN_URL..."
+    curl -fsSL "$MIHOB_BIN_URL" -o "${tmp_dir}/mihob-agent"
+    install -m 0755 "${tmp_dir}/mihob-agent" "${target_bin}.new"
+    mv -f "${target_bin}.new" "$target_bin"
+    return 0
+  fi
+
+  local api_url
+  if [[ "$MIHOB_VERSION" == "latest" ]]; then
+    api_url="https://api.github.com/repos/${MIHOB_REPO}/releases?per_page=15"
+  else
+    api_url="https://api.github.com/repos/${MIHOB_REPO}/releases/tags/${MIHOB_VERSION}"
+  fi
+
+  echo "[mihob] Resolving mihob-agent (${MIHOB_VERSION}, linux/${GO_ARCH}) from ${MIHOB_REPO}..."
+  local json
+  json="$(curl -fsSL -H "Accept: application/vnd.github+json" "$api_url")"
+
+  local asset_url
+  asset_url="$(printf '%s' "$json" | grep -Eo "https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob-agent_[^\"]*_linux_${GO_ARCH}\.tar\.gz" | head -n 1 || true)"
+  local bin_inside="mihob-agent"
+  if [[ -z "$asset_url" ]]; then
+    asset_url="$(printf '%s' "$json" | grep -Eo "https://github\.com/${MIHOB_REPO}/releases/download/[^\"]*mihob_[^\"]*_linux_${GO_ARCH}\.tar\.gz" | head -n 1 || true)"
+    bin_inside="mihob"
+  fi
+
+  if [[ -z "$asset_url" ]]; then
+    echo "[mihob] Failed to find release archive for linux/${GO_ARCH}. Set MIHOB_BIN_URL manually."
+    return 1
+  fi
+
+  echo "[mihob] Downloading ${asset_url}..."
+  curl -fsSL "$asset_url" -o "${tmp_dir}/archive.tar.gz"
+  tar -xzf "${tmp_dir}/archive.tar.gz" -C "$tmp_dir"
+  install -m 0755 "${tmp_dir}/${bin_inside}" "${target_bin}.new"
+  mv -f "${target_bin}.new" "$target_bin"
+
+  # Keep legacy /usr/local/bin/mihob symlinked if old systemd unit references it
+  if [[ -f /etc/systemd/system/mihob-agent.service ]] && grep -q "/usr/local/bin/mihob agent" /etc/systemd/system/mihob-agent.service; then
+    sed -i 's|ExecStart=/usr/local/bin/mihob agent|ExecStart=/usr/local/bin/mihob-agent|g' /etc/systemd/system/mihob-agent.service
+    systemctl daemon-reload
+  fi
+}
+
+if [[ "$UPDATE" -eq 1 ]]; then
+  echo "[mihob] Updating mihob-agent..."
+  download_agent_bin
+  systemctl restart mihob-agent
+  echo "[mihob] Updated successfully: $(/usr/local/bin/mihob-agent --version 2>/dev/null || true)"
+  exit 0
+fi
+
+if [[ -z "$HUB_URL" || -z "$NODE_TOKEN" ]]; then
+  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN> | --update | --uninstall"
+  exit 1
+fi
 
 mkdir -p "$INSTALL_DIR/data"
 
@@ -601,13 +671,8 @@ if ! command -v mihomo >/dev/null 2>&1; then
   rm -f /tmp/mihomo
 fi
 
-if [[ -n "$MIHOB_BIN_URL" ]]; then
-  echo "[mihob] Downloading mihob binary..."
-  curl -fL "$MIHOB_BIN_URL" -o /usr/local/bin/mihob
-  chmod +x /usr/local/bin/mihob
-elif ! command -v mihob >/dev/null 2>&1; then
-  echo "[mihob] Please place the 'mihob' binary at /usr/local/bin/mihob or set MIHOB_BIN_URL."
-  exit 1
+if [[ ! -x /usr/local/bin/mihob-agent ]]; then
+  download_agent_bin
 fi
 
 cat >/etc/systemd/system/mihob-agent.service <<EOF
@@ -622,7 +687,7 @@ WorkingDirectory=${INSTALL_DIR}
 Environment=MIHOB_HUB_URL=${HUB_URL}
 Environment=MIHOB_NODE_TOKEN=${NODE_TOKEN}
 Environment=MIHOB_DATA_DIR=${INSTALL_DIR}/data
-ExecStart=/usr/local/bin/mihob agent
+ExecStart=/usr/local/bin/mihob-agent
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576

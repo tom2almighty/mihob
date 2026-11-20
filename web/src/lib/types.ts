@@ -244,6 +244,7 @@ export interface InstallCommands {
   docker_compose: string
   docker_run: string
   binary_install: string
+  binary_update?: string
   binary_uninstall?: string
 }
 

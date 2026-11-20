@@ -345,8 +345,18 @@ export function NodesPage() {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground tabular-nums">
-                        {n.mihomo_version || t("nodes.waitingAgent")}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                        {n.agent_version || n.mihomo_version ? (
+                          <>
+                            {n.agent_version && <span>Agent {n.agent_version}</span>}
+                            {n.agent_version && n.mihomo_version && (
+                              <span className="opacity-40">·</span>
+                            )}
+                            {n.mihomo_version && <span>{n.mihomo_version}</span>}
+                          </>
+                        ) : (
+                          <span className="font-sans text-xs">{t("nodes.waitingAgent")}</span>
+                        )}
                       </div>
                     </div>
                   </TableCell>

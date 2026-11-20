@@ -156,7 +156,10 @@ export function InstallCommandDialog({
                   <TabsTrigger value="binary">{t("nodes.install.tabBinary")}</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="compose" className="mt-3 space-y-2.5">
+                <TabsContent
+                  value="compose"
+                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-2.5"
+                >
                   {(() => {
                     const composeText = buildDockerCompose(query.data.docker_compose, {
                       watchtowerLabel,
@@ -170,7 +173,7 @@ export function InstallCommandDialog({
                     })
                     return (
                       <>
-                        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <div className="flex shrink-0 items-center justify-between gap-2 text-xs text-muted-foreground">
                           <span>{t("nodes.install.composeHint")}</span>
                           <CopyButton
                             value={composeText}
@@ -180,7 +183,7 @@ export function InstallCommandDialog({
                           />
                         </div>
 
-                        <div className="space-y-2.5 rounded-md border border-border bg-muted/30 p-2.5">
+                        <div className="shrink-0 space-y-2.5 rounded-md border border-border bg-muted/30 p-2.5">
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                             <label className="flex cursor-pointer items-center gap-1.5">
                               <Checkbox
@@ -221,10 +224,11 @@ export function InstallCommandDialog({
                                   className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
                                 />
                               </div>
-                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                                 <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfProtocol")}
+                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfProtocol")}{" "}
+                                    <span className="font-mono opacity-70">--protocol</span>
                                   </Label>
                                   <Select
                                     value={cfProtocol}
@@ -243,8 +247,9 @@ export function InstallCommandDialog({
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfEdgeIp")}
+                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfEdgeIp")}{" "}
+                                    <span className="font-mono opacity-70">--edge-ip-version</span>
                                   </Label>
                                   <Select
                                     value={cfEdgeIp}
@@ -263,8 +268,9 @@ export function InstallCommandDialog({
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfHaConnections")}
+                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfHaConnections")}{" "}
+                                    <span className="font-mono opacity-70">--ha-connections</span>
                                   </Label>
                                   <Select
                                     value={cfHaConnections}
@@ -285,8 +291,9 @@ export function InstallCommandDialog({
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
-                                  <Label className="text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfLogLevel")}
+                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfLogLevel")}{" "}
+                                    <span className="font-mono opacity-70">--loglevel</span>
                                   </Label>
                                   <Select
                                     value={cfLogLevel}
@@ -309,14 +316,17 @@ export function InstallCommandDialog({
                           )}
                         </div>
 
-                        <YamlCodeBlock value={composeText} className="h-[260px] max-h-[40vh]" />
+                        <YamlCodeBlock value={composeText} className="min-h-0 flex-1" />
                       </>
                     )
                   })()}
                 </TabsContent>
 
-                <TabsContent value="docker" className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <TabsContent
+                  value="docker"
+                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-2"
+                >
+                  <div className="flex shrink-0 items-center justify-between gap-2 text-xs text-muted-foreground">
                     <span>{t("nodes.install.dockerHint")}</span>
                     <CopyButton
                       value={query.data.docker_run}
@@ -325,12 +335,15 @@ export function InstallCommandDialog({
                       variant="outline"
                     />
                   </div>
-                  <pre className="h-[300px] max-h-[45vh] overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
+                  <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
                     {query.data.docker_run}
                   </pre>
                 </TabsContent>
 
-                <TabsContent value="binary" className="mt-3 space-y-3">
+                <TabsContent
+                  value="binary"
+                  className="mt-3 flex h-[440px] max-h-[60vh] flex-col gap-3 overflow-y-auto pr-0.5"
+                >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span>{t("nodes.install.binaryHint")}</span>
@@ -345,6 +358,28 @@ export function InstallCommandDialog({
                       {query.data.binary_install}
                     </pre>
                   </div>
+
+                  {(() => {
+                    const updateCmd =
+                      query.data.binary_update ||
+                      `curl -fsSL "${query.data.hub_url}/install/agent.sh" | sudo bash -s -- --update`
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>{t("nodes.install.binaryUpdateHint")}</span>
+                          <CopyButton
+                            value={updateCmd}
+                            label={t("nodes.install.copyUpdate")}
+                            size="sm"
+                            variant="outline"
+                          />
+                        </div>
+                        <pre className="overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
+                          {updateCmd}
+                        </pre>
+                      </div>
+                    )
+                  })()}
 
                   {(() => {
                     const uninstallCmd =
