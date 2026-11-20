@@ -98,7 +98,7 @@ export default function App() {
                 </Routes>
               </Suspense>
             </BrowserRouter>
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" richColors closeButton />
           </AuthProvider>
         </TooltipProvider>
       </QueryClientProvider>

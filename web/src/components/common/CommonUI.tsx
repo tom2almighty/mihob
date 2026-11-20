@@ -157,11 +157,11 @@ export function TrafficProgress({
   const unlimited = !limit || limit <= 0
   const ratio = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100))
   const barColor =
-    ratio >= 100
+    ratio >= 90
       ? "bg-destructive"
-      : ratio >= 80
+      : ratio >= 70
         ? "bg-warning"
-        : "bg-primary"
+        : "bg-success"
 
   return (
     <div className={cn("space-y-1.5", className)}>
