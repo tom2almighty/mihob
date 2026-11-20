@@ -5,14 +5,18 @@ import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import {
+  BookOpen,
   Container,
+  ExternalLink,
   Eye,
   EyeOff,
+  FolderGit2,
   Globe,
   Loader2,
   RotateCcw,
   ShieldCheck,
 } from "lucide-react"
+import { siGithub } from "simple-icons"
 import { toast } from "sonner"
 import { CopyButton, ErrorState, PageHeader } from "@/components/common/CommonUI"
 import { Badge } from "@/components/ui/badge"
@@ -91,7 +95,27 @@ type PasswordFormValues = {
   confirm_password: string
 }
 
-type SettingsTab = "general" | "deployment" | "security"
+type SettingsTab = "general" | "deployment" | "security" | "projects"
+
+function SimpleIconSvg({
+  path,
+  className = "size-4",
+}: {
+  path: string
+  className?: string
+}) {
+  return (
+    <svg
+      role="img"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d={path} />
+    </svg>
+  )
+}
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -221,7 +245,7 @@ export function SettingsPage() {
         onValueChange={(v) => setActiveTab(v as SettingsTab)}
         className="max-w-3xl space-y-5"
       >
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:h-8 sm:grid-cols-4">
           <TabsTrigger value="general" className="gap-1.5 text-xs sm:text-sm">
             <Globe className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.general")}</span>
@@ -233,6 +257,10 @@ export function SettingsPage() {
           <TabsTrigger value="security" className="gap-1.5 text-xs sm:text-sm">
             <ShieldCheck className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.security")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="projects" className="gap-1.5 text-xs sm:text-sm">
+            <FolderGit2 className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.projects")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -648,6 +676,122 @@ export function SettingsPage() {
                 {t("settings.updatePassword")}
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* Project Links Tab */}
+        <TabsContent value="projects" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("settings.projectsCardTitle")}</CardTitle>
+              <CardDescription>{t("settings.projectsCardDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col justify-between gap-4 rounded-lg border border-border bg-muted/25 p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground">
+                      <SimpleIconSvg path={siGithub.path} className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">mihob</div>
+                      <div className="truncate font-mono text-xs text-muted-foreground">
+                        tom2almighty/mihob
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t("settings.projectMihobDesc")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    render={
+                      <a
+                        href="https://github.com/tom2almighty/mihob"
+                        target="_blank"
+                        rel="noreferrer"
+                      />
+                    }
+                    nativeButton={false}
+                  >
+                    <SimpleIconSvg path={siGithub.path} className="mr-1.5 size-3.5" />
+                    {t("settings.openGithub")}
+                    <ExternalLink className="ml-1 size-3 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    render={
+                      <a
+                        href="https://github.com/tom2almighty/mihob/releases"
+                        target="_blank"
+                        rel="noreferrer"
+                      />
+                    }
+                    nativeButton={false}
+                  >
+                    {t("settings.openReleases")}
+                    <ExternalLink className="ml-1 size-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between gap-4 rounded-lg border border-border bg-muted/25 p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground">
+                      <SimpleIconSvg path={siGithub.path} className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">Mihomo</div>
+                      <div className="truncate font-mono text-xs text-muted-foreground">
+                        MetaCubeX/mihomo
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t("settings.projectMihomoDesc")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    render={
+                      <a
+                        href="https://github.com/MetaCubeX/mihomo"
+                        target="_blank"
+                        rel="noreferrer"
+                      />
+                    }
+                    nativeButton={false}
+                  >
+                    <SimpleIconSvg path={siGithub.path} className="mr-1.5 size-3.5" />
+                    {t("settings.openGithub")}
+                    <ExternalLink className="ml-1 size-3 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    render={
+                      <a
+                        href="https://wiki.metacubex.one/"
+                        target="_blank"
+                        rel="noreferrer"
+                      />
+                    }
+                    nativeButton={false}
+                  >
+                    <BookOpen className="mr-1.5 size-3.5" />
+                    {t("settings.openDocs")}
+                    <ExternalLink className="ml-1 size-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
