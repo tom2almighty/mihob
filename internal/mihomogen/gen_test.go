@@ -238,3 +238,44 @@ func TestCustomInboundProxyName(t *testing.T) {
 		t.Fatalf("expected default proxy name, got %v", p1["name"])
 	}
 }
+
+func TestCloudflareTunnelClientOverride(t *testing.T) {
+	node := &model.Node{ID: 1, Name: "CF-Node", Host: "origin.example.com", Enabled: true}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 1, Name: "vless-cf", Tag: "CF-WS", Protocol: model.ProtoVLESS,
+			Listen: "127.0.0.1", Port: 10086, Enabled: true,
+			Settings: model.InboundSettings{
+				Security:     "none",
+				Network:      "ws",
+				WSPath:       "/cf-ws",
+				SNI:          "tunnel.example.com",
+				ClientServer: "104.16.1.1",
+				ClientPort:   443,
+				ClientTLS:    true,
+			},
+		},
+	}
+	subYAML, err := RenderUserSubscription(&user, []NodeWithInbounds{{Node: *node, Inbounds: inbounds}}, map[int64]*model.Certificate{}, db.DefaultMihomoTemplate)
+	if err != nil {
+		t.Fatalf("RenderUserSubscription failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(subYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	proxies := parsed["proxies"].([]any)
+	p := proxies[0].(map[string]any)
+	if p["server"] != "104.16.1.1" || p["port"] != 443 || p["tls"] != true || p["servername"] != "tunnel.example.com" {
+		t.Fatalf("unexpected cf tunnel client proxy: %+v", p)
+	}
+	wsOpts := p["ws-opts"].(map[string]any)
+	headers := wsOpts["headers"].(map[string]any)
+	if headers["Host"] != "tunnel.example.com" {
+		t.Fatalf("expected ws Host header tunnel.example.com, got %v", headers["Host"])
+	}
+}

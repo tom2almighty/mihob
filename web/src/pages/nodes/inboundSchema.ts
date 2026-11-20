@@ -6,6 +6,9 @@ export function createInboundSchema(t: TFunction) {
     name: z.string().trim().min(1, t("nodes.inbound.validation.nameRequired")),
     tag: z.string().trim().optional(),
     proxy_name: z.string().trim().optional(),
+    client_server: z.string().trim().optional(),
+    client_port: z.coerce.number().int().min(0).max(65535).optional(),
+    client_tls: z.boolean().optional(),
     protocol: z.enum([
       "vless",
       "vmess",
@@ -36,6 +39,7 @@ export function createInboundSchema(t: TFunction) {
     skip_cert_verify: z.boolean(),
     network: z.enum(["tcp", "ws", "grpc", "xhttp"]),
     ws_path: z.string().trim().optional(),
+    ws_host: z.string().trim().optional(),
     grpc_service_name: z.string().trim().optional(),
     xhttp_path: z.string().trim().optional(),
     xhttp_mode: z.string().trim().optional(),

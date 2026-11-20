@@ -156,6 +156,12 @@ func buildClientProxy(
 		sni = node.Host
 	}
 
+	clientServer := nonEmpty(in.Settings.ClientServer, node.Host)
+	clientPort := in.Port
+	if in.Settings.ClientPort > 0 {
+		clientPort = in.Settings.ClientPort
+	}
+
 	fp := in.Settings.ClientFingerprint
 	if fp == "" {
 		fp = "chrome"
@@ -168,8 +174,12 @@ func buildClientProxy(
 			wsOpts := map[string]any{
 				"path": nonEmpty(in.Settings.WSPath, "/"),
 			}
-			if in.Settings.WSHost != "" {
-				wsOpts["headers"] = map[string]string{"Host": in.Settings.WSHost}
+			wsHost := strings.TrimSpace(in.Settings.WSHost)
+			if wsHost == "" && in.Settings.ClientTLS && sni != "" {
+				wsHost = sni
+			}
+			if wsHost != "" {
+				wsOpts["headers"] = map[string]string{"Host": wsHost}
 			}
 			p["ws-opts"] = wsOpts
 		case "grpc":
@@ -183,8 +193,12 @@ func buildClientProxy(
 				"path": nonEmpty(in.Settings.XHTTPPath, "/"),
 				"mode": nonEmpty(in.Settings.XHTTPMode, "auto"),
 			}
-			if in.Settings.XHTTPHost != "" {
-				xOpts["host"] = in.Settings.XHTTPHost
+			xHost := strings.TrimSpace(in.Settings.XHTTPHost)
+			if xHost == "" && in.Settings.ClientTLS && sni != "" {
+				xHost = sni
+			}
+			if xHost != "" {
+				xOpts["host"] = xHost
 			}
 			p["xhttp-opts"] = xOpts
 		default:
@@ -215,8 +229,8 @@ func buildClientProxy(
 		p := map[string]any{
 			"name":            name,
 			"type":            "vless",
-			"server":          node.Host,
-			"port":            in.Port,
+			"server":          clientServer,
+			"port":            clientPort,
 			"uuid":            user.UUID,
 			"udp":             true,
 			"packet-encoding": "xudp",
@@ -228,12 +242,12 @@ func buildClientProxy(
 			p["encryption"] = strings.TrimSpace(in.Settings.VLESSEncryption)
 		}
 		addTransport(p)
-		switch in.Settings.Security {
-		case "reality":
+		switch {
+		case in.Settings.Security == "reality":
 			p["tls"] = true
 			p["servername"] = realitySNI
 			addReality(p)
-		case "tls":
+		case in.Settings.Security == "tls" || in.Settings.ClientTLS:
 			p["tls"] = true
 			p["servername"] = sni
 			p["client-fingerprint"] = fp
@@ -250,20 +264,20 @@ func buildClientProxy(
 		p := map[string]any{
 			"name":    name,
 			"type":    "vmess",
-			"server":  node.Host,
-			"port":    in.Port,
+			"server":  clientServer,
+			"port":    clientPort,
 			"uuid":    user.UUID,
 			"alterId": in.Settings.AlterID,
 			"cipher":  nonEmpty(in.Settings.Cipher, "auto"),
 			"udp":     true,
 		}
 		addTransport(p)
-		switch in.Settings.Security {
-		case "reality":
+		switch {
+		case in.Settings.Security == "reality":
 			p["tls"] = true
 			p["servername"] = realitySNI
 			addReality(p)
-		case "tls":
+		case in.Settings.Security == "tls" || in.Settings.ClientTLS:
 			p["tls"] = true
 			p["servername"] = sni
 			p["client-fingerprint"] = fp
@@ -277,8 +291,8 @@ func buildClientProxy(
 		p := map[string]any{
 			"name":     name,
 			"type":     "trojan",
-			"server":   node.Host,
-			"port":     in.Port,
+			"server":   clientServer,
+			"port":     clientPort,
 			"password": user.Password,
 			"udp":      true,
 		}

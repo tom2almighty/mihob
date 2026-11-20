@@ -78,6 +78,9 @@ export interface Node {
 
 export interface InboundSettings {
   proxy_name?: string
+  client_server?: string
+  client_port?: number
+  client_tls?: boolean
   security?: "none" | "tls" | "reality"
   sni?: string
   alpn?: string[]

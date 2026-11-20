@@ -1,6 +1,7 @@
 import type { UseFormReturn } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { KeyRound } from "lucide-react"
+import { Cloud, KeyRound } from "lucide-react"
+import { CopyButton } from "@/components/common/CommonUI"
 import { Button } from "@/components/ui/button"
 import {
   FormControl,
@@ -49,6 +50,8 @@ export function InboundProtocolFields({
   const ssCipher = form.watch("ss_cipher")
   const snellVersion = Number(form.watch("snell_version") || 4)
   const sudokuDisableMask = Boolean(form.watch("sudoku_disable_http_mask"))
+  const clientTls = Boolean(form.watch("client_tls"))
+  const listenPort = form.watch("port") || 443
 
   const needsCert =
     NEEDS_CERT_ALWAYS.includes(protocol) ||
@@ -111,9 +114,143 @@ export function InboundProtocolFields({
 
         {(SUPPORTS_REALITY.includes(protocol) || SUPPORTS_OPTIONAL_TLS.includes(protocol)) &&
           security === "none" && (
-            <p className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              {t("nodes.inbound.fields.securityNoneHint")}
-            </p>
+            <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {t("nodes.inbound.fields.securityNoneHint")}
+                </p>
+                {SUPPORTS_REALITY.includes(protocol) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      form.setValue("listen", "127.0.0.1", { shouldDirty: true })
+                      form.setValue("network", "ws", { shouldDirty: true })
+                      form.setValue("client_tls", true, { shouldDirty: true })
+                      form.setValue("client_port", 443, { shouldDirty: true })
+                    }}
+                  >
+                    <Cloud className="mr-1.5 size-3.5" />
+                    {t("nodes.inbound.fields.applyCfPreset")}
+                  </Button>
+                )}
+              </div>
+
+              {SUPPORTS_REALITY.includes(protocol) && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="client_tls"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-xs">
+                            {t("nodes.inbound.fields.clientTls")}
+                          </FormLabel>
+                          <FormDescription className="text-[11px]">
+                            {t("nodes.inbound.fields.clientTlsDesc")}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {clientTls && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="sni"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("nodes.inbound.fields.cfDomain")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="tunnel.example.com"
+                                  className="font-mono text-xs"
+                                  {...field}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="client_server"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
+                                  className="font-mono text-xs"
+                                  {...field}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="client_port"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("nodes.inbound.fields.clientPort")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={65535}
+                                  placeholder="443"
+                                  className="tabular-nums"
+                                  {...field}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="listen"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("nodes.inbound.fields.listenAddr")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="127.0.0.1"
+                                  className="font-mono text-xs"
+                                  {...field}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="text-muted-foreground">
+                            {t("nodes.inbound.fields.cfOriginUrl")}{" "}
+                          </span>
+                          <code className="font-mono font-medium text-foreground">
+                            {`http://127.0.0.1:${listenPort}`}
+                          </code>
+                        </div>
+                        <CopyButton value={`http://127.0.0.1:${listenPort}`} size="icon-sm" />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
         {isReality && (
@@ -607,18 +744,36 @@ export function InboundProtocolFields({
       )}
 
       {SUPPORTS_REALITY.includes(protocol) && network === "ws" && (
-        <FormField
-          control={form.control}
-          name="ws_path"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("nodes.inbound.fields.wsPath")}</FormLabel>
-              <FormControl>
-                <Input placeholder="/ws" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="ws_path"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.wsPath")}</FormLabel>
+                <FormControl>
+                  <Input placeholder="/ws" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ws_host"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.wsHost")}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t("nodes.inbound.fields.wsHostPlaceholder")}
+                    className="font-mono text-xs"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
       )}
 
       {SUPPORTS_REALITY.includes(protocol) && network === "grpc" && (

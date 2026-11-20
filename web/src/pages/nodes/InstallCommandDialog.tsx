@@ -1,6 +1,7 @@
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { RefreshCw, Terminal } from "lucide-react"
+import { Cloud, RefreshCw, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton, ErrorState } from "@/components/common/CommonUI"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
@@ -27,6 +29,7 @@ export function InstallCommandDialog({
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [cfToken, setCfToken] = useState("")
 
   const query = useQuery({
     queryKey: node ? queryKeys.nodeInstall(node.id) : ["nodes", "install", "none"],
@@ -90,19 +93,38 @@ export function InstallCommandDialog({
                   <TabsTrigger value="binary">{t("nodes.install.tabBinary")}</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="compose" className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>{t("nodes.install.composeHint")}</span>
-                    <CopyButton
-                      value={query.data.docker_compose}
-                      label={t("nodes.install.copyCompose")}
-                      size="sm"
-                      variant="outline"
-                    />
-                  </div>
-                  <pre className="h-[300px] max-h-[45vh] overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
-                    {query.data.docker_compose}
-                  </pre>
+                <TabsContent value="compose" className="mt-3 space-y-2.5">
+                  {(() => {
+                    const trimmedToken = cfToken.trim()
+                    const composeText = trimmedToken
+                      ? `${query.data.docker_compose.trimEnd()}\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel --no-autoupdate run --token "${trimmedToken}"\n`
+                      : query.data.docker_compose
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>{t("nodes.install.composeHint")}</span>
+                          <CopyButton
+                            value={composeText}
+                            label={t("nodes.install.copyCompose")}
+                            size="sm"
+                            variant="outline"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5">
+                          <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
+                          <Input
+                            value={cfToken}
+                            onChange={(e) => setCfToken(e.target.value)}
+                            placeholder={t("nodes.install.cfTokenPlaceholder")}
+                            className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
+                          />
+                        </div>
+                        <pre className="h-[260px] max-h-[40vh] overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs leading-relaxed text-foreground">
+                          {composeText}
+                        </pre>
+                      </>
+                    )
+                  })()}
                 </TabsContent>
 
                 <TabsContent value="docker" className="mt-3 space-y-2">

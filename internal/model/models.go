@@ -97,6 +97,11 @@ type InboundSettings struct {
 	// Custom client proxy display name (overrides "<NodeName> · <Tag>" when non-empty)
 	ProxyName string `json:"proxy_name,omitempty"`
 
+	// Client endpoint overrides (for Cloudflare Tunnel / CDN / reverse proxy)
+	ClientServer string `json:"client_server,omitempty"`
+	ClientPort   int    `json:"client_port,omitempty"`
+	ClientTLS    bool   `json:"client_tls,omitempty"`
+
 	// Security: "none" | "tls" | "reality"
 	Security          string   `json:"security,omitempty"`
 	SNI               string   `json:"sni,omitempty"`
