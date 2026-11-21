@@ -355,3 +355,117 @@ func TestPerInboundUserAccessFiltering(t *testing.T) {
 		t.Fatalf("expected ss-in with 1 user (bob), got %+v", l1)
 	}
 }
+
+func TestProtocolRefinementsAndExtraYAMLOverride(t *testing.T) {
+	cPEM, kPEM, nb, na, err := crypto.GenerateSelfSignedCert("node.example.com", nil, 365)
+	if err != nil {
+		t.Fatalf("cert: %v", err)
+	}
+	certID := int64(1)
+	certs := map[int64]*model.Certificate{
+		1: {ID: 1, Name: "c1", Domain: "node.example.com", Source: "self_signed", CertPEM: cPEM, KeyPEM: kPEM, NotBefore: &nb, NotAfter: &na},
+	}
+	node := &model.Node{ID: 1, Name: "JP-01", Host: "jp.example.com", Enabled: true}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw1",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+		AccessPolicy: model.DefaultAccessPolicy(),
+	}
+
+	// 1. TrustTunnel uses ["tcp", "udp"] (not "quic") + CWND + ECH + client stream limits
+	tt := model.Inbound{
+		ID: 1, NodeID: 1, Name: "tt-in", Tag: "TT", Protocol: model.ProtoTrustTunnel,
+		Port: 443, CertID: &certID, Enabled: true,
+		Settings: model.InboundSettings{
+			TrustTunnelNetwork:        "both",
+			CWND:                      64,
+			ECHKey:                    "-----BEGIN ECH KEYS-----\ntest\n-----END ECH KEYS-----",
+			ECHEnable:                 true,
+			RoutingMark:               255,
+			TrustTunnelMaxConnections: 8,
+			NameCertVerify:            "verify.example.com",
+			ExtraServerYAML:           "name: hacked\ntype: http\nusers: []\ncustom-flag: true\n",
+			ExtraClientYAML:           "name: hacked\ntype: ss\nsmux:\n  enabled: true\n",
+		},
+	}
+	// 2. Sudoku uses nested httpmask + custom-table + multiplex
+	sdk := model.Inbound{
+		ID: 2, NodeID: 1, Name: "sdk-in", Tag: "SDK", Protocol: model.ProtoSudoku,
+		Port: 8443, Enabled: true,
+		Settings: model.InboundSettings{
+			SudokuKey:          "test-sudoku-key",
+			SudokuCustomTable:  "xpxvvpvv",
+			SudokuMultiplex:    "auto",
+			SudokuHTTPMaskMode: "ws",
+			SudokuHTTPMaskTLS:  true,
+			SudokuHTTPMaskHost: "cdn.example.com",
+			SudokuPathRoot:     "/api",
+			SudokuFallback:     "127.0.0.1:80",
+		},
+	}
+	// 3. AnyTLS multiline padding-scheme becomes array
+	anytls := model.Inbound{
+		ID: 3, NodeID: 1, Name: "anytls-in", Tag: "AnyTLS", Protocol: model.ProtoAnyTLS,
+		Port: 9443, CertID: &certID, Enabled: true,
+		Settings: model.InboundSettings{
+			PaddingScheme: "stop=8\n0=30-30\n1=100-400",
+		},
+	}
+
+	bundle, err := GenerateServerConfig(node, []model.Inbound{tt, sdk, anytls}, []model.User{user}, certs, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig: %v", err)
+	}
+	var parsedSrv map[string]any
+	if err := yaml.Unmarshal([]byte(bundle.ConfigYAML), &parsedSrv); err != nil {
+		t.Fatalf("unmarshal server: %v", err)
+	}
+	ls := parsedSrv["listeners"].([]any)
+	lTT := ls[0].(map[string]any)
+	if lTT["name"] != "tt-in" || lTT["type"] != "trusttunnel" {
+		t.Fatalf("protected keys were overwritten: %+v", lTT)
+	}
+	if lTT["custom-flag"] != true || lTT["cwnd"] != 64 || lTT["routing-mark"] != 255 {
+		t.Fatalf("missing extra/cwnd/routing-mark on trusttunnel: %+v", lTT)
+	}
+	netSlice := lTT["network"].([]any)
+	if len(netSlice) != 2 || netSlice[0] != "tcp" || netSlice[1] != "udp" {
+		t.Fatalf("expected trusttunnel network [tcp udp], got %+v", netSlice)
+	}
+	lSDK := ls[1].(map[string]any)
+	hm, ok := lSDK["httpmask"].(map[string]any)
+	if !ok || hm["mode"] != "ws" || hm["tls"] != true || hm["host"] != "cdn.example.com" || hm["fallback"] != "127.0.0.1:80" {
+		t.Fatalf("unexpected sudoku httpmask: %+v", lSDK)
+	}
+	if lSDK["custom-table"] != "xpxvvpvv" || lSDK["multiplex"] != "auto" {
+		t.Fatalf("missing sudoku custom-table/multiplex: %+v", lSDK)
+	}
+	lAny := ls[2].(map[string]any)
+	ps, ok := lAny["padding-scheme"].([]any)
+	if !ok || len(ps) != 3 {
+		t.Fatalf("expected multiline padding-scheme array of 3, got %T %+v", lAny["padding-scheme"], lAny["padding-scheme"])
+	}
+
+	// Verify PreviewInboundYAML + client deep merge
+	srvPreview, cliPreview, err := PreviewInboundYAML(node, &tt, certs)
+	if err != nil {
+		t.Fatalf("PreviewInboundYAML failed: %v", err)
+	}
+	var cliList []map[string]any
+	if err := yaml.Unmarshal([]byte(cliPreview), &cliList); err != nil || len(cliList) != 1 {
+		t.Fatalf("unmarshal client preview: %v %s", err, cliPreview)
+	}
+	cp := cliList[0]
+	if cp["type"] != "trusttunnel" || cp["max-connections"] != 8 || cp["name-cert-verify"] != "verify.example.com" {
+		t.Fatalf("unexpected client preview: %+v", cp)
+	}
+	if smux, ok := cp["smux"].(map[string]any); !ok || smux["enabled"] != true {
+		t.Fatalf("expected extra client yaml smux merged: %+v", cp)
+	}
+	if ech, ok := cp["ech-opts"].(map[string]any); !ok || ech["enable"] != true {
+		t.Fatalf("expected ech-opts on client: %+v", cp)
+	}
+	if srvPreview == "" {
+		t.Fatalf("expected non-empty server preview")
+	}
+}

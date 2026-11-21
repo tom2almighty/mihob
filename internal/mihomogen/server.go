@@ -115,8 +115,36 @@ func buildListener(
 		"port":   in.Port,
 		"listen": listen,
 	}
+	if pr := strings.TrimSpace(in.Settings.PortRange); pr != "" {
+		l["port"] = pr
+	}
+	if in.Settings.RoutingMark > 0 {
+		l["routing-mark"] = in.Settings.RoutingMark
+	}
+	if rule := strings.TrimSpace(in.Settings.ListenerRule); rule != "" {
+		l["rule"] = rule
+	}
+	if proxy := strings.TrimSpace(in.Settings.ListenerProxy); proxy != "" {
+		l["proxy"] = proxy
+	}
 
 	var boundCert *model.Certificate
+	attachTLSExtras := func() {
+		if echKey := strings.TrimSpace(in.Settings.ECHKey); echKey != "" {
+			l["ech-key"] = echKey
+		}
+		if authType := strings.TrimSpace(in.Settings.ClientAuthType); authType != "" {
+			l["client-auth-type"] = authType
+		}
+		if authCert := strings.TrimSpace(in.Settings.ClientAuthCert); authCert != "" {
+			l["client-auth-cert"] = authCert
+		}
+		if len(in.Settings.ALPN) > 0 {
+			if _, exists := l["alpn"]; !exists {
+				l["alpn"] = in.Settings.ALPN
+			}
+		}
+	}
 	attachCert := func(required bool) error {
 		if in.CertID == nil {
 			if required {
@@ -134,6 +162,7 @@ func buildListener(
 		l["certificate"] = fmt.Sprintf("./certs/cert-%d.crt", c.ID)
 		l["private-key"] = fmt.Sprintf("./certs/cert-%d.key", c.ID)
 		boundCert = c
+		attachTLSExtras()
 		return nil
 	}
 
@@ -189,6 +218,12 @@ func buildListener(
 				}
 				if in.Settings.XHTTPHost != "" {
 					xCfg["host"] = in.Settings.XHTTPHost
+				}
+				if in.Settings.XHTTPNoSSEHeader {
+					xCfg["no-sse-header"] = true
+				}
+				if pad := strings.TrimSpace(in.Settings.XHTTPPaddingBytes); pad != "" {
+					xCfg["x-padding-bytes"] = pad
 				}
 				l["xhttp-config"] = xCfg
 			}
@@ -294,6 +329,9 @@ func buildListener(
 		if in.Settings.BBRProfile != "" {
 			l["bbr-profile"] = in.Settings.BBRProfile
 		}
+		if in.Settings.CWND > 0 {
+			l["cwnd"] = in.Settings.CWND
+		}
 		alpn := in.Settings.ALPN
 		if len(alpn) == 0 {
 			alpn = []string{"h3"}
@@ -314,6 +352,9 @@ func buildListener(
 			cc = "bbr"
 		}
 		l["congestion-controller"] = cc
+		if in.Settings.CWND > 0 {
+			l["cwnd"] = in.Settings.CWND
+		}
 		idle := in.Settings.MaxIdleTime
 		if idle <= 0 {
 			idle = 15000
@@ -334,8 +375,21 @@ func buildListener(
 			uMap[u.Username] = u.Password
 		}
 		l["users"] = uMap
-		if in.Settings.PaddingScheme != "" {
-			l["padding-scheme"] = in.Settings.PaddingScheme
+		if ps := strings.TrimSpace(in.Settings.PaddingScheme); ps != "" {
+			if strings.Contains(ps, "\n") {
+				lines := strings.Split(ps, "\n")
+				arr := make([]string, 0, len(lines))
+				for _, line := range lines {
+					if trimmed := strings.TrimSpace(line); trimmed != "" {
+						arr = append(arr, trimmed)
+					}
+				}
+				if len(arr) > 0 {
+					l["padding-scheme"] = arr
+				}
+			} else {
+				l["padding-scheme"] = ps
+			}
 		}
 		if err := attachCert(true); err != nil {
 			return nil, nil, err
@@ -388,6 +442,9 @@ func buildListener(
 		if in.Settings.MieruTCPIdleTimeout >= 60 {
 			l["tcp-idle-timeout"] = in.Settings.MieruTCPIdleTimeout
 		}
+		if in.Settings.MieruUserHintMandatory {
+			l["user-hint-is-mandatory"] = true
+		}
 
 	case model.ProtoTrustTunnel:
 		uList := make([]map[string]any, 0, len(users))
@@ -401,13 +458,16 @@ func buildListener(
 		switch strings.ToLower(strings.TrimSpace(in.Settings.TrustTunnelNetwork)) {
 		case "tcp":
 			l["network"] = []string{"tcp"}
-		case "quic":
-			l["network"] = []string{"quic"}
+		case "udp", "quic":
+			l["network"] = []string{"udp"}
 		default:
-			l["network"] = []string{"tcp", "quic"}
+			l["network"] = []string{"tcp", "udp"}
 		}
 		if in.Settings.CongestionController != "" {
 			l["congestion-controller"] = in.Settings.CongestionController
+		}
+		if in.Settings.CWND > 0 {
+			l["cwnd"] = in.Settings.CWND
 		}
 		if in.Settings.BBRProfile != "" {
 			l["bbr-profile"] = in.Settings.BBRProfile
@@ -435,6 +495,9 @@ func buildListener(
 		if jlsSNI := strings.TrimSpace(in.Settings.ShadowQuicJLSSNI); jlsSNI != "" {
 			jlsUpstream["sni"] = jlsSNI
 		}
+		if jlsProxy := strings.TrimSpace(in.Settings.ShadowQuicJLSProxy); jlsProxy != "" {
+			jlsUpstream["proxy"] = jlsProxy
+		}
 		l["jls-upstream"] = jlsUpstream
 		alpn := in.Settings.ALPN
 		if len(alpn) == 0 {
@@ -447,6 +510,9 @@ func buildListener(
 			cc = "bbr"
 		}
 		l["congestion-controller"] = cc
+		if in.Settings.CWND > 0 {
+			l["cwnd"] = in.Settings.CWND
+		}
 		if in.Settings.UpMbps > 0 {
 			l["up"] = in.Settings.UpMbps
 		}
@@ -498,6 +564,12 @@ func buildListener(
 		if tt := strings.TrimSpace(in.Settings.SudokuTableType); tt != "" {
 			l["table-type"] = tt
 		}
+		if ct := strings.TrimSpace(in.Settings.SudokuCustomTable); ct != "" {
+			l["custom-table"] = ct
+		}
+		if mux := strings.TrimSpace(in.Settings.SudokuMultiplex); mux != "" {
+			l["multiplex"] = mux
+		}
 		if in.Settings.SudokuPaddingMin != nil {
 			l["padding-min"] = *in.Settings.SudokuPaddingMin
 		}
@@ -507,19 +579,27 @@ func buildListener(
 		if in.Settings.SudokuEnablePureDownlink != nil {
 			l["enable-pure-downlink"] = *in.Settings.SudokuEnablePureDownlink
 		}
-		if in.Settings.SudokuDisableHTTPMask {
-			l["disable-http-mask"] = true
-		} else {
+		httpMask := map[string]any{
+			"disable": in.Settings.SudokuDisableHTTPMask,
+		}
+		if !in.Settings.SudokuDisableHTTPMask {
 			if mode := strings.TrimSpace(in.Settings.SudokuHTTPMaskMode); mode != "" {
-				l["http-mask-mode"] = mode
+				httpMask["mode"] = mode
+			}
+			if in.Settings.SudokuHTTPMaskTLS {
+				httpMask["tls"] = true
+			}
+			if host := strings.TrimSpace(in.Settings.SudokuHTTPMaskHost); host != "" {
+				httpMask["host"] = host
 			}
 			if pr := strings.TrimSpace(in.Settings.SudokuPathRoot); pr != "" {
-				l["path-root"] = pr
+				httpMask["path-root"] = pr
 			}
 		}
 		if fb := strings.TrimSpace(in.Settings.SudokuFallback); fb != "" {
-			l["fallback"] = fb
+			httpMask["fallback"] = fb
 		}
+		l["httpmask"] = httpMask
 
 	case model.ProtoHTTP, model.ProtoSocks, model.ProtoMixed:
 		uList := make([]map[string]any, 0, len(users))
@@ -546,6 +626,10 @@ func buildListener(
 
 	default:
 		return nil, nil, fmt.Errorf("unsupported protocol: %s", in.Protocol)
+	}
+
+	if err := MergeExtraYAML(l, in.Settings.ExtraServerYAML, serverProtectedKeys); err != nil {
+		return nil, nil, err
 	}
 
 	return l, boundCert, nil

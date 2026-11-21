@@ -109,15 +109,28 @@ type InboundSettings struct {
 	ALPN              []string `json:"alpn,omitempty"`
 	SkipCertVerify    bool     `json:"skip_cert_verify,omitempty"`
 	ClientFingerprint string   `json:"client_fingerprint,omitempty"`
+	ECHKey            string   `json:"ech_key,omitempty"`
+	ECHEnable         bool     `json:"ech_enable,omitempty"`
+	ECHConfig         string   `json:"ech_config,omitempty"`
+	ClientAuthType    string   `json:"client_auth_type,omitempty"`
+	ClientAuthCert    string   `json:"client_auth_cert,omitempty"`
+
+	// Common listener overrides
+	PortRange     string `json:"port_range,omitempty"`
+	RoutingMark   int    `json:"routing_mark,omitempty"`
+	ListenerRule  string `json:"listener_rule,omitempty"`
+	ListenerProxy string `json:"listener_proxy,omitempty"`
 
 	// Transport for vless/vmess/trojan: "tcp" | "ws" | "grpc" | "xhttp"
-	Network         string `json:"network,omitempty"`
-	WSPath          string `json:"ws_path,omitempty"`
-	WSHost          string `json:"ws_host,omitempty"`
-	GRPCServiceName string `json:"grpc_service_name,omitempty"`
-	XHTTPPath       string `json:"xhttp_path,omitempty"`
-	XHTTPMode       string `json:"xhttp_mode,omitempty"`
-	XHTTPHost       string `json:"xhttp_host,omitempty"`
+	Network           string `json:"network,omitempty"`
+	WSPath            string `json:"ws_path,omitempty"`
+	WSHost            string `json:"ws_host,omitempty"`
+	GRPCServiceName   string `json:"grpc_service_name,omitempty"`
+	XHTTPPath         string `json:"xhttp_path,omitempty"`
+	XHTTPMode         string `json:"xhttp_mode,omitempty"`
+	XHTTPHost         string `json:"xhttp_host,omitempty"`
+	XHTTPNoSSEHeader  bool   `json:"xhttp_no_sse_header,omitempty"`
+	XHTTPPaddingBytes string `json:"xhttp_x_padding_bytes,omitempty"`
 
 	// Reality
 	RealityDest        string   `json:"reality_dest,omitempty"`
@@ -145,8 +158,9 @@ type InboundSettings struct {
 	HopPorts              string `json:"hop_ports,omitempty"`
 	BBRProfile            string `json:"bbr_profile,omitempty"`
 
-	// TUIC v5 / TrustTunnel / ShadowQUIC shared
+	// TUIC v5 / TrustTunnel / ShadowQUIC / Hysteria2 shared
 	CongestionController string `json:"congestion_controller,omitempty"`
+	CWND                 int    `json:"cwnd,omitempty"`
 	MaxIdleTime          int    `json:"max_idle_time,omitempty"`
 	UDPRelayMode         string `json:"udp_relay_mode,omitempty"`
 
@@ -159,20 +173,26 @@ type InboundSettings struct {
 	UDP              bool   `json:"udp,omitempty"`
 
 	// Mieru
-	MieruTransport      string `json:"mieru_transport,omitempty"`       // "TCP" | "UDP"
-	MieruPortRange      string `json:"mieru_port_range,omitempty"`      // e.g. "20000-20010"
-	MieruMultiplexing   string `json:"mieru_multiplexing,omitempty"`    // MULTIPLEXING_OFF | LOW | MIDDLE | HIGH
-	MieruHandshakeMode  string `json:"mieru_handshake_mode,omitempty"`  // HANDSHAKE_STANDARD | HANDSHAKE_NO_WAIT
-	MieruTrafficPattern string `json:"mieru_traffic_pattern,omitempty"`
-	MieruTCPIdleTimeout int    `json:"mieru_tcp_idle_timeout,omitempty"` // >= 60s
+	MieruTransport         string `json:"mieru_transport,omitempty"`       // "TCP" | "UDP"
+	MieruPortRange         string `json:"mieru_port_range,omitempty"`      // e.g. "20000-20010"
+	MieruMultiplexing      string `json:"mieru_multiplexing,omitempty"`    // MULTIPLEXING_OFF | LOW | MIDDLE | HIGH
+	MieruHandshakeMode     string `json:"mieru_handshake_mode,omitempty"`  // HANDSHAKE_STANDARD | HANDSHAKE_NO_WAIT
+	MieruTrafficPattern    string `json:"mieru_traffic_pattern,omitempty"`
+	MieruTCPIdleTimeout    int    `json:"mieru_tcp_idle_timeout,omitempty"` // >= 60s
+	MieruUserHintMandatory bool   `json:"mieru_user_hint_mandatory,omitempty"`
 
 	// TrustTunnel
-	TrustTunnelNetwork string `json:"trusttunnel_network,omitempty"` // "both" | "tcp" | "quic"
+	TrustTunnelNetwork        string `json:"trusttunnel_network,omitempty"` // "both" | "tcp" | "udp" (legacy "quic")
+	TrustTunnelMaxConnections int    `json:"trusttunnel_max_connections,omitempty"`
+	TrustTunnelMinStreams     int    `json:"trusttunnel_min_streams,omitempty"`
+	TrustTunnelMaxStreams     int    `json:"trusttunnel_max_streams,omitempty"`
+	NameCertVerify            string `json:"name_cert_verify,omitempty"`
 
 	// ShadowQUIC
-	ShadowQuicJLSAddr string `json:"shadowquic_jls_addr,omitempty"` // e.g. "www.microsoft.com:443"
-	ShadowQuicJLSSNI  string `json:"shadowquic_jls_sni,omitempty"`
-	ShadowQuicZeroRTT bool   `json:"shadowquic_zero_rtt,omitempty"`
+	ShadowQuicJLSAddr  string `json:"shadowquic_jls_addr,omitempty"` // e.g. "www.microsoft.com:443"
+	ShadowQuicJLSSNI   string `json:"shadowquic_jls_sni,omitempty"`
+	ShadowQuicJLSProxy string `json:"shadowquic_jls_proxy,omitempty"`
+	ShadowQuicZeroRTT  bool   `json:"shadowquic_zero_rtt,omitempty"`
 
 	// Snell (single-PSK)
 	SnellPSK      string `json:"snell_psk,omitempty"`
@@ -185,13 +205,21 @@ type InboundSettings struct {
 	SudokuKey                string `json:"sudoku_key,omitempty"`
 	SudokuAEADMethod         string `json:"sudoku_aead_method,omitempty"`
 	SudokuTableType          string `json:"sudoku_table_type,omitempty"`
+	SudokuCustomTable        string `json:"sudoku_custom_table,omitempty"`
+	SudokuMultiplex          string `json:"sudoku_multiplex,omitempty"`
 	SudokuPaddingMin         *int   `json:"sudoku_padding_min,omitempty"`
 	SudokuPaddingMax         *int   `json:"sudoku_padding_max,omitempty"`
 	SudokuEnablePureDownlink *bool  `json:"sudoku_enable_pure_downlink,omitempty"`
 	SudokuDisableHTTPMask    bool   `json:"sudoku_disable_http_mask,omitempty"`
 	SudokuHTTPMaskMode       string `json:"sudoku_http_mask_mode,omitempty"`
+	SudokuHTTPMaskTLS        bool   `json:"sudoku_http_mask_tls,omitempty"`
+	SudokuHTTPMaskHost       string `json:"sudoku_http_mask_host,omitempty"`
 	SudokuPathRoot           string `json:"sudoku_path_root,omitempty"`
 	SudokuFallback           string `json:"sudoku_fallback,omitempty"`
+
+	// Advanced YAML Deep Merge Overrides
+	ExtraServerYAML string `json:"extra_server_yaml,omitempty"`
+	ExtraClientYAML string `json:"extra_client_yaml,omitempty"`
 }
 
 type Inbound struct {

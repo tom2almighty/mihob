@@ -150,6 +150,28 @@ func buildClientProxy(
 	user *model.User,
 	certs map[int64]*model.Certificate,
 ) map[string]any {
+	p := buildClientProxyBase(name, node, in, user, certs)
+	if p == nil {
+		return nil
+	}
+	if in.Settings.ECHEnable || strings.TrimSpace(in.Settings.ECHConfig) != "" {
+		echOpts := map[string]any{"enable": true}
+		if cfg := strings.TrimSpace(in.Settings.ECHConfig); cfg != "" {
+			echOpts["config"] = cfg
+		}
+		p["ech-opts"] = echOpts
+	}
+	_ = MergeExtraYAML(p, in.Settings.ExtraClientYAML, clientProtectedKeys)
+	return p
+}
+
+func buildClientProxyBase(
+	name string,
+	node *model.Node,
+	in *model.Inbound,
+	user *model.User,
+	certs map[int64]*model.Certificate,
+) map[string]any {
 	sni := in.Settings.SNI
 	skipVerify := in.Settings.SkipCertVerify
 	if in.CertID != nil {
@@ -209,6 +231,12 @@ func buildClientProxy(
 			}
 			if xHost != "" {
 				xOpts["host"] = xHost
+			}
+			if in.Settings.XHTTPNoSSEHeader {
+				xOpts["no-sse-header"] = true
+			}
+			if pad := strings.TrimSpace(in.Settings.XHTTPPaddingBytes); pad != "" {
+				xOpts["x-padding-bytes"] = pad
 			}
 			p["xhttp-opts"] = xOpts
 		default:
@@ -292,6 +320,9 @@ func buildClientProxy(
 			p["servername"] = sni
 			p["client-fingerprint"] = fp
 			p["skip-cert-verify"] = skipVerify
+			if len(in.Settings.ALPN) > 0 {
+				p["alpn"] = in.Settings.ALPN
+			}
 		default:
 			p["tls"] = false
 		}
@@ -430,7 +461,7 @@ func buildClientProxy(
 
 	case model.ProtoTrustTunnel:
 		netMode := strings.ToLower(strings.TrimSpace(in.Settings.TrustTunnelNetwork))
-		useQuic := netMode == "quic" || netMode == "both" || netMode == ""
+		useQuic := netMode == "udp" || netMode == "quic" || netMode == "both" || netMode == ""
 		p := map[string]any{
 			"name":               name,
 			"type":               "trusttunnel",
@@ -445,6 +476,18 @@ func buildClientProxy(
 		}
 		if len(in.Settings.ALPN) > 0 {
 			p["alpn"] = in.Settings.ALPN
+		}
+		if ncv := strings.TrimSpace(in.Settings.NameCertVerify); ncv != "" {
+			p["name-cert-verify"] = ncv
+		}
+		if in.Settings.TrustTunnelMaxConnections > 0 {
+			p["max-connections"] = in.Settings.TrustTunnelMaxConnections
+		}
+		if in.Settings.TrustTunnelMinStreams > 0 {
+			p["min-streams"] = in.Settings.TrustTunnelMinStreams
+		}
+		if in.Settings.TrustTunnelMaxStreams > 0 {
+			p["max-streams"] = in.Settings.TrustTunnelMaxStreams
 		}
 		if useQuic {
 			p["quic"] = true
@@ -519,18 +562,23 @@ func buildClientProxy(
 
 	case model.ProtoSudoku:
 		p := map[string]any{
-			"name":      name,
-			"type":      "sudoku",
-			"server":    node.Host,
-			"port":      in.Port,
-			"key":       in.Settings.SudokuKey,
-			"http-mask": !in.Settings.SudokuDisableHTTPMask,
+			"name":   name,
+			"type":   "sudoku",
+			"server": node.Host,
+			"port":   in.Port,
+			"key":    in.Settings.SudokuKey,
 		}
 		if aead := strings.TrimSpace(in.Settings.SudokuAEADMethod); aead != "" {
 			p["aead-method"] = aead
 		}
 		if tt := strings.TrimSpace(in.Settings.SudokuTableType); tt != "" {
 			p["table-type"] = tt
+		}
+		if ct := strings.TrimSpace(in.Settings.SudokuCustomTable); ct != "" {
+			p["custom-table"] = ct
+		}
+		if mux := strings.TrimSpace(in.Settings.SudokuMultiplex); mux != "" {
+			p["multiplex"] = mux
 		}
 		if in.Settings.SudokuPaddingMin != nil {
 			p["padding-min"] = *in.Settings.SudokuPaddingMin
@@ -541,14 +589,24 @@ func buildClientProxy(
 		if in.Settings.SudokuEnablePureDownlink != nil {
 			p["enable-pure-downlink"] = *in.Settings.SudokuEnablePureDownlink
 		}
+		httpMask := map[string]any{
+			"disable": in.Settings.SudokuDisableHTTPMask,
+		}
 		if !in.Settings.SudokuDisableHTTPMask {
 			if mode := strings.TrimSpace(in.Settings.SudokuHTTPMaskMode); mode != "" {
-				p["http-mask-mode"] = mode
+				httpMask["mode"] = mode
+			}
+			if in.Settings.SudokuHTTPMaskTLS {
+				httpMask["tls"] = true
+			}
+			if host := strings.TrimSpace(in.Settings.SudokuHTTPMaskHost); host != "" {
+				httpMask["host"] = host
 			}
 			if pr := strings.TrimSpace(in.Settings.SudokuPathRoot); pr != "" {
-				p["path-root"] = pr
+				httpMask["path-root"] = pr
 			}
 		}
+		p["httpmask"] = httpMask
 		return p
 
 	case model.ProtoHTTP:

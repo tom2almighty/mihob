@@ -106,6 +106,7 @@ func (s *Server) Router() http.Handler {
 			pr.Get("/inbounds", s.handleListAllInbounds)
 			pr.Get("/nodes/{id}/inbounds", s.handleListInbounds)
 			pr.Post("/nodes/{id}/inbounds", s.handleCreateInbound)
+			pr.Post("/nodes/{id}/inbounds/preview", s.handlePreviewInbound)
 			pr.Put("/nodes/{id}/inbounds/reorder", s.handleReorderInbounds)
 			pr.Put("/inbounds/{id}", s.handleUpdateInbound)
 			pr.Delete("/inbounds/{id}", s.handleDeleteInbound)
