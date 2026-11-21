@@ -227,9 +227,21 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 	var kickIdentifiers []string
 	affectedNodes := map[int64]struct{}{}
 
+	inboundProtoByName := map[string]string{}
+	if len(report.Users) > 0 {
+		if ins, err := m.store.ListInboundsByNode(nodeID); err == nil {
+			for _, inb := range ins {
+				inboundProtoByName[inb.Name] = inb.Protocol
+			}
+		}
+	}
+
 	for _, uDelta := range report.Users {
 		if uDelta.InboundUser == "" || (uDelta.Upload <= 0 && uDelta.Download <= 0) {
 			continue
+		}
+		if proto := inboundProtoByName[uDelta.InboundName]; proto != "" {
+			_ = m.store.RecordProtocolTrafficHourly(proto, uDelta.Upload, uDelta.Download)
 		}
 		user, err := m.store.GetUserByIdentifier(uDelta.InboundUser)
 		if err != nil {
@@ -239,6 +251,7 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 		scaledUp := int64(math.Round(float64(uDelta.Upload) * mult))
 		scaledDown := int64(math.Round(float64(uDelta.Download) * mult))
 		_ = m.store.AddUserTraffic(user.ID, scaledUp, scaledDown)
+		_ = m.store.RecordUserTrafficHourly(user.ID, scaledUp, scaledDown)
 
 		// Re-check quota immediately
 		user.TrafficUsed += scaledUp + scaledDown

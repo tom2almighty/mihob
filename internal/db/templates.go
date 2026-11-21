@@ -119,6 +119,214 @@ func (s *Store) RecordTrafficHourly(nodeID, up, down int64) error {
 	return err
 }
 
+func (s *Store) RecordUserTrafficHourly(userID, up, down int64) error {
+	if userID <= 0 || (up <= 0 && down <= 0) {
+		return nil
+	}
+	bucket := time.Now().UTC().Format("2006-01-02 15:00")
+	_, err := s.db.Exec(
+		`INSERT INTO traffic_user_hourly(bucket, user_id, upload, download) VALUES(?, ?, ?, ?)
+		 ON CONFLICT(bucket, user_id) DO UPDATE SET upload = upload + excluded.upload, download = download + excluded.download`,
+		bucket, userID, up, down,
+	)
+	return err
+}
+
+func (s *Store) RecordProtocolTrafficHourly(protocol string, up, down int64) error {
+	if protocol == "" || (up <= 0 && down <= 0) {
+		return nil
+	}
+	bucket := time.Now().UTC().Format("2006-01-02 15:00")
+	_, err := s.db.Exec(
+		`INSERT INTO traffic_protocol_hourly(bucket, protocol, upload, download) VALUES(?, ?, ?, ?)
+		 ON CONFLICT(bucket, protocol) DO UPDATE SET upload = upload + excluded.upload, download = download + excluded.download`,
+		bucket, protocol, up, down,
+	)
+	return err
+}
+
+func (s *Store) PruneOldTrafficHourly(keepDays int) error {
+	if keepDays <= 0 {
+		keepDays = 95
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -keepDays).Format("2006-01-02 15:00")
+	for _, tbl := range []string{"traffic_hourly", "traffic_user_hourly", "traffic_protocol_hourly"} {
+		if _, err := s.db.Exec(`DELETE FROM `+tbl+` WHERE bucket < ?`, cutoff); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func NormalizeDashboardRange(r string) string {
+	switch r {
+	case "7d", "30d", "90d":
+		return r
+	default:
+		return "24h"
+	}
+}
+
+func rangeSinceBucket(rangeKey string, now time.Time) (since string, days int, byDay bool) {
+	now = now.UTC()
+	switch NormalizeDashboardRange(rangeKey) {
+	case "7d":
+		startDay := now.Truncate(24*time.Hour).AddDate(0, 0, -6)
+		return startDay.Format("2006-01-02") + " 00:00", 7, true
+	case "30d":
+		startDay := now.Truncate(24*time.Hour).AddDate(0, 0, -29)
+		return startDay.Format("2006-01-02") + " 00:00", 30, true
+	case "90d":
+		startDay := now.Truncate(24*time.Hour).AddDate(0, 0, -89)
+		return startDay.Format("2006-01-02") + " 00:00", 90, true
+	default:
+		startHour := now.Truncate(time.Hour).Add(-23 * time.Hour)
+		return startHour.Format("2006-01-02 15:00"), 1, false
+	}
+}
+
+func (s *Store) QueryTrafficSeries(rangeKey string) ([]model.TrafficPoint, error) {
+	now := time.Now().UTC()
+	since, days, byDay := rangeSinceBucket(rangeKey, now)
+
+	if !byDay {
+		return s.QueryTrafficHourly(24)
+	}
+
+	rows, err := s.db.Query(
+		`SELECT substr(bucket, 1, 10) AS day_bucket, SUM(upload), SUM(download)
+		 FROM traffic_hourly
+		 WHERE bucket >= ?
+		 GROUP BY day_bucket
+		 ORDER BY day_bucket ASC`,
+		since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	byBucket := map[string]model.TrafficPoint{}
+	for rows.Next() {
+		var p model.TrafficPoint
+		if err := rows.Scan(&p.Bucket, &p.Upload, &p.Download); err != nil {
+			return nil, err
+		}
+		byBucket[p.Bucket] = p
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]model.TrafficPoint, 0, days)
+	today := now.Truncate(24 * time.Hour)
+	for i := days - 1; i >= 0; i-- {
+		b := today.AddDate(0, 0, -i).Format("2006-01-02")
+		if p, ok := byBucket[b]; ok {
+			out = append(out, p)
+		} else {
+			out = append(out, model.TrafficPoint{Bucket: b})
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) QueryNodeTrafficByRange(rangeKey string, limit int) ([]model.NodeTrafficStat, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	since, _, _ := rangeSinceBucket(rangeKey, time.Now().UTC())
+	rows, err := s.db.Query(
+		`SELECT t.node_id, COALESCE(n.name, '#' || t.node_id), COALESCE(n.region, ''),
+		        SUM(t.upload) AS up_sum, SUM(t.download) AS down_sum
+		 FROM traffic_hourly t
+		 LEFT JOIN nodes n ON n.id = t.node_id
+		 WHERE t.bucket >= ? AND t.node_id > 0
+		 GROUP BY t.node_id
+		 HAVING (up_sum + down_sum) > 0
+		 ORDER BY (up_sum + down_sum) DESC
+		 LIMIT ?`,
+		since, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.NodeTrafficStat{}
+	for rows.Next() {
+		var item model.NodeTrafficStat
+		if err := rows.Scan(&item.NodeID, &item.NodeName, &item.Region, &item.Upload, &item.Download); err != nil {
+			return nil, err
+		}
+		item.Total = item.Upload + item.Download
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) QueryUserTrafficByRange(rangeKey string, limit int) ([]model.UserTrafficStat, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	since, _, _ := rangeSinceBucket(rangeKey, time.Now().UTC())
+	rows, err := s.db.Query(
+		`SELECT t.user_id, COALESCE(u.username, '#' || t.user_id),
+		        SUM(t.upload) AS up_sum, SUM(t.download) AS down_sum
+		 FROM traffic_user_hourly t
+		 LEFT JOIN users u ON u.id = t.user_id
+		 WHERE t.bucket >= ? AND t.user_id > 0
+		 GROUP BY t.user_id
+		 HAVING (up_sum + down_sum) > 0
+		 ORDER BY (up_sum + down_sum) DESC
+		 LIMIT ?`,
+		since, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.UserTrafficStat{}
+	for rows.Next() {
+		var item model.UserTrafficStat
+		if err := rows.Scan(&item.UserID, &item.Username, &item.Upload, &item.Download); err != nil {
+			return nil, err
+		}
+		item.Total = item.Upload + item.Download
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) QueryProtocolTrafficByRange(rangeKey string) ([]model.ProtocolTrafficStat, error) {
+	since, _, _ := rangeSinceBucket(rangeKey, time.Now().UTC())
+	rows, err := s.db.Query(
+		`SELECT protocol, SUM(upload) AS up_sum, SUM(download) AS down_sum
+		 FROM traffic_protocol_hourly
+		 WHERE bucket >= ? AND protocol != ''
+		 GROUP BY protocol
+		 HAVING (up_sum + down_sum) > 0
+		 ORDER BY (up_sum + down_sum) DESC`,
+		since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.ProtocolTrafficStat{}
+	for rows.Next() {
+		var item model.ProtocolTrafficStat
+		if err := rows.Scan(&item.Protocol, &item.Upload, &item.Download); err != nil {
+			return nil, err
+		}
+		item.Total = item.Upload + item.Download
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) QueryTrafficHourly(hours int) ([]model.TrafficPoint, error) {
 	if hours <= 0 {
 		hours = 24

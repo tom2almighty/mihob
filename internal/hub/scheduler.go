@@ -43,6 +43,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 			s.tickExpirationAndResets()
 		case <-acmeTicker.C:
 			s.tickACMERenew()
+			_ = s.store.PruneOldTrafficHourly(95)
 		}
 	}
 }

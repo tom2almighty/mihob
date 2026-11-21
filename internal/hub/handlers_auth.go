@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mihob/mihob/internal/crypto"
+	"github.com/mihob/mihob/internal/db"
 	"github.com/mihob/mihob/internal/model"
 )
 
@@ -86,7 +87,23 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	series, err := s.store.QueryTrafficHourly(24)
+	rangeKey := db.NormalizeDashboardRange(r.URL.Query().Get("range"))
+	series, err := s.store.QueryTrafficSeries(rangeKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	nodeTraffic, err := s.store.QueryNodeTrafficByRange(rangeKey, 10)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	userTraffic, err := s.store.QueryUserTrafficByRange(rangeKey, 10)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	protocolTraffic, err := s.store.QueryProtocolTrafficByRange(rangeKey)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -152,8 +169,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			"down_rate":           totalDownRate,
 			"total_traffic":       totalNodeTraffic,
 		},
-		"nodes":          nodes,
-		"top_users":      topUsers,
-		"traffic_hourly": series,
+		"range":            rangeKey,
+		"nodes":            nodes,
+		"top_users":        topUsers,
+		"traffic_series":   series,
+		"node_traffic":     nodeTraffic,
+		"user_traffic":     userTraffic,
+		"protocol_traffic": protocolTraffic,
 	})
 }

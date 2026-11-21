@@ -98,11 +98,12 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	var cert model.Certificate
 	_ = json.Unmarshal(raw, &cert)
 
-	// 3. Create node
+	// 3. Create node with tags
 	resp, raw = doJSON(http.MethodPost, "/api/nodes", tok, map[string]any{
 		"name":               "Japan-01",
 		"host":               "jp.example.com",
 		"region":             "JP",
+		"tags":               []string{"IEPL", "VIP"},
 		"traffic_limit":      100 * 1024 * 1024 * 1024,
 		"traffic_multiplier": 1.0,
 		"reset_day":          1,
@@ -112,12 +113,16 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	}
 	var node model.Node
 	_ = json.Unmarshal(raw, &node)
+	if len(node.Tags) != 2 {
+		t.Fatalf("expected 2 node tags, got %v", node.Tags)
+	}
 
-	// 4. Add VLESS Reality + Hysteria2 + Shadowsocks 2022 inbounds
+	// 4. Add VLESS Reality + Hysteria2 + Shadowsocks 2022 inbounds with tags
 	inbounds := []map[string]any{
 		{
 			"name":     "vless-443",
 			"tag":      "Reality",
+			"tags":     []string{"direct", "fast"},
 			"protocol": "vless",
 			"port":     443,
 			"settings": map[string]any{
@@ -130,6 +135,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 		{
 			"name":     "hy2-8443",
 			"tag":      "HY2",
+			"tags":     []string{"udp", "fast"},
 			"protocol": "hysteria2",
 			"port":     8443,
 			"cert_id":  cert.ID,
@@ -141,6 +147,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 		{
 			"name":     "ss-9443",
 			"tag":      "SS2022",
+			"tags":     []string{"legacy"},
 			"protocol": "shadowsocks",
 			"port":     9443,
 			"settings": map[string]any{
@@ -156,25 +163,49 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 		}
 	}
 
+	// 4b. Verify list all inbounds endpoint
+	resp, raw = doJSON(http.MethodGet, "/api/inbounds", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list all inbounds failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var allIns []model.Inbound
+	_ = json.Unmarshal(raw, &allIns)
+	if len(allIns) != 3 {
+		t.Fatalf("expected 3 inbounds, got %d", len(allIns))
+	}
+
 	// 5. Verify install commands endpoint
 	resp, raw = doJSON(http.MethodGet, fmt.Sprintf("/api/nodes/%d/install", node.ID), tok, nil)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(raw), "docker_compose") {
 		t.Fatalf("install commands failed: %d %s", resp.StatusCode, string(raw))
 	}
 
-	// 6. Create user authorized on this node
+	// 6. Create user authorized via region + tag + regex + protocol rule (matches VLESS + HY2 only)
 	resp, raw = doJSON(http.MethodPost, "/api/users", tok, map[string]any{
 		"username":      "alice",
 		"traffic_limit": 50 * 1024 * 1024 * 1024,
-		"node_ids":      []int64{node.ID},
+		"access_policy": map[string]any{
+			"node_mode":         "rule",
+			"node_match":        "all",
+			"node_regions":      []string{"JP"},
+			"node_tags":         []string{"VIP"},
+			"node_name_regex":   "^Japan-\\d+$",
+			"inbound_mode":      "rule",
+			"inbound_match":     "all",
+			"inbound_protocols": []string{"vless", "hysteria2"},
+			"inbound_tags":      []string{"fast"},
+		},
 	})
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("create user failed: %d %s", resp.StatusCode, string(raw))
 	}
 	var user model.User
 	_ = json.Unmarshal(raw, &user)
+	if len(user.NodeIDs) != 1 || user.InboundCount != 2 {
+		t.Fatalf("expected 1 matched node & 2 inbounds, got nodes=%v inbounds=%d", user.NodeIDs, user.InboundCount)
+	}
 
-	// 7. Fetch public Mihomo subscription as client (YAML)
+	// 7. Fetch public Mihomo subscription as client (YAML) - should only contain 2 matched proxies
 	subResp, err := http.Get(ts.URL + "/sub/" + user.SubToken)
 	if err != nil {
 		t.Fatalf("get sub failed: %v", err)
@@ -193,8 +224,8 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 		t.Fatalf("invalid subscription YAML: %v\n%s", err, string(subRaw))
 	}
 	proxies, ok := parsed["proxies"].([]any)
-	if !ok || len(proxies) != 3 {
-		t.Fatalf("expected 3 proxies in subscription, got %d\n%s", len(proxies), string(subRaw))
+	if !ok || len(proxies) != 2 {
+		t.Fatalf("expected 2 proxies in subscription, got %d\n%s", len(proxies), string(subRaw))
 	}
 
 	// 8. Browser visit to /sub/{token} should return SPA HTML (subscription info page)
@@ -234,7 +265,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	if err := json.Unmarshal(raw, &pubInfo); err != nil {
 		t.Fatalf("decode public sub info: %v", err)
 	}
-	if pubInfo.Username != "alice" || len(pubInfo.Nodes) != 1 || len(pubInfo.Nodes[0].Protocols) != 3 || pubInfo.YAML == "" {
+	if pubInfo.Username != "alice" || len(pubInfo.Nodes) != 1 || len(pubInfo.Nodes[0].Protocols) != 2 || pubInfo.YAML == "" {
 		t.Fatalf("unexpected public sub info: %+v", pubInfo)
 	}
 
@@ -258,9 +289,17 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 		t.Fatalf("expected 400 for reserved sub_path, got %d", resp.StatusCode)
 	}
 
-	// 10. Check dashboard endpoint
-	resp, raw = doJSON(http.MethodGet, "/api/dashboard", tok, nil)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("dashboard failed: %d %s", resp.StatusCode, string(raw))
+	// 10. Check dashboard endpoint with hourly traffic stats across ranges
+	_ = store.RecordTrafficHourly(node.ID, 1024, 4096)
+	_ = store.RecordUserTrafficHourly(user.ID, 1024, 4096)
+	_ = store.RecordProtocolTrafficHourly(model.ProtoVLESS, 1024, 4096)
+	for _, rng := range []string{"24h", "7d", "30d", "90d"} {
+		resp, raw = doJSON(http.MethodGet, "/api/dashboard?range="+rng, tok, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("dashboard (%s) failed: %d %s", rng, resp.StatusCode, string(raw))
+		}
+		if !strings.Contains(string(raw), `"traffic_series"`) || !strings.Contains(string(raw), `"node_traffic"`) || !strings.Contains(string(raw), `"user_traffic"`) || !strings.Contains(string(raw), `"protocol_traffic"`) {
+			t.Fatalf("dashboard (%s) missing new traffic fields: %s", rng, string(raw))
+		}
 	}
 }
