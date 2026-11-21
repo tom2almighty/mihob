@@ -84,7 +84,7 @@ export function TagInput({
             if (draft.trim()) addTag(draft)
           }}
           placeholder={value.length === 0 ? placeholder : ""}
-          className="h-6 min-w-[110px] flex-1 border-0 bg-transparent px-1 py-0 text-xs shadow-none focus-visible:ring-0"
+          className="h-6 min-w-27.5 flex-1 border-0 bg-transparent px-1 py-0 text-xs shadow-none focus-visible:ring-0"
         />
       </div>
 

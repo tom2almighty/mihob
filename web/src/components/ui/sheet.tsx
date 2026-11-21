@@ -67,7 +67,7 @@ function SheetContent({
           "data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-10 data-[side=right]:data-starting-style:translate-x-10",
           !isExpanded && "data-[side=left]:w-3/4 data-[side=left]:sm:max-w-sm data-[side=right]:w-3/4 data-[side=right]:sm:max-w-sm",
           className,
-          isExpanded && "!w-screen !max-w-none border-l-0 border-r-0"
+          isExpanded && "w-screen! max-w-none! border-l-0 border-r-0"
         )}
         {...props}
       >

@@ -162,7 +162,7 @@ export function UserSubDialog({
                   </Button>
                 </div>
               </div>
-              {previewYAML && <YamlCodeBlock value={previewYAML} className="min-h-[200px] flex-1" />}
+              {previewYAML && <YamlCodeBlock value={previewYAML} className="min-h-50 flex-1" />}
             </div>
           </div>
         )}

@@ -349,7 +349,7 @@ export function NodesPage() {
                                 </Badge>
                               }
                             />
-                            <TooltipContent className="max-w-xs break-words">
+                            <TooltipContent className="max-w-xs wrap-break-word">
                               {n.config_error || t("nodes.configErrorFallback")}
                             </TooltipContent>
                           </Tooltip>
