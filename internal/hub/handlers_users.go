@@ -38,15 +38,14 @@ func (s *Server) handleReorderUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Username     string     `json:"username"`
-		Email        string     `json:"email"`
-		Enabled      *bool      `json:"enabled"`
-		AllNodes     *bool      `json:"all_nodes"`
-		TrafficLimit int64      `json:"traffic_limit"`
-		ExpireAt     *time.Time `json:"expire_at"`
-		TemplateID   *int64     `json:"template_id"`
-		NodeIDs      []int64    `json:"node_ids"`
-		Remark       string     `json:"remark"`
+		Username     string              `json:"username"`
+		Email        string              `json:"email"`
+		Enabled      *bool               `json:"enabled"`
+		AccessPolicy *model.AccessPolicy `json:"access_policy"`
+		TrafficLimit int64               `json:"traffic_limit"`
+		ExpireAt     *time.Time          `json:"expire_at"`
+		TemplateID   *int64              `json:"template_id"`
+		Remark       string              `json:"remark"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -61,19 +60,23 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	allNodes := false
-	if req.AllNodes != nil {
-		allNodes = *req.AllNodes
+	policy := model.DefaultAccessPolicy()
+	if req.AccessPolicy != nil {
+		policy = *req.AccessPolicy
+	}
+	policy.Normalize()
+	if err := policy.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	u := &model.User{
 		Username:     req.Username,
 		Email:        strings.TrimSpace(req.Email),
 		Enabled:      enabled,
-		AllNodes:     allNodes,
+		AccessPolicy: policy,
 		TrafficLimit: req.TrafficLimit,
 		ExpireAt:     req.ExpireAt,
 		TemplateID:   req.TemplateID,
-		NodeIDs:      req.NodeIDs,
 		Remark:       strings.TrimSpace(req.Remark),
 	}
 	if err := s.store.CreateUser(u); err != nil {
@@ -96,21 +99,17 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wasActive := existing.IsActive(time.Now().UTC())
-	oldNodes := make(map[int64]bool, len(existing.NodeIDs))
-	for _, nid := range existing.NodeIDs {
-		oldNodes[nid] = true
-	}
+	oldPolicy := existing.AccessPolicy
 
 	var req struct {
-		Username     string     `json:"username"`
-		Email        string     `json:"email"`
-		Enabled      *bool      `json:"enabled"`
-		AllNodes     *bool      `json:"all_nodes"`
-		TrafficLimit int64      `json:"traffic_limit"`
-		ExpireAt     *time.Time `json:"expire_at"`
-		TemplateID   *int64     `json:"template_id"`
-		NodeIDs      []int64    `json:"node_ids"`
-		Remark       string     `json:"remark"`
+		Username     string              `json:"username"`
+		Email        string              `json:"email"`
+		Enabled      *bool               `json:"enabled"`
+		AccessPolicy *model.AccessPolicy `json:"access_policy"`
+		TrafficLimit int64               `json:"traffic_limit"`
+		ExpireAt     *time.Time          `json:"expire_at"`
+		TemplateID   *int64              `json:"template_id"`
+		Remark       string              `json:"remark"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -123,15 +122,18 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
 	}
-	if req.AllNodes != nil {
-		existing.AllNodes = *req.AllNodes
+	if req.AccessPolicy != nil {
+		policy := *req.AccessPolicy
+		policy.Normalize()
+		if err := policy.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		existing.AccessPolicy = policy
 	}
 	existing.TrafficLimit = req.TrafficLimit
 	existing.ExpireAt = req.ExpireAt
 	existing.TemplateID = req.TemplateID
-	if req.NodeIDs != nil {
-		existing.NodeIDs = req.NodeIDs
-	}
 	existing.Remark = strings.TrimSpace(req.Remark)
 
 	affected, err := s.store.UpdateUser(existing)
@@ -141,15 +143,29 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	s.ws.PushConfigToNodes(affected)
 
-	// Kick user on revoked nodes or all nodes if disabled/expired
+	// Kick user on any node where access was revoked or narrowed, or on all affected nodes if deactivated
 	nowActive := existing.IsActive(time.Now().UTC())
-	newNodes := make(map[int64]bool, len(existing.NodeIDs))
-	for _, nid := range existing.NodeIDs {
-		newNodes[nid] = true
-	}
 	for _, nid := range affected {
-		if (wasActive && !nowActive) || (oldNodes[nid] && !newNodes[nid]) {
+		if wasActive && !nowActive {
 			_ = s.ws.KickUsersOnNode(nid, []string{existing.Username, existing.UUID})
+			continue
+		}
+		n, err := s.store.GetNode(nid)
+		if err != nil {
+			continue
+		}
+		if oldPolicy.MatchNode(n) && !existing.AccessPolicy.MatchNode(n) {
+			_ = s.ws.KickUsersOnNode(nid, []string{existing.Username, existing.UUID})
+			continue
+		}
+		// Also kick if any previously allowed inbound on this node was revoked
+		if ins, err := s.store.ListInboundsByNode(nid); err == nil {
+			for i := range ins {
+				if oldPolicy.Allows(n, &ins[i]) && !existing.AccessPolicy.Allows(n, &ins[i]) {
+					_ = s.ws.KickUsersOnNode(nid, []string{existing.Username, existing.UUID})
+					break
+				}
+			}
 		}
 	}
 
@@ -454,21 +470,26 @@ func (s *Server) handlePublicSubInfo(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	status := computeUserStatus(u, now)
 
-	nodesOut := make([]model.PublicSubNode, 0, len(u.NodeIDs))
-	for _, nid := range u.NodeIDs {
-		n, err := s.store.GetNode(nid)
-		if err != nil || !n.Enabled {
+	allNodes, _ := s.store.ListNodes()
+	nodesOut := make([]model.PublicSubNode, 0, len(allNodes))
+	for i := range allNodes {
+		n := &allNodes[i]
+		if !n.Enabled || !u.AccessPolicy.MatchNode(n) {
 			continue
 		}
-		ins, _ := s.store.ListInboundsByNode(nid)
+		ins, _ := s.store.ListInboundsByNode(n.ID)
 		protoSeen := make(map[string]bool)
 		protos := make([]string, 0, len(ins))
-		for _, inb := range ins {
-			if !inb.Enabled || protoSeen[inb.Protocol] {
+		for j := range ins {
+			inb := &ins[j]
+			if !inb.Enabled || !u.AccessPolicy.MatchInbound(inb) || protoSeen[inb.Protocol] {
 				continue
 			}
 			protoSeen[inb.Protocol] = true
 			protos = append(protos, inb.Protocol)
+		}
+		if len(protos) == 0 {
+			continue
 		}
 		rt := s.ws.GetRuntime(n.ID)
 		nodesOut = append(nodesOut, model.PublicSubNode{
@@ -564,19 +585,32 @@ func (s *Server) renderSubscriptionForUser(u *model.User, templateYAML string) (
 		certsMap[certsList[i].ID] = &certsList[i]
 	}
 
-	nodesWithInbounds := make([]mihomogen.NodeWithInbounds, 0, len(u.NodeIDs))
-	for _, nid := range u.NodeIDs {
-		n, err := s.store.GetNode(nid)
+	allNodes, err := s.store.ListNodes()
+	if err != nil {
+		return "", err
+	}
+	nodesWithInbounds := make([]mihomogen.NodeWithInbounds, 0, len(allNodes))
+	for i := range allNodes {
+		n := &allNodes[i]
+		if !u.AccessPolicy.MatchNode(n) {
+			continue
+		}
+		ins, err := s.store.ListInboundsByNode(n.ID)
 		if err != nil {
 			continue
 		}
-		ins, err := s.store.ListInboundsByNode(nid)
-		if err != nil {
+		filtered := make([]model.Inbound, 0, len(ins))
+		for j := range ins {
+			if u.AccessPolicy.MatchInbound(&ins[j]) {
+				filtered = append(filtered, ins[j])
+			}
+		}
+		if len(filtered) == 0 {
 			continue
 		}
 		nodesWithInbounds = append(nodesWithInbounds, mihomogen.NodeWithInbounds{
 			Node:     *n,
-			Inbounds: ins,
+			Inbounds: filtered,
 		})
 	}
 	return mihomogen.RenderUserSubscription(u, nodesWithInbounds, certsMap, templateYAML)

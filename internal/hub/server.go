@@ -103,6 +103,7 @@ func (s *Server) Router() http.Handler {
 			pr.Get("/nodes/{id}/install", s.handleNodeInstallCommands)
 
 			// Inbounds
+			pr.Get("/inbounds", s.handleListAllInbounds)
 			pr.Get("/nodes/{id}/inbounds", s.handleListInbounds)
 			pr.Post("/nodes/{id}/inbounds", s.handleCreateInbound)
 			pr.Put("/nodes/{id}/inbounds/reorder", s.handleReorderInbounds)

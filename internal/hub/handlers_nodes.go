@@ -64,6 +64,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		Name              string     `json:"name"`
 		Host              string     `json:"host"`
 		Region            string     `json:"region"`
+		Tags              []string   `json:"tags"`
 		Enabled           *bool      `json:"enabled"`
 		TrafficLimit      int64      `json:"traffic_limit"`
 		TrafficMultiplier float64    `json:"traffic_multiplier"`
@@ -88,6 +89,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		Name:              strings.TrimSpace(req.Name),
 		Host:              strings.TrimSpace(req.Host),
 		Region:            strings.TrimSpace(req.Region),
+		Tags:              model.NormalizeTags(req.Tags),
 		Enabled:           enabled,
 		TrafficLimit:      req.TrafficLimit,
 		TrafficMultiplier: req.TrafficMultiplier,
@@ -118,6 +120,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		Name              string     `json:"name"`
 		Host              string     `json:"host"`
 		Region            string     `json:"region"`
+		Tags              []string   `json:"tags"`
 		Enabled           *bool      `json:"enabled"`
 		TrafficLimit      int64      `json:"traffic_limit"`
 		TrafficUsed       *int64     `json:"traffic_used"`
@@ -138,6 +141,9 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		existing.Host = strings.TrimSpace(req.Host)
 	}
 	existing.Region = strings.TrimSpace(req.Region)
+	if req.Tags != nil {
+		existing.Tags = model.NormalizeTags(req.Tags)
+	}
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
 	}
@@ -307,6 +313,15 @@ func (s *Server) handleInstallAgentScript(w http.ResponseWriter, r *http.Request
 
 // --- Inbounds ---
 
+func (s *Server) handleListAllInbounds(w http.ResponseWriter, r *http.Request) {
+	list, err := s.store.ListAllInbounds()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
 func (s *Server) handleListInbounds(w http.ResponseWriter, r *http.Request) {
 	nodeID, err := parseIDParam(r, "id")
 	if err != nil {
@@ -354,6 +369,7 @@ func (s *Server) handleCreateInbound(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name     string                `json:"name"`
 		Tag      string                `json:"tag"`
+		Tags     []string              `json:"tags"`
 		Protocol string                `json:"protocol"`
 		Listen   string                `json:"listen"`
 		Port     int                   `json:"port"`
@@ -410,6 +426,7 @@ func (s *Server) handleCreateInbound(w http.ResponseWriter, r *http.Request) {
 		NodeID:   nodeID,
 		Name:     strings.TrimSpace(req.Name),
 		Tag:      strings.TrimSpace(req.Tag),
+		Tags:     model.NormalizeTags(req.Tags),
 		Protocol: req.Protocol,
 		Listen:   strings.TrimSpace(req.Listen),
 		Port:     req.Port,
@@ -439,6 +456,7 @@ func (s *Server) handleUpdateInbound(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name     string                `json:"name"`
 		Tag      string                `json:"tag"`
+		Tags     []string              `json:"tags"`
 		Protocol string                `json:"protocol"`
 		Listen   string                `json:"listen"`
 		Port     int                   `json:"port"`
@@ -462,6 +480,9 @@ func (s *Server) handleUpdateInbound(w http.ResponseWriter, r *http.Request) {
 		existing.Name = strings.TrimSpace(req.Name)
 	}
 	existing.Tag = strings.TrimSpace(req.Tag)
+	if req.Tags != nil {
+		existing.Tags = model.NormalizeTags(req.Tags)
+	}
 	if req.Protocol != "" {
 		existing.Protocol = req.Protocol
 	}

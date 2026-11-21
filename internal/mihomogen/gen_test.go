@@ -279,3 +279,79 @@ func TestCloudflareTunnelClientOverride(t *testing.T) {
 		t.Fatalf("expected ws Host header tunnel.example.com, got %v", headers["Host"])
 	}
 }
+
+func TestPerInboundUserAccessFiltering(t *testing.T) {
+	priv, pub, err := crypto.GenerateRealityKeyPair()
+	if err != nil {
+		t.Fatalf("reality keypair: %v", err)
+	}
+	node := &model.Node{
+		ID: 1, Name: "HK-IEPL-01", Host: "hk.example.com", Region: "HK",
+		Tags: []string{"IEPL", "VIP"}, Enabled: true,
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 10, NodeID: 1, Name: "vless-in", Tag: "VLESS", Tags: []string{"direct"},
+			Protocol: model.ProtoVLESS, Port: 443, Enabled: true,
+			Settings: model.InboundSettings{
+				Security: "reality", Network: "tcp",
+				RealityDest: "www.microsoft.com:443", RealityPrivateKey: priv, RealityPublicKey: pub,
+			},
+		},
+		{
+			ID: 11, NodeID: 1, Name: "ss-in", Tag: "SS", Tags: []string{"backup"},
+			Protocol: model.ProtoShadowsocks, Port: 8443, Enabled: true,
+			Settings: model.InboundSettings{
+				SSCipher: "2022-blake3-aes-128-gcm", SSServerPassword: crypto.RandomBase64(16),
+			},
+		},
+		{
+			ID: 12, NodeID: 1, Name: "mixed-in", Tag: "Mixed", Tags: []string{"internal"},
+			Protocol: model.ProtoMixed, Port: 1080, Enabled: true,
+			Settings: model.InboundSettings{Security: "none"},
+		},
+	}
+
+	userVLESS := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw1",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+		AccessPolicy: model.AccessPolicy{
+			NodeMode:         model.AccessModeRule,
+			NodeRegions:      []string{"HK"},
+			InboundMode:      model.AccessModeRule,
+			InboundProtocols: []string{model.ProtoVLESS},
+		},
+	}
+	userSS := model.User{
+		ID: 2, Username: "bob", UUID: crypto.NewUUID(), Password: "pw2",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+		AccessPolicy: model.AccessPolicy{
+			NodeMode:    model.AccessModeRule,
+			NodeTags:    []string{"VIP"},
+			InboundMode: model.AccessModeManual,
+			InboundIDs:  []int64{11},
+		},
+	}
+
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{userVLESS, userSS}, map[int64]*model.Certificate{}, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(bundle.ConfigYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	listeners := parsed["listeners"].([]any)
+	// mixed-in has 0 authorized users, so only 2 listeners should be emitted
+	if len(listeners) != 2 {
+		t.Fatalf("expected 2 listeners (vless-in and ss-in), got %d:\n%s", len(listeners), bundle.ConfigYAML)
+	}
+	l0 := listeners[0].(map[string]any)
+	l1 := listeners[1].(map[string]any)
+	if l0["name"] != "vless-in" || len(l0["users"].([]any)) != 1 {
+		t.Fatalf("expected vless-in with 1 user (alice), got %+v", l0)
+	}
+	if l1["name"] != "ss-in" || len(l1["users"].(map[string]any)) != 1 {
+		t.Fatalf("expected ss-in with 1 user (bob), got %+v", l1)
+	}
+}

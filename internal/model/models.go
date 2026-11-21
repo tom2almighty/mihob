@@ -60,6 +60,7 @@ type Node struct {
 	Name              string     `json:"name"`
 	Host              string     `json:"host"`
 	Region            string     `json:"region"`
+	Tags              []string   `json:"tags"`
 	Token             string     `json:"token"`
 	Enabled           bool       `json:"enabled"`
 	TrafficLimit      int64      `json:"traffic_limit"`
@@ -198,6 +199,7 @@ type Inbound struct {
 	NodeID    int64           `json:"node_id"`
 	Name      string          `json:"name"`
 	Tag       string          `json:"tag"`
+	Tags      []string        `json:"tags"`
 	Protocol  string          `json:"protocol"`
 	Listen    string          `json:"listen"`
 	Port      int             `json:"port"`
@@ -229,26 +231,27 @@ type Certificate struct {
 }
 
 type User struct {
-	ID           int64      `json:"id"`
-	Username     string     `json:"username"`
-	Email        string     `json:"email"`
-	UUID         string     `json:"uuid"`
-	Password     string     `json:"password"`
-	SSKey16      string     `json:"ss_key_16"`
-	SSKey32      string     `json:"ss_key_32"`
-	SubToken     string     `json:"sub_token"`
-	Enabled      bool       `json:"enabled"`
-	AllNodes     bool       `json:"all_nodes"`
-	TrafficLimit int64      `json:"traffic_limit"`
-	TrafficUsed  int64      `json:"traffic_used"`
-	UploadUsed   int64      `json:"upload_used"`
-	DownloadUsed int64      `json:"download_used"`
-	ExpireAt     *time.Time `json:"expire_at"`
-	TemplateID   *int64     `json:"template_id"`
-	NodeIDs      []int64    `json:"node_ids"`
-	Remark       string     `json:"remark"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           int64        `json:"id"`
+	Username     string       `json:"username"`
+	Email        string       `json:"email"`
+	UUID         string       `json:"uuid"`
+	Password     string       `json:"password"`
+	SSKey16      string       `json:"ss_key_16"`
+	SSKey32      string       `json:"ss_key_32"`
+	SubToken     string       `json:"sub_token"`
+	Enabled      bool         `json:"enabled"`
+	AccessPolicy AccessPolicy `json:"access_policy"`
+	TrafficLimit int64        `json:"traffic_limit"`
+	TrafficUsed  int64        `json:"traffic_used"`
+	UploadUsed   int64        `json:"upload_used"`
+	DownloadUsed int64        `json:"download_used"`
+	ExpireAt     *time.Time   `json:"expire_at"`
+	TemplateID   *int64       `json:"template_id"`
+	NodeIDs      []int64      `json:"node_ids"`
+	InboundCount int          `json:"inbound_count"`
+	Remark       string       `json:"remark"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
 func (u *User) IsActive(now time.Time) bool {
@@ -282,6 +285,30 @@ type TrafficPoint struct {
 	Bucket   string `json:"bucket"`
 	Upload   int64  `json:"upload"`
 	Download int64  `json:"download"`
+}
+
+type NodeTrafficStat struct {
+	NodeID   int64  `json:"node_id"`
+	NodeName string `json:"node_name"`
+	Region   string `json:"region"`
+	Upload   int64  `json:"upload"`
+	Download int64  `json:"download"`
+	Total    int64  `json:"total"`
+}
+
+type UserTrafficStat struct {
+	UserID   int64  `json:"user_id"`
+	Username string `json:"username"`
+	Upload   int64  `json:"upload"`
+	Download int64  `json:"download"`
+	Total    int64  `json:"total"`
+}
+
+type ProtocolTrafficStat struct {
+	Protocol string `json:"protocol"`
+	Upload   int64  `json:"upload"`
+	Download int64  `json:"download"`
+	Total    int64  `json:"total"`
 }
 
 type SystemSettings struct {

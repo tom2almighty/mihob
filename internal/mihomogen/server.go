@@ -43,7 +43,16 @@ func GenerateServerConfig(
 			if !in.Enabled {
 				continue
 			}
-			l, cert, err := buildListener(&in, activeUsers, certs)
+			inboundUsers := make([]model.User, 0, len(activeUsers))
+			for _, u := range activeUsers {
+				if u.AccessPolicy.Allows(node, &in) {
+					inboundUsers = append(inboundUsers, u)
+				}
+			}
+			if len(inboundUsers) == 0 {
+				continue
+			}
+			l, cert, err := buildListener(&in, inboundUsers, certs)
 			if err != nil {
 				return nil, fmt.Errorf("inbound %s (%s): %w", in.Name, in.Protocol, err)
 			}

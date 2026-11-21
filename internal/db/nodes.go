@@ -12,9 +12,10 @@ import (
 func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	var n model.Node
 	var enabled int
+	var tagsJSON string
 	var lastReset, expireAt, lastSeen sql.NullTime
 	err := row.Scan(
-		&n.ID, &n.Name, &n.Host, &n.Region, &n.Token, &enabled,
+		&n.ID, &n.Name, &n.Host, &n.Region, &tagsJSON, &n.Token, &enabled,
 		&n.TrafficLimit, &n.TrafficUsed, &n.UploadUsed, &n.DownloadUsed,
 		&n.TrafficMultiplier, &n.ResetDay, &lastReset, &expireAt, &n.BillingCycle, &n.Remark,
 		&n.MihomoVersion, &n.AgentVersion, &n.ConfigHash, &n.ConfigStatus,
@@ -24,6 +25,8 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 		return nil, err
 	}
 	n.Enabled = enabled == 1
+	_ = json.Unmarshal([]byte(tagsJSON), &n.Tags)
+	n.Tags = model.NormalizeTags(n.Tags)
 	if lastReset.Valid {
 		t := lastReset.Time
 		n.LastResetAt = &t
@@ -40,7 +43,7 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 }
 
 const nodeSelectSQL = `
-SELECT n.id, n.name, n.host, n.region, n.token, n.enabled,
+SELECT n.id, n.name, n.host, n.region, n.tags, n.token, n.enabled,
        n.traffic_limit, n.traffic_used, n.upload_used, n.download_used,
        n.traffic_multiplier, n.reset_day, n.last_reset_at, n.expire_at, n.billing_cycle, n.remark,
        n.mihomo_version, n.agent_version, n.config_hash, n.config_status,
@@ -99,10 +102,12 @@ func (s *Store) CreateNode(n *model.Node) error {
 	if n.ResetDay < 1 || n.ResetDay > 31 {
 		n.ResetDay = 1
 	}
+	n.Tags = model.NormalizeTags(n.Tags)
+	tagsJSON, _ := json.Marshal(n.Tags)
 	res, err := s.db.Exec(
-		`INSERT INTO nodes(name, host, region, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, config_status, created_at, updated_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-		n.Name, n.Host, n.Region, n.Token, boolToInt(n.Enabled),
+		`INSERT INTO nodes(name, host, region, tags, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, config_status, created_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		n.Name, n.Host, n.Region, string(tagsJSON), n.Token, boolToInt(n.Enabled),
 		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, now,
 	)
 	if err != nil {
@@ -122,10 +127,12 @@ func (s *Store) UpdateNode(n *model.Node) error {
 	if n.ResetDay < 1 || n.ResetDay > 31 {
 		n.ResetDay = 1
 	}
+	n.Tags = model.NormalizeTags(n.Tags)
+	tagsJSON, _ := json.Marshal(n.Tags)
 	now := time.Now().UTC()
 	_, err := s.db.Exec(
-		`UPDATE nodes SET name=?, host=?, region=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, updated_at=? WHERE id=?`,
-		n.Name, n.Host, n.Region, boolToInt(n.Enabled),
+		`UPDATE nodes SET name=?, host=?, region=?, tags=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, updated_at=? WHERE id=?`,
+		n.Name, n.Host, n.Region, string(tagsJSON), boolToInt(n.Enabled),
 		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, n.ID,
 	)
 	return err
@@ -207,9 +214,10 @@ func scanInbound(row interface{ Scan(...any) error }) (*model.Inbound, error) {
 	var in model.Inbound
 	var certID sql.NullInt64
 	var enabled int
+	var tagsJSON string
 	var settingsJSON string
 	err := row.Scan(
-		&in.ID, &in.NodeID, &in.Name, &in.Tag, &in.Protocol,
+		&in.ID, &in.NodeID, &in.Name, &in.Tag, &tagsJSON, &in.Protocol,
 		&in.Listen, &in.Port, &certID, &enabled, &settingsJSON,
 		&in.CreatedAt, &in.UpdatedAt,
 	)
@@ -221,14 +229,36 @@ func scanInbound(row interface{ Scan(...any) error }) (*model.Inbound, error) {
 		in.CertID = &v
 	}
 	in.Enabled = enabled == 1
+	_ = json.Unmarshal([]byte(tagsJSON), &in.Tags)
+	in.Tags = model.NormalizeTags(in.Tags)
 	_ = json.Unmarshal([]byte(settingsJSON), &in.Settings)
 	return &in, nil
 }
 
+const inboundSelectCols = `id, node_id, name, tag, tags, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at`
+
+func (s *Store) ListAllInbounds() ([]model.Inbound, error) {
+	rows, err := s.db.Query(
+		`SELECT ` + inboundSelectCols + ` FROM inbounds ORDER BY node_id ASC, sort_order ASC, id ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.Inbound{}
+	for rows.Next() {
+		in, err := scanInbound(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *in)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListInboundsByNode(nodeID int64) ([]model.Inbound, error) {
 	rows, err := s.db.Query(
-		`SELECT id, node_id, name, tag, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at
-		 FROM inbounds WHERE node_id = ? ORDER BY sort_order ASC, id ASC`, nodeID,
+		`SELECT `+inboundSelectCols+` FROM inbounds WHERE node_id = ? ORDER BY sort_order ASC, id ASC`, nodeID,
 	)
 	if err != nil {
 		return nil, err
@@ -261,8 +291,7 @@ func (s *Store) ReorderInbounds(nodeID int64, ids []int64) error {
 
 func (s *Store) GetInbound(id int64) (*model.Inbound, error) {
 	return scanInbound(s.db.QueryRow(
-		`SELECT id, node_id, name, tag, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at
-		 FROM inbounds WHERE id = ?`, id,
+		`SELECT `+inboundSelectCols+` FROM inbounds WHERE id = ?`, id,
 	))
 }
 
@@ -271,14 +300,16 @@ func (s *Store) CreateInbound(in *model.Inbound) error {
 	if in.Listen == "" {
 		in.Listen = "0.0.0.0"
 	}
+	in.Tags = model.NormalizeTags(in.Tags)
+	tagsJSON, _ := json.Marshal(in.Tags)
 	b, err := json.Marshal(in.Settings)
 	if err != nil {
 		return err
 	}
 	res, err := s.db.Exec(
-		`INSERT INTO inbounds(node_id, name, tag, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		in.NodeID, in.Name, in.Tag, in.Protocol, in.Listen, in.Port,
+		`INSERT INTO inbounds(node_id, name, tag, tags, protocol, listen, port, cert_id, enabled, settings, created_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		in.NodeID, in.Name, in.Tag, string(tagsJSON), in.Protocol, in.Listen, in.Port,
 		in.CertID, boolToInt(in.Enabled), string(b), now, now,
 	)
 	if err != nil {
@@ -294,13 +325,15 @@ func (s *Store) UpdateInbound(in *model.Inbound) error {
 	if in.Listen == "" {
 		in.Listen = "0.0.0.0"
 	}
+	in.Tags = model.NormalizeTags(in.Tags)
+	tagsJSON, _ := json.Marshal(in.Tags)
 	b, err := json.Marshal(in.Settings)
 	if err != nil {
 		return err
 	}
 	_, err = s.db.Exec(
-		`UPDATE inbounds SET name=?, tag=?, protocol=?, listen=?, port=?, cert_id=?, enabled=?, settings=?, updated_at=? WHERE id=?`,
-		in.Name, in.Tag, in.Protocol, in.Listen, in.Port, in.CertID,
+		`UPDATE inbounds SET name=?, tag=?, tags=?, protocol=?, listen=?, port=?, cert_id=?, enabled=?, settings=?, updated_at=? WHERE id=?`,
+		in.Name, in.Tag, string(tagsJSON), in.Protocol, in.Listen, in.Port, in.CertID,
 		boolToInt(in.Enabled), string(b), time.Now().UTC(), in.ID,
 	)
 	return err

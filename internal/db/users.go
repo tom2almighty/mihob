@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/mihob/mihob/internal/crypto"
@@ -10,12 +11,13 @@ import (
 
 func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 	var u model.User
-	var enabled, allNodes int
+	var enabled int
+	var policyJSON string
 	var expireAt sql.NullTime
 	var templateID sql.NullInt64
 	err := row.Scan(
 		&u.ID, &u.Username, &u.Email, &u.UUID, &u.Password,
-		&u.SSKey16, &u.SSKey32, &u.SubToken, &enabled, &allNodes,
+		&u.SSKey16, &u.SSKey32, &u.SubToken, &enabled, &policyJSON,
 		&u.TrafficLimit, &u.TrafficUsed, &u.UploadUsed, &u.DownloadUsed,
 		&expireAt, &templateID, &u.Remark, &u.CreatedAt, &u.UpdatedAt,
 	)
@@ -23,7 +25,10 @@ func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 		return nil, err
 	}
 	u.Enabled = enabled == 1
-	u.AllNodes = allNodes == 1
+	if policyJSON != "" && policyJSON != "{}" {
+		_ = json.Unmarshal([]byte(policyJSON), &u.AccessPolicy)
+	}
+	u.AccessPolicy.Normalize()
 	if expireAt.Valid {
 		t := expireAt.Time
 		u.ExpireAt = &t
@@ -38,49 +43,54 @@ func scanUser(row interface{ Scan(...any) error }) (*model.User, error) {
 
 const userSelectSQL = `
 SELECT id, username, email, uuid, password, ss_key_16, ss_key_32, sub_token,
-       enabled, all_nodes, traffic_limit, traffic_used, upload_used, download_used,
+       enabled, access_policy, traffic_limit, traffic_used, upload_used, download_used,
        expire_at, template_id, remark, created_at, updated_at
 FROM users
 `
 
-func (s *Store) loadAllNodeIDs() ([]int64, error) {
-	rows, err := s.db.Query(`SELECT id FROM nodes ORDER BY sort_order ASC, id DESC`)
+func (s *Store) loadNodesAndInbounds() ([]model.Node, map[int64][]model.Inbound, error) {
+	nodes, err := s.ListNodes()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer rows.Close()
-	ids := []int64{}
-	for rows.Next() {
-		var nid int64
-		if err := rows.Scan(&nid); err != nil {
-			return nil, err
-		}
-		ids = append(ids, nid)
+	allInbounds, err := s.ListAllInbounds()
+	if err != nil {
+		return nil, nil, err
 	}
-	return ids, rows.Err()
+	byNode := make(map[int64][]model.Inbound, len(nodes))
+	for _, inb := range allInbounds {
+		byNode[inb.NodeID] = append(byNode[inb.NodeID], inb)
+	}
+	return nodes, byNode, nil
 }
 
-func (s *Store) loadUserNodes(userID int64, allNodes bool) ([]int64, error) {
-	if allNodes {
-		return s.loadAllNodeIDs()
-	}
-	rows, err := s.db.Query(
-		`SELECT un.node_id FROM user_nodes un JOIN nodes n ON n.id = un.node_id WHERE un.user_id = ? ORDER BY n.sort_order ASC, n.id DESC`,
-		userID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := []int64{}
-	for rows.Next() {
-		var nid int64
-		if err := rows.Scan(&nid); err != nil {
-			return nil, err
+func populateUserAccessSummary(u *model.User, nodes []model.Node, inboundsByNode map[int64][]model.Inbound) {
+	nodeIDs := make([]int64, 0, len(nodes))
+	inboundCount := 0
+	for i := range nodes {
+		n := &nodes[i]
+		if !u.AccessPolicy.MatchNode(n) {
+			continue
 		}
-		ids = append(ids, nid)
+		ins := inboundsByNode[n.ID]
+		matchedInbounds := 0
+		for j := range ins {
+			if !ins[j].Enabled {
+				continue
+			}
+			if u.AccessPolicy.MatchInbound(&ins[j]) {
+				matchedInbounds++
+			}
+		}
+		// Include matched node in NodeIDs if inbound_mode is all or at least one inbound matches,
+		// or node has no enabled inbounds yet (so users still see newly assigned nodes before protocols are added).
+		if u.AccessPolicy.InboundMode == model.AccessModeAll || matchedInbounds > 0 || len(ins) == 0 {
+			nodeIDs = append(nodeIDs, n.ID)
+		}
+		inboundCount += matchedInbounds
 	}
-	return ids, rows.Err()
+	u.NodeIDs = nodeIDs
+	u.InboundCount = inboundCount
 }
 
 func (s *Store) ListUsers() ([]model.User, error) {
@@ -100,12 +110,12 @@ func (s *Store) ListUsers() ([]model.User, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	nodes, byNode, err := s.loadNodesAndInbounds()
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
-		ids, err := s.loadUserNodes(out[i].ID, out[i].AllNodes)
-		if err != nil {
-			return nil, err
-		}
-		out[i].NodeIDs = ids
+		populateUserAccessSummary(&out[i], nodes, byNode)
 	}
 	return out, nil
 }
@@ -129,8 +139,12 @@ func (s *Store) GetUser(id int64) (*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.NodeIDs, err = s.loadUserNodes(u.ID, u.AllNodes)
-	return u, err
+	nodes, byNode, err := s.loadNodesAndInbounds()
+	if err != nil {
+		return nil, err
+	}
+	populateUserAccessSummary(u, nodes, byNode)
+	return u, nil
 }
 
 func (s *Store) GetUserBySubToken(token string) (*model.User, error) {
@@ -138,8 +152,12 @@ func (s *Store) GetUserBySubToken(token string) (*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.NodeIDs, err = s.loadUserNodes(u.ID, u.AllNodes)
-	return u, err
+	nodes, byNode, err := s.loadNodesAndInbounds()
+	if err != nil {
+		return nil, err
+	}
+	populateUserAccessSummary(u, nodes, byNode)
+	return u, nil
 }
 
 func (s *Store) GetUserByIdentifier(ident string) (*model.User, error) {
@@ -151,15 +169,11 @@ func (s *Store) GetUserByIdentifier(ident string) (*model.User, error) {
 }
 
 func (s *Store) ListUsersByNode(nodeID int64) ([]model.User, error) {
-	rows, err := s.db.Query(
-		`SELECT DISTINCT u.id, u.username, u.email, u.uuid, u.password, u.ss_key_16, u.ss_key_32, u.sub_token,
-		        u.enabled, u.all_nodes, u.traffic_limit, u.traffic_used, u.upload_used, u.download_used,
-		        u.expire_at, u.template_id, u.remark, u.created_at, u.updated_at
-		 FROM users u
-		 LEFT JOIN user_nodes un ON un.user_id = u.id AND un.node_id = ?
-		 WHERE u.all_nodes = 1 OR un.node_id IS NOT NULL
-		 ORDER BY u.id ASC`, nodeID,
-	)
+	node, err := s.GetNode(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(userSelectSQL + ` ORDER BY id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +184,9 @@ func (s *Store) ListUsersByNode(nodeID int64) ([]model.User, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, *u)
+		if u.AccessPolicy.MatchNode(node) {
+			out = append(out, *u)
+		}
 	}
 	return out, rows.Err()
 }
@@ -192,97 +208,72 @@ func (s *Store) CreateUser(u *model.User) error {
 	if u.SubToken == "" {
 		u.SubToken = crypto.RandomToken(20)
 	}
-
-	tx, err := s.db.Begin()
+	u.AccessPolicy.Normalize()
+	if err := u.AccessPolicy.Validate(); err != nil {
+		return err
+	}
+	policyBytes, err := json.Marshal(u.AccessPolicy)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
 
-	res, err := tx.Exec(
+	res, err := s.db.Exec(
 		`INSERT INTO users(username, email, uuid, password, ss_key_16, ss_key_32, sub_token,
-		 enabled, all_nodes, traffic_limit, expire_at, template_id, remark, created_at, updated_at)
+		 enabled, access_policy, traffic_limit, expire_at, template_id, remark, created_at, updated_at)
 		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.Username, u.Email, u.UUID, u.Password, u.SSKey16, u.SSKey32, u.SubToken,
-		boolToInt(u.Enabled), boolToInt(u.AllNodes), u.TrafficLimit, u.ExpireAt, u.TemplateID, u.Remark, now, now,
+		boolToInt(u.Enabled), string(policyBytes), u.TrafficLimit, u.ExpireAt, u.TemplateID, u.Remark, now, now,
 	)
 	if err != nil {
 		return err
 	}
 	u.ID, _ = res.LastInsertId()
-	if !u.AllNodes {
-		for _, nid := range u.NodeIDs {
-			if _, err := tx.Exec(`INSERT OR IGNORE INTO user_nodes(user_id, node_id) VALUES(?, ?)`, u.ID, nid); err != nil {
-				return err
-			}
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if u.AllNodes {
-		u.NodeIDs, _ = s.loadAllNodeIDs()
-	}
 	u.CreatedAt = now
 	u.UpdatedAt = now
+	if nodes, byNode, err := s.loadNodesAndInbounds(); err == nil {
+		populateUserAccessSummary(u, nodes, byNode)
+	}
 	return nil
 }
 
 func (s *Store) UpdateUser(u *model.User) ([]int64, error) {
-	allNodeIDs, _ := s.loadAllNodeIDs()
-
-	tx, err := s.db.Begin()
+	u.AccessPolicy.Normalize()
+	if err := u.AccessPolicy.Validate(); err != nil {
+		return nil, err
+	}
+	nodes, byNode, err := s.loadNodesAndInbounds()
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
 
 	affected := map[int64]struct{}{}
-	var prevAllNodes int
-	_ = tx.QueryRow(`SELECT all_nodes FROM users WHERE id = ?`, u.ID).Scan(&prevAllNodes)
-	if prevAllNodes == 1 || u.AllNodes {
-		for _, nid := range allNodeIDs {
-			affected[nid] = struct{}{}
+	if prev, err := s.GetUser(u.ID); err == nil {
+		for _, n := range nodes {
+			if prev.AccessPolicy.MatchNode(&n) {
+				affected[n.ID] = struct{}{}
+			}
 		}
 	}
 
-	rows, err := tx.Query(`SELECT node_id FROM user_nodes WHERE user_id = ?`, u.ID)
+	policyBytes, err := json.Marshal(u.AccessPolicy)
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var nid int64
-		if err := rows.Scan(&nid); err == nil {
-			affected[nid] = struct{}{}
-		}
-	}
-	_ = rows.Close()
 
-	_, err = tx.Exec(
-		`UPDATE users SET username=?, email=?, enabled=?, all_nodes=?, traffic_limit=?, expire_at=?, template_id=?, remark=?, updated_at=? WHERE id=?`,
-		u.Username, u.Email, boolToInt(u.Enabled), boolToInt(u.AllNodes), u.TrafficLimit, u.ExpireAt, u.TemplateID, u.Remark, time.Now().UTC(), u.ID,
+	_, err = s.db.Exec(
+		`UPDATE users SET username=?, email=?, enabled=?, access_policy=?, traffic_limit=?, expire_at=?, template_id=?, remark=?, updated_at=? WHERE id=?`,
+		u.Username, u.Email, boolToInt(u.Enabled), string(policyBytes), u.TrafficLimit, u.ExpireAt, u.TemplateID, u.Remark, time.Now().UTC(), u.ID,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(`DELETE FROM user_nodes WHERE user_id = ?`, u.ID); err != nil {
-		return nil, err
-	}
-	if !u.AllNodes {
-		for _, nid := range u.NodeIDs {
-			affected[nid] = struct{}{}
-			if _, err := tx.Exec(`INSERT OR IGNORE INTO user_nodes(user_id, node_id) VALUES(?, ?)`, u.ID, nid); err != nil {
-				return nil, err
-			}
+
+	for _, n := range nodes {
+		if u.AccessPolicy.MatchNode(&n) {
+			affected[n.ID] = struct{}{}
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	if u.AllNodes {
-		u.NodeIDs = allNodeIDs
-	}
+	populateUserAccessSummary(u, nodes, byNode)
 
 	out := make([]int64, 0, len(affected))
 	for nid := range affected {
@@ -295,7 +286,13 @@ func (s *Store) DeleteUser(id int64) ([]int64, error) {
 	u, err := s.GetUser(id)
 	var nids []int64
 	if err == nil && u != nil {
-		nids = u.NodeIDs
+		if nodes, err := s.ListNodes(); err == nil {
+			for i := range nodes {
+				if u.AccessPolicy.MatchNode(&nodes[i]) {
+					nids = append(nids, nodes[i].ID)
+				}
+			}
+		}
 	}
 	_, err = s.db.Exec(`DELETE FROM users WHERE id = ?`, id)
 	return nids, err

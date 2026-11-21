@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 	name TEXT NOT NULL,
 	host TEXT NOT NULL,
 	region TEXT NOT NULL DEFAULT '',
+	tags TEXT NOT NULL DEFAULT '[]',
 	token TEXT NOT NULL UNIQUE,
 	enabled INTEGER NOT NULL DEFAULT 1,
 	traffic_limit INTEGER NOT NULL DEFAULT 0,
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 	config_status TEXT NOT NULL DEFAULT 'pending',
 	config_error TEXT NOT NULL DEFAULT '',
 	last_seen_at DATETIME,
+	sort_order INTEGER NOT NULL DEFAULT 0,
 	created_at DATETIME NOT NULL,
 	updated_at DATETIME NOT NULL
 );
@@ -111,12 +113,14 @@ CREATE TABLE IF NOT EXISTS inbounds (
 	node_id INTEGER NOT NULL,
 	name TEXT NOT NULL,
 	tag TEXT NOT NULL DEFAULT '',
+	tags TEXT NOT NULL DEFAULT '[]',
 	protocol TEXT NOT NULL,
 	listen TEXT NOT NULL DEFAULT '0.0.0.0',
 	port INTEGER NOT NULL,
 	cert_id INTEGER,
 	enabled INTEGER NOT NULL DEFAULT 1,
 	settings TEXT NOT NULL DEFAULT '{}',
+	sort_order INTEGER NOT NULL DEFAULT 0,
 	created_at DATETIME NOT NULL,
 	updated_at DATETIME NOT NULL,
 	FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
@@ -143,7 +147,7 @@ CREATE TABLE IF NOT EXISTS users (
 	ss_key_32 TEXT NOT NULL,
 	sub_token TEXT NOT NULL UNIQUE,
 	enabled INTEGER NOT NULL DEFAULT 1,
-	all_nodes INTEGER NOT NULL DEFAULT 1,
+	access_policy TEXT NOT NULL DEFAULT '{}',
 	traffic_limit INTEGER NOT NULL DEFAULT 0,
 	traffic_used INTEGER NOT NULL DEFAULT 0,
 	upload_used INTEGER NOT NULL DEFAULT 0,
@@ -151,17 +155,10 @@ CREATE TABLE IF NOT EXISTS users (
 	expire_at DATETIME,
 	template_id INTEGER,
 	remark TEXT NOT NULL DEFAULT '',
+	sort_order INTEGER NOT NULL DEFAULT 0,
 	created_at DATETIME NOT NULL,
 	updated_at DATETIME NOT NULL,
 	FOREIGN KEY(template_id) REFERENCES templates(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS user_nodes (
-	user_id INTEGER NOT NULL,
-	node_id INTEGER NOT NULL,
-	PRIMARY KEY(user_id, node_id),
-	FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-	FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS traffic_hourly (
@@ -172,9 +169,26 @@ CREATE TABLE IF NOT EXISTS traffic_hourly (
 	PRIMARY KEY(bucket, node_id)
 );
 
+CREATE TABLE IF NOT EXISTS traffic_user_hourly (
+	bucket TEXT NOT NULL,
+	user_id INTEGER NOT NULL DEFAULT 0,
+	upload INTEGER NOT NULL DEFAULT 0,
+	download INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY(bucket, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS traffic_protocol_hourly (
+	bucket TEXT NOT NULL,
+	protocol TEXT NOT NULL,
+	upload INTEGER NOT NULL DEFAULT 0,
+	download INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY(bucket, protocol)
+);
+
 CREATE INDEX IF NOT EXISTS idx_inbounds_node ON inbounds(node_id);
-CREATE INDEX IF NOT EXISTS idx_user_nodes_node ON user_nodes(node_id);
 CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
+CREATE INDEX IF NOT EXISTS idx_traffic_user_hourly_bucket ON traffic_user_hourly(bucket);
+CREATE INDEX IF NOT EXISTS idx_traffic_protocol_hourly_bucket ON traffic_protocol_hourly(bucket);
 `
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate schema: %w", err)
@@ -185,7 +199,13 @@ CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 	if err := s.ensureColumn("nodes", "billing_cycle", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
-	if err := s.ensureColumn("users", "all_nodes", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+	if err := s.ensureColumn("nodes", "tags", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("inbounds", "tags", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("users", "access_policy", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
 		return err
 	}
 	if err := s.ensureColumn("nodes", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
@@ -200,6 +220,7 @@ CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 	if err := s.ensureColumn("certificates", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	_, _ = s.db.Exec(`DROP TABLE IF EXISTS user_nodes`)
 	return s.seedDefaults()
 }
 

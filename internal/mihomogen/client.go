@@ -29,16 +29,26 @@ func RenderUserSubscription(
 		if !nw.Node.Enabled || nw.Node.IsQuotaExceeded() {
 			continue
 		}
+		if !user.AccessPolicy.MatchNode(&nw.Node) {
+			continue
+		}
+		allowedInbounds := make([]model.Inbound, 0, len(nw.Inbounds))
 		for _, in := range nw.Inbounds {
 			if !in.Enabled {
 				continue
 			}
+			if !user.AccessPolicy.MatchInbound(&in) {
+				continue
+			}
+			allowedInbounds = append(allowedInbounds, in)
+		}
+		for _, in := range allowedInbounds {
 			displayName := strings.TrimSpace(in.Settings.ProxyName)
 			if displayName == "" {
 				displayName = nw.Node.Name
 				if in.Tag != "" {
 					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, in.Tag)
-				} else if len(nw.Inbounds) > 1 {
+				} else if len(allowedInbounds) > 1 {
 					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, strings.ToUpper(in.Protocol))
 				}
 			}
