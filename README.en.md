@@ -61,7 +61,7 @@ cd ..
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
 ```
 
-### Binary Deployment (Non-Docker)
+### Binary Deployment
 
 Download prebuilt archives from [GitHub Releases](https://github.com/tom2almighty/mihob/releases) (or compile from source as shown above):
 

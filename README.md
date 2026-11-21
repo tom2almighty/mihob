@@ -61,7 +61,7 @@ cd ..
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
 ```
 
-### 二进制方式运行（非 Docker）
+### 二进制方式运行
 
 可从 [GitHub Releases](https://github.com/tom2almighty/mihob/releases) 下载对应平台预编译压缩包（或按上方「生产构建」自行编译）：
 
