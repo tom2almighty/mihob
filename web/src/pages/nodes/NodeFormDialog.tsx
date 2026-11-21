@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -8,6 +8,7 @@ import { z } from "zod"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
+import { TagInput } from "@/components/common/TagInput"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -44,6 +45,7 @@ type NodeFormValues = {
   name: string
   host: string
   region?: string
+  tags: string[]
   traffic_limit_gb: number
   traffic_used_gb?: number
   traffic_multiplier: number
@@ -75,12 +77,29 @@ export function NodeFormDialog({
   const isEdit = Boolean(node)
   const [activeTab, setActiveTab] = useState<"basic" | "traffic">("basic")
 
+  const nodesQuery = useQuery({
+    queryKey: queryKeys.nodes,
+    queryFn: api.listNodes,
+    enabled: open,
+  })
+
+  const tagSuggestions = useMemo(() => {
+    const set = new Set<string>()
+    for (const n of nodesQuery.data ?? []) {
+      for (const tag of n.tags ?? []) {
+        if (tag.trim()) set.add(tag.trim())
+      }
+    }
+    return Array.from(set)
+  }, [nodesQuery.data])
+
   const nodeSchema = useMemo(
     () =>
       z.object({
         name: z.string().trim().min(1, t("nodes.form.validation.nameRequired")),
         host: z.string().trim().min(1, t("nodes.form.validation.hostRequired")),
         region: z.string().trim().optional(),
+        tags: z.array(z.string()),
         traffic_limit_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficMin")),
         traffic_used_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficUsedMin")).optional(),
         traffic_multiplier: z.coerce
@@ -106,6 +125,7 @@ export function NodeFormDialog({
       name: "",
       host: "",
       region: "",
+      tags: [],
       traffic_limit_gb: 0,
       traffic_used_gb: 0,
       traffic_multiplier: 1,
@@ -125,6 +145,7 @@ export function NodeFormDialog({
           name: node.name,
           host: node.host,
           region: node.region || "",
+          tags: node.tags ?? [],
           traffic_limit_gb: bytesToGB(node.traffic_limit),
           traffic_used_gb: bytesToGB(node.traffic_used),
           traffic_multiplier: node.traffic_multiplier || 1,
@@ -139,6 +160,7 @@ export function NodeFormDialog({
           name: "",
           host: "",
           region: "",
+          tags: [],
           traffic_limit_gb: 0,
           traffic_used_gb: 0,
           traffic_multiplier: 1,
@@ -162,6 +184,7 @@ export function NodeFormDialog({
         name: values.name,
         host: values.host,
         region: values.region || "",
+        tags: values.tags ?? [],
         traffic_limit: gbToBytes(values.traffic_limit_gb),
         traffic_multiplier: values.traffic_multiplier,
         reset_day: values.reset_day,
@@ -270,6 +293,26 @@ export function NodeFormDialog({
                           <Input placeholder={t("nodes.form.hostPlaceholder")} {...field} />
                         </FormControl>
                         <FormDescription>{t("nodes.form.hostDesc")}</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("nodes.form.tags")}</FormLabel>
+                        <FormControl>
+                          <TagInput
+                            value={field.value ?? []}
+                            onChange={field.onChange}
+                            suggestions={tagSuggestions}
+                            placeholder={t("nodes.form.tagsPlaceholder")}
+                          />
+                        </FormControl>
+                        <FormDescription>{t("nodes.form.tagsDesc")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

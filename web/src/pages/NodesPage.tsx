@@ -130,7 +130,8 @@ export function NodesPage() {
     return (
       n.name.toLowerCase().includes(q) ||
       n.host.toLowerCase().includes(q) ||
-      n.region.toLowerCase().includes(q)
+      n.region.toLowerCase().includes(q) ||
+      (n.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
     )
   })
 
@@ -287,7 +288,7 @@ export function NodesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span
                           className={`size-2 shrink-0 rounded-full ${
                             n.online ? "bg-success" : "bg-muted-foreground/40"
@@ -297,6 +298,23 @@ export function NodesPage() {
                         {n.region && (
                           <Badge variant="secondary" className="text-xs font-normal">
                             {n.region}
+                          </Badge>
+                        )}
+                        {(n.tags ?? []).slice(0, 3).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                        {(n.tags ?? []).length > 3 && (
+                          <Badge
+                            variant="outline"
+                            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground tabular-nums"
+                          >
+                            +{(n.tags ?? []).length - 3}
                           </Badge>
                         )}
                         {!n.enabled && (

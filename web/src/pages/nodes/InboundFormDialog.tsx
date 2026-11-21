@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { TagInput } from "@/components/common/TagInput"
 import { Button } from "@/components/ui/button"
 import {
   DialogDescription,
@@ -44,6 +45,7 @@ import { createInboundSchema, type InboundFormValues } from "./inboundSchema"
 const DEFAULT_VALUES: InboundFormValues = {
   name: "vless-443",
   tag: "VLESS",
+  tags: [],
   proxy_name: "",
   client_server: "",
   client_port: 0,
@@ -132,6 +134,21 @@ export function InboundFormView({
     queryFn: api.listCertificates,
   })
 
+  const allInboundsQuery = useQuery({
+    queryKey: queryKeys.allInbounds,
+    queryFn: api.listAllInbounds,
+  })
+
+  const tagSuggestions = useMemo(() => {
+    const set = new Set<string>()
+    for (const inb of allInboundsQuery.data ?? []) {
+      for (const tg of inb.tags ?? []) {
+        if (tg.trim()) set.add(tg.trim())
+      }
+    }
+    return Array.from(set)
+  }, [allInboundsQuery.data])
+
   const form = useForm<InboundFormValues>({
     resolver: zodResolver(inboundSchema),
     defaultValues: DEFAULT_VALUES,
@@ -144,6 +161,7 @@ export function InboundFormView({
       form.reset({
         name: inbound.name,
         tag: inbound.tag || "",
+        tags: inbound.tags ?? [],
         proxy_name: s.proxy_name || "",
         client_server: s.client_server || "",
         client_port: s.client_port || 0,
@@ -282,6 +300,7 @@ export function InboundFormView({
       const payload = {
         name: v.name,
         tag: v.tag || "",
+        tags: v.tags ?? [],
         protocol: v.protocol,
         listen: v.listen || "0.0.0.0",
         port: v.port,
@@ -354,7 +373,9 @@ export function InboundFormView({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.inbounds(nodeId) })
+      qc.invalidateQueries({ queryKey: queryKeys.allInbounds })
       qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      qc.invalidateQueries({ queryKey: queryKeys.users })
       toast.success(isEdit ? t("nodes.inbound.toastUpdated") : t("nodes.inbound.toastCreated"))
       onBack()
     },
@@ -519,6 +540,26 @@ export function InboundFormView({
                         </FormItem>
                       )
                     }}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("nodes.inbound.tags")}</FormLabel>
+                        <FormControl>
+                          <TagInput
+                            value={field.value ?? []}
+                            onChange={field.onChange}
+                            suggestions={tagSuggestions}
+                            placeholder={t("nodes.inbound.tagsPlaceholder")}
+                          />
+                        </FormControl>
+                        <FormDescription>{t("nodes.inbound.tagsDesc")}</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
 
                   <FormField

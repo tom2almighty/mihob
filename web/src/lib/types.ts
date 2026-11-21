@@ -45,6 +45,7 @@ export interface Node {
   name: string
   host: string
   region: string
+  tags: string[]
   token: string
   enabled: boolean
   traffic_limit: number
@@ -150,6 +151,7 @@ export interface Inbound {
   node_id: number
   name: string
   tag: string
+  tags: string[]
   protocol: Protocol
   listen: string
   port: number
@@ -179,6 +181,27 @@ export interface Certificate {
   updated_at: string
 }
 
+export type AccessMode = "all" | "rule" | "manual"
+export type MatchMode = "all" | "any"
+
+export interface AccessPolicy {
+  node_mode: AccessMode
+  node_match?: MatchMode
+  node_regions?: string[]
+  node_tags?: string[]
+  node_name_regex?: string
+  node_ids?: number[]
+  exclude_node_ids?: number[]
+
+  inbound_mode: AccessMode
+  inbound_match?: MatchMode
+  inbound_protocols?: Protocol[]
+  inbound_tags?: string[]
+  inbound_name_regex?: string
+  inbound_ids?: number[]
+  exclude_inbound_ids?: number[]
+}
+
 export interface User {
   id: number
   username: string
@@ -189,7 +212,7 @@ export interface User {
   ss_key_32: string
   sub_token: string
   enabled: boolean
-  all_nodes: boolean
+  access_policy: AccessPolicy
   traffic_limit: number
   traffic_used: number
   upload_used: number
@@ -197,6 +220,7 @@ export interface User {
   expire_at: string | null
   template_id: number | null
   node_ids: number[]
+  inbound_count: number
   remark: string
   created_at: string
   updated_at: string
@@ -212,13 +236,40 @@ export interface Template {
   updated_at: string
 }
 
+export type DashboardRange = "24h" | "7d" | "30d" | "90d"
+
 export interface TrafficPoint {
   bucket: string
   upload: number
   download: number
 }
 
+export interface NodeTrafficStat {
+  node_id: number
+  node_name: string
+  region: string
+  upload: number
+  download: number
+  total: number
+}
+
+export interface UserTrafficStat {
+  user_id: number
+  username: string
+  upload: number
+  download: number
+  total: number
+}
+
+export interface ProtocolTrafficStat {
+  protocol: string
+  upload: number
+  download: number
+  total: number
+}
+
 export interface DashboardData {
+  range: DashboardRange
   summary: {
     total_nodes: number
     online_nodes: number
@@ -235,7 +286,10 @@ export interface DashboardData {
   }
   nodes: Node[]
   top_users: User[]
-  traffic_hourly: TrafficPoint[]
+  traffic_series: TrafficPoint[]
+  node_traffic: NodeTrafficStat[]
+  user_traffic: UserTrafficStat[]
+  protocol_traffic: ProtocolTrafficStat[]
 }
 
 export interface InstallCommands {

@@ -9,7 +9,14 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -27,20 +34,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DEFAULT_ACCESS_POLICY,
+  normalizeAccessPolicy,
+  validateRegex,
+} from "@/lib/accessPolicy"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
-import type { User } from "@/lib/types"
-import { cn } from "@/lib/utils"
+import type { AccessPolicy, User } from "@/lib/types"
+import { AccessPolicyEditor } from "./AccessPolicyEditor"
 
 type UserFormValues = {
   username: string
@@ -48,8 +52,6 @@ type UserFormValues = {
   traffic_limit_gb: number
   expire_date?: string
   template_id?: string
-  all_nodes: boolean
-  node_ids: number[]
   enabled: boolean
   remark?: string
 }
@@ -73,7 +75,8 @@ export function UserFormDialog({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const isEdit = Boolean(user)
-  const [activeTab, setActiveTab] = useState<"basic" | "nodes">("basic")
+  const [activeTab, setActiveTab] = useState<"basic" | "access">("basic")
+  const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(DEFAULT_ACCESS_POLICY)
 
   const userSchema = useMemo(
     () =>
@@ -87,8 +90,6 @@ export function UserFormDialog({
         traffic_limit_gb: z.coerce.number().min(0, t("users.form.validation.trafficMin")),
         expire_date: z.string().optional(),
         template_id: z.string().optional(),
-        all_nodes: z.boolean(),
-        node_ids: z.array(z.number()),
         enabled: z.boolean(),
         remark: z.string().trim().optional(),
       }),
@@ -98,6 +99,12 @@ export function UserFormDialog({
   const nodesQuery = useQuery({
     queryKey: queryKeys.nodes,
     queryFn: api.listNodes,
+    enabled: open,
+  })
+
+  const inboundsQuery = useQuery({
+    queryKey: queryKeys.allInbounds,
+    queryFn: api.listAllInbounds,
     enabled: open,
   })
 
@@ -115,8 +122,6 @@ export function UserFormDialog({
       traffic_limit_gb: 100,
       expire_date: "",
       template_id: "default",
-      all_nodes: true,
-      node_ids: [],
       enabled: true,
       remark: "",
     },
@@ -132,11 +137,10 @@ export function UserFormDialog({
         traffic_limit_gb: bytesToGB(user.traffic_limit),
         expire_date: toLocalDateInput(user.expire_at),
         template_id: user.template_id ? String(user.template_id) : "default",
-        all_nodes: Boolean(user.all_nodes),
-        node_ids: user.node_ids || [],
         enabled: user.enabled,
         remark: user.remark || "",
       })
+      setAccessPolicy(normalizeAccessPolicy(user.access_policy))
     } else {
       form.reset({
         username: "",
@@ -144,11 +148,10 @@ export function UserFormDialog({
         traffic_limit_gb: 100,
         expire_date: "",
         template_id: "default",
-        all_nodes: true,
-        node_ids: [],
         enabled: true,
         remark: "",
       })
+      setAccessPolicy(normalizeAccessPolicy(DEFAULT_ACCESS_POLICY))
     }
   }, [open, user, form])
 
@@ -164,8 +167,7 @@ export function UserFormDialog({
         traffic_limit: gbToBytes(v.traffic_limit_gb),
         expire_at,
         template_id: v.template_id && v.template_id !== "default" ? Number(v.template_id) : null,
-        all_nodes: v.all_nodes,
-        node_ids: v.all_nodes ? [] : v.node_ids,
+        access_policy: accessPolicy,
         enabled: v.enabled,
         remark: v.remark || "",
       }
@@ -180,17 +182,19 @@ export function UserFormDialog({
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const selectedNodeIds = form.watch("node_ids")
-  const allNodesEnabled = form.watch("all_nodes")
-  const allNodesList = nodesQuery.data ?? []
-
-  const toggleNode = (id: number, checked: boolean) => {
-    const cur = form.getValues("node_ids")
-    if (checked) {
-      form.setValue("node_ids", Array.from(new Set([...cur, id])))
-    } else {
-      form.setValue("node_ids", cur.filter((x) => x !== id))
+  const handleSubmit = (values: UserFormValues) => {
+    const nodeReErr =
+      accessPolicy.node_mode === "rule" ? validateRegex(accessPolicy.node_name_regex ?? "") : null
+    const inbReErr =
+      accessPolicy.inbound_mode === "rule"
+        ? validateRegex(accessPolicy.inbound_name_regex ?? "")
+        : null
+    if (nodeReErr || inbReErr) {
+      setActiveTab("access")
+      toast.error(t("users.form.invalidRegex", { error: nodeReErr || inbReErr || "" }))
+      return
     }
+    mutation.mutate(values)
   }
 
   const handleInvalid = (errors: Record<string, unknown>) => {
@@ -208,7 +212,7 @@ export function UserFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(640px,86vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <DialogContent className="flex h-[min(660px,88vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-14 pb-4">
           <DialogTitle>
             {isEdit ? t("users.form.editTitle") : t("users.form.createTitle")}
@@ -219,22 +223,18 @@ export function UserFormDialog({
         <Form {...form}>
           <form
             id="user-form"
-            onSubmit={form.handleSubmit((v) => mutation.mutate(v), handleInvalid)}
+            onSubmit={form.handleSubmit(handleSubmit, handleInvalid)}
             className="flex min-h-0 flex-1 flex-col"
           >
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as "basic" | "nodes")}
+              onValueChange={(v) => setActiveTab(v as "basic" | "access")}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
               <div className="shrink-0 border-b border-border px-6 py-2.5">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="basic">{t("users.form.tabBasic")}</TabsTrigger>
-                  <TabsTrigger value="nodes">
-                    {allNodesEnabled
-                      ? t("users.form.tabNodesAll")
-                      : t("users.form.tabNodes", { count: selectedNodeIds.length })}
-                  </TabsTrigger>
+                  <TabsTrigger value="access">{t("users.form.tabAccess")}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -361,105 +361,13 @@ export function UserFormDialog({
                   />
                 </TabsContent>
 
-                <TabsContent value="nodes" keepMounted className="mt-0 space-y-3.5">
-                  <FormField
-                    control={form.control}
-                    name="all_nodes"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-md border border-border bg-muted/25 p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel>{t("users.form.allNodes")}</FormLabel>
-                          <FormDescription>{t("users.form.allNodesDesc")}</FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked)
-                              if (!checked && form.getValues("node_ids").length === 0) {
-                                form.setValue(
-                                  "node_ids",
-                                  allNodesList.map((n) => n.id)
-                                )
-                              }
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
+                <TabsContent value="access" keepMounted className="mt-0">
+                  <AccessPolicyEditor
+                    value={accessPolicy}
+                    onChange={setAccessPolicy}
+                    nodes={nodesQuery.data ?? []}
+                    allInbounds={inboundsQuery.data ?? []}
                   />
-
-                  <div className="flex items-center justify-between">
-                    <FormLabel>
-                      {t("users.form.authorizedNodes", {
-                        count: allNodesEnabled ? allNodesList.length : selectedNodeIds.length,
-                      })}
-                    </FormLabel>
-                    {!allNodesEnabled && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() =>
-                            form.setValue(
-                              "node_ids",
-                              allNodesList.map((n) => n.id)
-                            )
-                          }
-                        >
-                          {t("common.selectAll")}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => form.setValue("node_ids", [])}
-                        >
-                          {t("common.clear")}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
-                    {allNodesList.length === 0 ? (
-                      <p className="col-span-2 py-8 text-center text-xs text-muted-foreground">
-                        {t("users.form.noNodesHint")}
-                      </p>
-                    ) : (
-                      allNodesList.map((n) => {
-                        const checked = allNodesEnabled || selectedNodeIds.includes(n.id)
-                        return (
-                          <label
-                            key={n.id}
-                            className={cn(
-                              "flex items-center gap-2.5 rounded-md border border-border/70 px-2.5 py-2 text-xs",
-                              allNodesEnabled
-                                ? "cursor-default bg-muted/30 opacity-75"
-                                : "cursor-pointer hover:bg-muted/50"
-                            )}
-                          >
-                            <Checkbox
-                              checked={checked}
-                              disabled={allNodesEnabled}
-                              onCheckedChange={(v) => toggleNode(n.id, Boolean(v))}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium text-foreground">{n.name}</div>
-                              <div className="truncate text-muted-foreground">
-                                {t("users.form.nodeInboundCount", {
-                                  host: n.host,
-                                  count: n.inbound_count,
-                                })}
-                              </div>
-                            </div>
-                          </label>
-                        )
-                      })
-                    )}
-                  </div>
                 </TabsContent>
               </div>
             </Tabs>

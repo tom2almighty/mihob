@@ -179,6 +179,15 @@ export function InboundManagerSheet({
                       <span className="font-mono text-xs text-muted-foreground tabular-nums">
                         :{inb.port}
                       </span>
+                      {(inb.tags ?? []).map((tg) => (
+                        <Badge
+                          key={tg}
+                          variant="outline"
+                          className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
+                        >
+                          {tg}
+                        </Badge>
+                      ))}
                       {!inb.enabled && (
                         <Badge variant="outline" className="text-xs text-muted-foreground">
                           {t("common.disabled")}

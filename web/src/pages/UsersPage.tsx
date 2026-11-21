@@ -310,11 +310,25 @@ export function UsersPage() {
                       {formatDateShort(u.expire_at, i18n.language)}
                     </TableCell>
                     <TableCell className="text-xs tabular-nums">
-                      <Badge variant={u.all_nodes ? "secondary" : "outline"}>
-                        {u.all_nodes
-                          ? t("users.allNodesBadge", { count: u.node_ids.length })
-                          : t("users.nodeCount", { count: u.node_ids.length })}
-                      </Badge>
+                      {(() => {
+                        const mode = u.access_policy?.node_mode || "all"
+                        const inbMode = u.access_policy?.inbound_mode || "all"
+                        const isAll = mode === "all" && inbMode === "all"
+                        const isManual = mode === "manual" || inbMode === "manual"
+                        const key = isAll
+                          ? "users.accessBadgeAll"
+                          : isManual && mode !== "rule" && inbMode !== "rule"
+                            ? "users.accessBadgeManual"
+                            : "users.accessBadgeRule"
+                        return (
+                          <Badge variant={isAll ? "secondary" : "outline"}>
+                            {t(key, {
+                              nodes: u.node_ids.length,
+                              inbounds: u.inbound_count ?? 0,
+                            })}
+                          </Badge>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">

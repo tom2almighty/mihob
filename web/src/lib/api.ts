@@ -3,6 +3,7 @@ import type {
   Admin,
   Certificate,
   DashboardData,
+  DashboardRange,
   Inbound,
   InstallCommands,
   Node,
@@ -73,8 +74,10 @@ async function request<T>(path: string, init?: RequestInit, options?: { public?:
 export const queryKeys = {
   me: ["auth", "me"] as const,
   dashboard: ["dashboard"] as const,
+  dashboardRange: (range: DashboardRange) => ["dashboard", range] as const,
   nodes: ["nodes"] as const,
   nodeInstall: (id: number) => ["nodes", id, "install"] as const,
+  allInbounds: ["inbounds", "all"] as const,
   inbounds: (nodeId: number) => ["nodes", nodeId, "inbounds"] as const,
   certificates: ["certificates"] as const,
   users: ["users"] as const,
@@ -96,7 +99,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  dashboard: () => request<DashboardData>("/api/dashboard"),
+  dashboard: (range: DashboardRange = "24h") =>
+    request<DashboardData>(`/api/dashboard?range=${encodeURIComponent(range)}`),
 
   // Nodes
   listNodes: () => request<Node[]>("/api/nodes"),
@@ -122,6 +126,7 @@ export const api = {
   getNodeInstall: (id: number) => request<InstallCommands>(`/api/nodes/${id}/install`),
 
   // Inbounds
+  listAllInbounds: () => request<Inbound[]>("/api/inbounds"),
   listInbounds: (nodeId: number) => request<Inbound[]>(`/api/nodes/${nodeId}/inbounds`),
   reorderInbounds: (nodeId: number, ids: number[]) =>
     request<{ status: string }>(`/api/nodes/${nodeId}/inbounds/reorder`, {
