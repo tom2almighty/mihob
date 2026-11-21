@@ -19,12 +19,26 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import type { Certificate, Protocol } from "@/lib/types"
 import type { InboundFormValues } from "./inboundSchema"
 
 export const NEEDS_CERT_ALWAYS: Protocol[] = ["hysteria2", "tuic", "anytls", "trusttunnel"]
 export const SUPPORTS_REALITY: Protocol[] = ["vless", "vmess", "trojan"]
 export const SUPPORTS_OPTIONAL_TLS: Protocol[] = ["http", "socks", "mixed"]
+
+const FINGERPRINTS = [
+  "chrome",
+  "firefox",
+  "safari",
+  "ios",
+  "android",
+  "edge",
+  "360",
+  "qq",
+  "random",
+  "randomized",
+] as const
 
 export function InboundProtocolFields({
   form,
@@ -322,14 +336,85 @@ export function InboundProtocolFields({
                 )}
               />
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="reality_short_ids"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.realityShortIds")}</FormLabel>
+                    <FormControl>
+                      <Input className="font-mono text-xs" placeholder="a1b2c3d4" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="client_fingerprint"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.clientFingerprint")}</FormLabel>
+                    <Select
+                      value={field.value || "default"}
+                      onValueChange={(v) => field.onChange(v === "default" ? "" : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="default">
+                          {t("nodes.inbound.fields.bbrDefault")}
+                        </SelectItem>
+                        {FINGERPRINTS.map((fp) => (
+                          <SelectItem key={fp} value={fp}>
+                            {fp}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+        )}
+
+        {protocol === "vmess" && (
+          <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
             <FormField
               control={form.control}
-              name="reality_short_ids"
+              name="cipher"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("nodes.inbound.fields.realityShortIds")}</FormLabel>
+                  <FormLabel>{t("nodes.inbound.fields.vmessCipher")}</FormLabel>
+                  <Select value={field.value || "auto"} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="auto">auto</SelectItem>
+                      <SelectItem value="aes-128-gcm">aes-128-gcm</SelectItem>
+                      <SelectItem value="chacha20-poly1305">chacha20-poly1305</SelectItem>
+                      <SelectItem value="none">none</SelectItem>
+                      <SelectItem value="zero">zero</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="alter_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.vmessAlterId")}</FormLabel>
                   <FormControl>
-                    <Input className="font-mono text-xs" placeholder="a1b2c3d4" {...field} />
+                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -428,6 +513,138 @@ export function InboundProtocolFields({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="alpn"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.alpn")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="h3, h2, http/1.1" className="font-mono text-xs" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="client_fingerprint"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.clientFingerprint")}</FormLabel>
+                    <Select
+                      value={field.value || "default"}
+                      onValueChange={(v) => field.onChange(v === "default" ? "" : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="default">
+                          {t("nodes.inbound.fields.bbrDefault")}
+                        </SelectItem>
+                        {FINGERPRINTS.map((fp) => (
+                          <SelectItem key={fp} value={fp}>
+                            {fp}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-3">
+              <div className="text-xs font-medium text-foreground">
+                {t("nodes.inbound.fields.echTitle")}
+              </div>
+              <FormField
+                control={form.control}
+                name="ech_key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.echKey")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={2}
+                        className="font-mono text-xs"
+                        placeholder="-----BEGIN ECH KEYS-----"
+                        {...field}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="ech_enable"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                      <FormLabel className="text-xs">
+                        {t("nodes.inbound.fields.echEnable")}
+                      </FormLabel>
+                      <FormControl>
+                        <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ech_config"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("nodes.inbound.fields.echConfig")}</FormLabel>
+                      <FormControl>
+                        <Input className="font-mono text-xs" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="client_auth_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("nodes.inbound.fields.clientAuthType")}</FormLabel>
+                      <Select
+                        value={field.value || "none"}
+                        onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">
+                            {t("nodes.inbound.fields.clientAuthNone")}
+                          </SelectItem>
+                          <SelectItem value="request">request</SelectItem>
+                          <SelectItem value="require-any">require-any</SelectItem>
+                          <SelectItem value="verify-if-given">verify-if-given</SelectItem>
+                          <SelectItem value="require-and-verify">require-and-verify</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="client_auth_cert"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("nodes.inbound.fields.clientAuthCert")}</FormLabel>
+                      <FormControl>
+                        <Input className="font-mono text-xs" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -524,21 +741,33 @@ export function InboundProtocolFields({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="shadowquic_jls_proxy"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.shadowquicJlsProxy")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="DIRECT" className="font-mono text-xs" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="shadowquic_zero_rtt"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                    <FormLabel className="text-xs">
+                      {t("nodes.inbound.fields.shadowquicZeroRtt")}
+                    </FormLabel>
+                    <FormControl>
+                      <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
-            <FormField
-              control={form.control}
-              name="shadowquic_zero_rtt"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
-                  <FormLabel className="text-xs">
-                    {t("nodes.inbound.fields.shadowquicZeroRtt")}
-                  </FormLabel>
-                  <FormControl>
-                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
           </div>
         )}
 
@@ -677,6 +906,45 @@ export function InboundProtocolFields({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="sudoku_custom_table"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.sudokuCustomTable")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="xpxvvpvv" className="font-mono text-xs" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sudoku_multiplex"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.sudokuMultiplex")}</FormLabel>
+                    <Select
+                      value={field.value || "default"}
+                      onValueChange={(v) => field.onChange(v === "default" ? "" : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="default">
+                          {t("nodes.inbound.fields.bbrDefault")}
+                        </SelectItem>
+                        <SelectItem value="off">off</SelectItem>
+                        <SelectItem value="auto">auto</SelectItem>
+                        <SelectItem value="on">on</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
             </div>
             <p className="text-xs text-muted-foreground">
               {t("nodes.inbound.fields.sharedSecretHint")}
@@ -792,53 +1060,83 @@ export function InboundProtocolFields({
       )}
 
       {protocol === "vless" && network === "xhttp" && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <FormField
-            control={form.control}
-            name="xhttp_path"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.xhttpPath")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="/xhttp" {...field} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="xhttp_mode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.xhttpMode")}</FormLabel>
-                <Select value={field.value || "auto"} onValueChange={field.onChange}>
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <FormField
+              control={form.control}
+              name="xhttp_path"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.xhttpPath")}</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <Input placeholder="/xhttp" {...field} />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="auto">auto</SelectItem>
-                    <SelectItem value="packet-up">packet-up</SelectItem>
-                    <SelectItem value="stream-up">stream-up</SelectItem>
-                    <SelectItem value="stream-one">stream-one</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="xhttp_host"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.xhttpHost")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="example.com" {...field} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="xhttp_mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.xhttpMode")}</FormLabel>
+                  <Select value={field.value || "auto"} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="auto">auto</SelectItem>
+                      <SelectItem value="packet-up">packet-up</SelectItem>
+                      <SelectItem value="stream-up">stream-up</SelectItem>
+                      <SelectItem value="stream-one">stream-one</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="xhttp_host"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.xhttpHost")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="example.com" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="xhttp_x_padding_bytes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.xhttpPaddingBytes")}</FormLabel>
+                  <FormControl>
+                    <Input placeholder="100-1000" className="font-mono text-xs" {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="xhttp_no_sse_header"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+                  <FormLabel className="text-xs">
+                    {t("nodes.inbound.fields.xhttpNoSseHeader")}
+                  </FormLabel>
+                  <FormControl>
+                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
       )}
 
@@ -920,7 +1218,7 @@ export function InboundProtocolFields({
               )}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <FormField
               control={form.control}
               name="masquerade"
@@ -955,6 +1253,18 @@ export function InboundProtocolFields({
                       <SelectItem value="aggressive">aggressive</SelectItem>
                     </SelectContent>
                   </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="cwnd"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  </FormControl>
                 </FormItem>
               )}
             />
@@ -1019,6 +1329,30 @@ export function InboundProtocolFields({
               </FormItem>
             )}
           />
+          <FormField
+            control={form.control}
+            name="cwnd"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="max_idle_time"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.maxIdleTime")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="15000" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
         </div>
       )}
 
@@ -1030,7 +1364,8 @@ export function InboundProtocolFields({
             <FormItem>
               <FormLabel>{t("nodes.inbound.fields.paddingScheme")}</FormLabel>
               <FormControl>
-                <Input
+                <Textarea
+                  rows={4}
                   className="font-mono text-xs"
                   placeholder={t("nodes.inbound.fields.paddingSchemePlaceholder")}
                   {...field}
@@ -1042,73 +1377,115 @@ export function InboundProtocolFields({
       )}
 
       {protocol === "mieru" && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="mieru_transport"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.mieruTransport")}</FormLabel>
-                <Select value={field.value || "TCP"} onValueChange={field.onChange}>
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="mieru_transport"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.mieruTransport")}</FormLabel>
+                  <Select value={field.value || "TCP"} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="TCP">TCP</SelectItem>
+                      <SelectItem value="UDP">UDP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mieru_port_range"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.mieruPortRange")}</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <Input placeholder="20000-20010" className="font-mono text-xs" {...field} />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="TCP">TCP</SelectItem>
-                    <SelectItem value="UDP">UDP</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="mieru_port_range"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.mieruPortRange")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="20000-20010" className="font-mono text-xs" {...field} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="mieru_multiplexing"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.mieruMultiplexing")}</FormLabel>
-                <Select value={field.value || "MULTIPLEXING_LOW"} onValueChange={field.onChange}>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mieru_multiplexing"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.mieruMultiplexing")}</FormLabel>
+                  <Select value={field.value || "MULTIPLEXING_LOW"} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="MULTIPLEXING_OFF">OFF</SelectItem>
+                      <SelectItem value="MULTIPLEXING_LOW">LOW</SelectItem>
+                      <SelectItem value="MULTIPLEXING_MIDDLE">MIDDLE</SelectItem>
+                      <SelectItem value="MULTIPLEXING_HIGH">HIGH</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mieru_handshake_mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.mieruHandshakeMode")}</FormLabel>
+                  <Select
+                    value={field.value || "default"}
+                    onValueChange={(v) => field.onChange(v === "default" ? "" : v)}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="default">
+                        {t("nodes.inbound.fields.bbrDefault")}
+                      </SelectItem>
+                      <SelectItem value="HANDSHAKE_STANDARD">HANDSHAKE_STANDARD</SelectItem>
+                      <SelectItem value="HANDSHAKE_NO_WAIT">HANDSHAKE_NO_WAIT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mieru_tcp_idle_timeout"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.mieruTcpIdleTimeout")}</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <Input type="number" min={0} placeholder="120" className="tabular-nums" {...field} />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="MULTIPLEXING_OFF">OFF</SelectItem>
-                    <SelectItem value="MULTIPLEXING_LOW">LOW</SelectItem>
-                    <SelectItem value="MULTIPLEXING_MIDDLE">MIDDLE</SelectItem>
-                    <SelectItem value="MULTIPLEXING_HIGH">HIGH</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="mieru_tcp_idle_timeout"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.mieruTcpIdleTimeout")}</FormLabel>
-                <FormControl>
-                  <Input type="number" min={0} placeholder="120" className="tabular-nums" {...field} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mieru_user_hint_mandatory"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+                  <FormLabel className="text-xs">
+                    {t("nodes.inbound.fields.mieruUserHintMandatory")}
+                  </FormLabel>
+                  <FormControl>
+                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
       )}
 
@@ -1128,7 +1505,7 @@ export function InboundProtocolFields({
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="both">{t("nodes.inbound.fields.trusttunnelBoth")}</SelectItem>
-                    <SelectItem value="quic">QUIC (HTTP/3)</SelectItem>
+                    <SelectItem value="udp">{t("nodes.inbound.fields.trusttunnelUdp")}</SelectItem>
                     <SelectItem value="tcp">TCP (HTTP/2)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1156,12 +1533,72 @@ export function InboundProtocolFields({
               </FormItem>
             )}
           />
+          <FormField
+            control={form.control}
+            name="cwnd"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="name_cert_verify"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.nameCertVerify")}</FormLabel>
+                <FormControl>
+                  <Input placeholder="example.com" className="font-mono text-xs" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="trusttunnel_max_connections"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.trusttunnelMaxConns")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="trusttunnel_min_streams"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.trusttunnelMinStreams")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="trusttunnel_max_streams"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.trusttunnelMaxStreams")}</FormLabel>
+                <FormControl>
+                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
         </div>
       )}
 
       {protocol === "shadowquic" && (
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="congestion_controller"
@@ -1180,6 +1617,18 @@ export function InboundProtocolFields({
                       <SelectItem value="new_reno">New Reno</SelectItem>
                     </SelectContent>
                   </Select>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="cwnd"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  </FormControl>
                 </FormItem>
               )}
             />
@@ -1340,6 +1789,7 @@ export function InboundProtocolFields({
                         <SelectItem value="stream">stream</SelectItem>
                         <SelectItem value="poll">poll</SelectItem>
                         <SelectItem value="auto">auto</SelectItem>
+                        <SelectItem value="ws">ws</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormItem>
@@ -1353,6 +1803,32 @@ export function InboundProtocolFields({
                     <FormLabel>{t("nodes.inbound.fields.sudokuPathRoot")}</FormLabel>
                     <FormControl>
                       <Input placeholder="/api" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sudoku_http_mask_host"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.sudokuMaskHost")}</FormLabel>
+                    <FormControl>
+                      <Input placeholder="example.com" className="font-mono text-xs" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sudoku_http_mask_tls"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+                    <FormLabel className="text-xs">
+                      {t("nodes.inbound.fields.sudokuMaskTls")}
+                    </FormLabel>
+                    <FormControl>
+                      <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}

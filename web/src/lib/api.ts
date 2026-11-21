@@ -138,6 +138,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  previewInbound: (nodeId: number, body: Record<string, unknown>) =>
+    request<{ server_yaml: string; client_yaml: string }>(`/api/nodes/${nodeId}/inbounds/preview`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   updateInbound: (id: number, body: Record<string, unknown>) =>
     request<Inbound>(`/api/inbounds/${id}`, {
       method: "PUT",

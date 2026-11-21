@@ -34,6 +34,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { PROTOCOL_LABELS, type Inbound, type Protocol } from "@/lib/types"
+import { InboundAdvancedTab } from "./InboundAdvancedTab"
 import {
   InboundProtocolFields,
   NEEDS_CERT_ALWAYS,
@@ -57,7 +58,18 @@ const DEFAULT_VALUES: InboundFormValues = {
   enabled: true,
   security: "reality",
   sni: "",
+  alpn: "",
   skip_cert_verify: false,
+  client_fingerprint: "",
+  ech_key: "",
+  ech_enable: false,
+  ech_config: "",
+  client_auth_type: "",
+  client_auth_cert: "",
+  port_range: "",
+  routing_mark: 0,
+  listener_rule: "",
+  listener_proxy: "",
   network: "tcp",
   ws_path: "/ws",
   ws_host: "",
@@ -65,9 +77,13 @@ const DEFAULT_VALUES: InboundFormValues = {
   xhttp_path: "/xhttp",
   xhttp_mode: "auto",
   xhttp_host: "",
+  xhttp_no_sse_header: false,
+  xhttp_x_padding_bytes: "",
   flow: "xtls-rprx-vision",
   vless_decryption: "",
   vless_encryption: "",
+  alter_id: 0,
+  cipher: "auto",
   reality_dest: "www.microsoft.com:443",
   reality_server_names: "www.microsoft.com",
   reality_private_key: "",
@@ -82,6 +98,8 @@ const DEFAULT_VALUES: InboundFormValues = {
   hop_ports: "",
   bbr_profile: "",
   congestion_controller: "bbr",
+  cwnd: 0,
+  max_idle_time: 0,
   udp_relay_mode: "native",
   padding_scheme: "",
   ss_cipher: "2022-blake3-aes-128-gcm",
@@ -89,11 +107,18 @@ const DEFAULT_VALUES: InboundFormValues = {
   mieru_transport: "TCP",
   mieru_port_range: "",
   mieru_multiplexing: "MULTIPLEXING_LOW",
+  mieru_handshake_mode: "",
   mieru_traffic_pattern: "",
   mieru_tcp_idle_timeout: 0,
+  mieru_user_hint_mandatory: false,
   trusttunnel_network: "both",
+  trusttunnel_max_connections: 0,
+  trusttunnel_min_streams: 0,
+  trusttunnel_max_streams: 0,
+  name_cert_verify: "",
   shadowquic_jls_addr: "www.microsoft.com:443",
   shadowquic_jls_sni: "www.microsoft.com",
+  shadowquic_jls_proxy: "",
   shadowquic_zero_rtt: true,
   snell_psk: "",
   snell_version: 4,
@@ -103,11 +128,143 @@ const DEFAULT_VALUES: InboundFormValues = {
   sudoku_key: "",
   sudoku_aead_method: "chacha20-poly1305",
   sudoku_table_type: "prefer_ascii",
+  sudoku_custom_table: "",
+  sudoku_multiplex: "",
   sudoku_disable_http_mask: false,
   sudoku_http_mask_mode: "legacy",
+  sudoku_http_mask_tls: false,
+  sudoku_http_mask_host: "",
   sudoku_path_root: "",
   sudoku_fallback: "",
   sudoku_enable_pure_downlink: true,
+  extra_server_yaml: "",
+  extra_client_yaml: "",
+}
+
+type InboundTab = "basic" | "security" | "transport" | "advanced"
+
+function buildInboundPayload(v: InboundFormValues): Record<string, unknown> {
+  const needsCert =
+    NEEDS_CERT_ALWAYS.includes(v.protocol) ||
+    ((SUPPORTS_REALITY.includes(v.protocol) || SUPPORTS_OPTIONAL_TLS.includes(v.protocol)) &&
+      v.security === "tls")
+  const certId = v.cert_id && v.cert_id !== "none" ? Number(v.cert_id) : null
+  const splitCSV = (s?: string) =>
+    (s || "")
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+
+  const resolvedSecurity = NEEDS_CERT_ALWAYS.includes(v.protocol)
+    ? "tls"
+    : SUPPORTS_REALITY.includes(v.protocol)
+      ? v.security
+      : SUPPORTS_OPTIONAL_TLS.includes(v.protocol)
+        ? v.security === "tls"
+          ? "tls"
+          : "none"
+        : "none"
+
+  return {
+    name: v.name,
+    tag: v.tag || "",
+    tags: v.tags ?? [],
+    protocol: v.protocol,
+    listen: v.listen || "0.0.0.0",
+    port: v.port,
+    cert_id: needsCert ? certId : null,
+    enabled: v.enabled,
+    settings: {
+      proxy_name: v.proxy_name || "",
+      client_server: v.client_server || "",
+      client_port: v.client_port || 0,
+      client_tls: Boolean(v.client_tls),
+      security: resolvedSecurity,
+      sni: v.sni || "",
+      alpn: splitCSV(v.alpn),
+      skip_cert_verify: v.skip_cert_verify,
+      client_fingerprint: v.client_fingerprint || "",
+      ech_key: v.ech_key || "",
+      ech_enable: Boolean(v.ech_enable),
+      ech_config: v.ech_config || "",
+      client_auth_type: v.client_auth_type || "",
+      client_auth_cert: v.client_auth_cert || "",
+      port_range: v.port_range || "",
+      routing_mark: v.routing_mark || 0,
+      listener_rule: v.listener_rule || "",
+      listener_proxy: v.listener_proxy || "",
+      network: v.network,
+      ws_path: v.ws_path,
+      ws_host: v.ws_host || "",
+      grpc_service_name: v.grpc_service_name,
+      xhttp_path: v.xhttp_path,
+      xhttp_mode: v.xhttp_mode,
+      xhttp_host: v.xhttp_host,
+      xhttp_no_sse_header: Boolean(v.xhttp_no_sse_header),
+      xhttp_x_padding_bytes: v.xhttp_x_padding_bytes || "",
+      flow: v.flow,
+      vless_decryption: v.vless_decryption,
+      vless_encryption: v.vless_encryption,
+      alter_id: v.alter_id || 0,
+      cipher: v.cipher || "auto",
+      reality_dest: v.reality_dest,
+      reality_server_names: splitCSV(v.reality_server_names),
+      reality_private_key: v.reality_private_key,
+      reality_public_key: v.reality_public_key,
+      reality_short_ids: splitCSV(v.reality_short_ids),
+      up_mbps: v.up_mbps,
+      down_mbps: v.down_mbps,
+      ignore_client_bandwidth: v.ignore_client_bandwidth,
+      obfs: v.obfs,
+      obfs_password: v.obfs_password,
+      masquerade: v.masquerade,
+      hop_ports: v.hop_ports,
+      bbr_profile: v.bbr_profile,
+      congestion_controller: v.congestion_controller,
+      cwnd: v.cwnd || 0,
+      max_idle_time: v.max_idle_time || 0,
+      udp_relay_mode: v.udp_relay_mode,
+      padding_scheme: v.padding_scheme,
+      ss_cipher: v.ss_cipher,
+      ss_server_password: v.ss_server_password,
+      udp: true,
+      mieru_transport: v.mieru_transport,
+      mieru_port_range: v.mieru_port_range,
+      mieru_multiplexing: v.mieru_multiplexing,
+      mieru_handshake_mode: v.mieru_handshake_mode || "",
+      mieru_traffic_pattern: v.mieru_traffic_pattern,
+      mieru_tcp_idle_timeout: v.mieru_tcp_idle_timeout || 0,
+      mieru_user_hint_mandatory: Boolean(v.mieru_user_hint_mandatory),
+      trusttunnel_network: v.trusttunnel_network,
+      trusttunnel_max_connections: v.trusttunnel_max_connections || 0,
+      trusttunnel_min_streams: v.trusttunnel_min_streams || 0,
+      trusttunnel_max_streams: v.trusttunnel_max_streams || 0,
+      name_cert_verify: v.name_cert_verify || "",
+      shadowquic_jls_addr: v.shadowquic_jls_addr,
+      shadowquic_jls_sni: v.shadowquic_jls_sni,
+      shadowquic_jls_proxy: v.shadowquic_jls_proxy || "",
+      shadowquic_zero_rtt: v.shadowquic_zero_rtt,
+      snell_psk: v.snell_psk,
+      snell_version: v.snell_version,
+      snell_mode: v.snell_mode,
+      snell_obfs_mode: v.snell_obfs_mode,
+      snell_obfs_host: v.snell_obfs_host,
+      sudoku_key: v.sudoku_key,
+      sudoku_aead_method: v.sudoku_aead_method,
+      sudoku_table_type: v.sudoku_table_type,
+      sudoku_custom_table: v.sudoku_custom_table || "",
+      sudoku_multiplex: v.sudoku_multiplex || "",
+      sudoku_disable_http_mask: v.sudoku_disable_http_mask,
+      sudoku_http_mask_mode: v.sudoku_http_mask_mode,
+      sudoku_http_mask_tls: Boolean(v.sudoku_http_mask_tls),
+      sudoku_http_mask_host: v.sudoku_http_mask_host || "",
+      sudoku_path_root: v.sudoku_path_root,
+      sudoku_fallback: v.sudoku_fallback,
+      sudoku_enable_pure_downlink: v.sudoku_enable_pure_downlink,
+      extra_server_yaml: v.extra_server_yaml || "",
+      extra_client_yaml: v.extra_client_yaml || "",
+    },
+  }
 }
 
 export function InboundFormView({
@@ -125,7 +282,7 @@ export function InboundFormView({
   const qc = useQueryClient()
   const isEdit = Boolean(inbound)
   const [keygenLoading, setKeygenLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"basic" | "security" | "transport">("basic")
+  const [activeTab, setActiveTab] = useState<InboundTab>("basic")
 
   const inboundSchema = useMemo(() => createInboundSchema(t), [t])
 
@@ -173,7 +330,18 @@ export function InboundFormView({
         enabled: inbound.enabled,
         security: s.security || (NEEDS_CERT_ALWAYS.includes(inbound.protocol) ? "tls" : "none"),
         sni: s.sni || "",
+        alpn: (s.alpn || []).join(", "),
         skip_cert_verify: Boolean(s.skip_cert_verify),
+        client_fingerprint: s.client_fingerprint || "",
+        ech_key: s.ech_key || "",
+        ech_enable: Boolean(s.ech_enable),
+        ech_config: s.ech_config || "",
+        client_auth_type: s.client_auth_type || "",
+        client_auth_cert: s.client_auth_cert || "",
+        port_range: s.port_range || "",
+        routing_mark: s.routing_mark ?? 0,
+        listener_rule: s.listener_rule || "",
+        listener_proxy: s.listener_proxy || "",
         network: s.network || "tcp",
         ws_path: s.ws_path || "/ws",
         ws_host: s.ws_host || "",
@@ -181,9 +349,13 @@ export function InboundFormView({
         xhttp_path: s.xhttp_path || "/xhttp",
         xhttp_mode: s.xhttp_mode || "auto",
         xhttp_host: s.xhttp_host || "",
+        xhttp_no_sse_header: Boolean(s.xhttp_no_sse_header),
+        xhttp_x_padding_bytes: s.xhttp_x_padding_bytes || "",
         flow: s.flow || "",
         vless_decryption: s.vless_decryption || "",
         vless_encryption: s.vless_encryption || "",
+        alter_id: s.alter_id ?? 0,
+        cipher: s.cipher || "auto",
         reality_dest: s.reality_dest || "www.microsoft.com:443",
         reality_server_names: (s.reality_server_names || []).join(","),
         reality_private_key: s.reality_private_key || "",
@@ -198,6 +370,8 @@ export function InboundFormView({
         hop_ports: s.hop_ports || "",
         bbr_profile: s.bbr_profile || "",
         congestion_controller: s.congestion_controller || "bbr",
+        cwnd: s.cwnd ?? 0,
+        max_idle_time: s.max_idle_time ?? 0,
         udp_relay_mode: s.udp_relay_mode || "native",
         padding_scheme: s.padding_scheme || "",
         ss_cipher: s.ss_cipher || "2022-blake3-aes-128-gcm",
@@ -205,11 +379,19 @@ export function InboundFormView({
         mieru_transport: s.mieru_transport || "TCP",
         mieru_port_range: s.mieru_port_range || "",
         mieru_multiplexing: s.mieru_multiplexing || "MULTIPLEXING_LOW",
+        mieru_handshake_mode: s.mieru_handshake_mode || "",
         mieru_traffic_pattern: s.mieru_traffic_pattern || "",
         mieru_tcp_idle_timeout: s.mieru_tcp_idle_timeout ?? 0,
-        trusttunnel_network: s.trusttunnel_network || "both",
+        mieru_user_hint_mandatory: Boolean(s.mieru_user_hint_mandatory),
+        trusttunnel_network:
+          s.trusttunnel_network === "quic" ? "udp" : s.trusttunnel_network || "both",
+        trusttunnel_max_connections: s.trusttunnel_max_connections ?? 0,
+        trusttunnel_min_streams: s.trusttunnel_min_streams ?? 0,
+        trusttunnel_max_streams: s.trusttunnel_max_streams ?? 0,
+        name_cert_verify: s.name_cert_verify || "",
         shadowquic_jls_addr: s.shadowquic_jls_addr || "www.microsoft.com:443",
         shadowquic_jls_sni: s.shadowquic_jls_sni || "www.microsoft.com",
+        shadowquic_jls_proxy: s.shadowquic_jls_proxy || "",
         shadowquic_zero_rtt: s.shadowquic_zero_rtt ?? true,
         snell_psk: s.snell_psk || "",
         snell_version: s.snell_version ?? 4,
@@ -219,11 +401,17 @@ export function InboundFormView({
         sudoku_key: s.sudoku_key || "",
         sudoku_aead_method: s.sudoku_aead_method || "chacha20-poly1305",
         sudoku_table_type: s.sudoku_table_type || "prefer_ascii",
+        sudoku_custom_table: s.sudoku_custom_table || "",
+        sudoku_multiplex: s.sudoku_multiplex || "",
         sudoku_disable_http_mask: Boolean(s.sudoku_disable_http_mask),
         sudoku_http_mask_mode: s.sudoku_http_mask_mode || "legacy",
+        sudoku_http_mask_tls: Boolean(s.sudoku_http_mask_tls),
+        sudoku_http_mask_host: s.sudoku_http_mask_host || "",
         sudoku_path_root: s.sudoku_path_root || "",
         sudoku_fallback: s.sudoku_fallback || "",
         sudoku_enable_pure_downlink: s.sudoku_enable_pure_downlink ?? true,
+        extra_server_yaml: s.extra_server_yaml || "",
+        extra_client_yaml: s.extra_client_yaml || "",
       })
     } else {
       form.reset(DEFAULT_VALUES)
@@ -276,97 +464,7 @@ export function InboundFormView({
 
   const mutation = useMutation({
     mutationFn: (v: InboundFormValues) => {
-      const needsCert =
-        NEEDS_CERT_ALWAYS.includes(v.protocol) ||
-        ((SUPPORTS_REALITY.includes(v.protocol) || SUPPORTS_OPTIONAL_TLS.includes(v.protocol)) &&
-          v.security === "tls")
-      const certId = v.cert_id && v.cert_id !== "none" ? Number(v.cert_id) : null
-      const splitCSV = (s?: string) =>
-        (s || "")
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean)
-
-      const resolvedSecurity = NEEDS_CERT_ALWAYS.includes(v.protocol)
-        ? "tls"
-        : SUPPORTS_REALITY.includes(v.protocol)
-          ? v.security
-          : SUPPORTS_OPTIONAL_TLS.includes(v.protocol)
-            ? v.security === "tls"
-              ? "tls"
-              : "none"
-            : "none"
-
-      const payload = {
-        name: v.name,
-        tag: v.tag || "",
-        tags: v.tags ?? [],
-        protocol: v.protocol,
-        listen: v.listen || "0.0.0.0",
-        port: v.port,
-        cert_id: needsCert ? certId : null,
-        enabled: v.enabled,
-        settings: {
-          proxy_name: v.proxy_name || "",
-          client_server: v.client_server || "",
-          client_port: v.client_port || 0,
-          client_tls: Boolean(v.client_tls),
-          security: resolvedSecurity,
-          sni: v.sni || "",
-          skip_cert_verify: v.skip_cert_verify,
-          network: v.network,
-          ws_path: v.ws_path,
-          ws_host: v.ws_host || "",
-          grpc_service_name: v.grpc_service_name,
-          xhttp_path: v.xhttp_path,
-          xhttp_mode: v.xhttp_mode,
-          xhttp_host: v.xhttp_host,
-          flow: v.flow,
-          vless_decryption: v.vless_decryption,
-          vless_encryption: v.vless_encryption,
-          reality_dest: v.reality_dest,
-          reality_server_names: splitCSV(v.reality_server_names),
-          reality_private_key: v.reality_private_key,
-          reality_public_key: v.reality_public_key,
-          reality_short_ids: splitCSV(v.reality_short_ids),
-          up_mbps: v.up_mbps,
-          down_mbps: v.down_mbps,
-          ignore_client_bandwidth: v.ignore_client_bandwidth,
-          obfs: v.obfs,
-          obfs_password: v.obfs_password,
-          masquerade: v.masquerade,
-          hop_ports: v.hop_ports,
-          bbr_profile: v.bbr_profile,
-          congestion_controller: v.congestion_controller,
-          udp_relay_mode: v.udp_relay_mode,
-          padding_scheme: v.padding_scheme,
-          ss_cipher: v.ss_cipher,
-          ss_server_password: v.ss_server_password,
-          udp: true,
-          mieru_transport: v.mieru_transport,
-          mieru_port_range: v.mieru_port_range,
-          mieru_multiplexing: v.mieru_multiplexing,
-          mieru_traffic_pattern: v.mieru_traffic_pattern,
-          mieru_tcp_idle_timeout: v.mieru_tcp_idle_timeout || 0,
-          trusttunnel_network: v.trusttunnel_network,
-          shadowquic_jls_addr: v.shadowquic_jls_addr,
-          shadowquic_jls_sni: v.shadowquic_jls_sni,
-          shadowquic_zero_rtt: v.shadowquic_zero_rtt,
-          snell_psk: v.snell_psk,
-          snell_version: v.snell_version,
-          snell_mode: v.snell_mode,
-          snell_obfs_mode: v.snell_obfs_mode,
-          snell_obfs_host: v.snell_obfs_host,
-          sudoku_key: v.sudoku_key,
-          sudoku_aead_method: v.sudoku_aead_method,
-          sudoku_table_type: v.sudoku_table_type,
-          sudoku_disable_http_mask: v.sudoku_disable_http_mask,
-          sudoku_http_mask_mode: v.sudoku_http_mask_mode,
-          sudoku_path_root: v.sudoku_path_root,
-          sudoku_fallback: v.sudoku_fallback,
-          sudoku_enable_pure_downlink: v.sudoku_enable_pure_downlink,
-        },
-      }
+      const payload = buildInboundPayload(v)
       return isEdit && inbound
         ? api.updateInbound(inbound.id, payload)
         : api.createInbound(nodeId, payload)
@@ -385,6 +483,8 @@ export function InboundFormView({
   const handleInvalid = (errors: Record<string, unknown>) => {
     if (errors.name || errors.port || errors.protocol || errors.tag) {
       setActiveTab("basic")
+    } else if (errors.routing_mark || errors.extra_server_yaml || errors.extra_client_yaml) {
+      setActiveTab("advanced")
     }
   }
 
@@ -417,14 +517,15 @@ export function InboundFormView({
         >
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as "basic" | "security" | "transport")}
+            onValueChange={(v) => setActiveTab(v as InboundTab)}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
             <div className="shrink-0 border-b border-border px-6 py-2.5">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basic">{t("nodes.inbound.tabBasic")}</TabsTrigger>
                 <TabsTrigger value="security">{t("nodes.inbound.tabSecurity")}</TabsTrigger>
                 <TabsTrigger value="transport">{t("nodes.inbound.tabTransport")}</TabsTrigger>
+                <TabsTrigger value="advanced">{t("nodes.inbound.tabAdvanced")}</TabsTrigger>
               </TabsList>
             </div>
 
@@ -597,6 +698,15 @@ export function InboundFormView({
                     onGenerateReality={generateReality}
                     onGenerateSSKey={generateSSKey}
                     onGenerateSecret={generateSecret}
+                  />
+                </TabsContent>
+
+                <TabsContent value="advanced" keepMounted className="mt-0">
+                  <InboundAdvancedTab
+                    key={inbound?.id ?? "new"}
+                    nodeId={nodeId}
+                    form={form}
+                    buildPayload={buildInboundPayload}
                   />
                 </TabsContent>
               </div>

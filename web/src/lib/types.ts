@@ -82,11 +82,21 @@ export interface InboundSettings {
   client_server?: string
   client_port?: number
   client_tls?: boolean
+  // Security
   security?: "none" | "tls" | "reality"
   sni?: string
   alpn?: string[]
   skip_cert_verify?: boolean
   client_fingerprint?: string
+  ech_key?: string
+  ech_enable?: boolean
+  ech_config?: string
+  client_auth_type?: string
+  client_auth_cert?: string
+  port_range?: string
+  routing_mark?: number
+  listener_rule?: string
+  listener_proxy?: string
   network?: "tcp" | "ws" | "grpc" | "xhttp"
   ws_path?: string
   ws_host?: string
@@ -94,6 +104,8 @@ export interface InboundSettings {
   xhttp_path?: string
   xhttp_mode?: string
   xhttp_host?: string
+  xhttp_no_sse_header?: boolean
+  xhttp_x_padding_bytes?: string
   reality_dest?: string
   reality_server_names?: string[]
   reality_private_key?: string
@@ -113,6 +125,7 @@ export interface InboundSettings {
   hop_ports?: string
   bbr_profile?: string
   congestion_controller?: string
+  cwnd?: number
   max_idle_time?: number
   udp_relay_mode?: string
   padding_scheme?: string
@@ -125,9 +138,15 @@ export interface InboundSettings {
   mieru_handshake_mode?: string
   mieru_traffic_pattern?: string
   mieru_tcp_idle_timeout?: number
+  mieru_user_hint_mandatory?: boolean
   trusttunnel_network?: string
+  trusttunnel_max_connections?: number
+  trusttunnel_min_streams?: number
+  trusttunnel_max_streams?: number
+  name_cert_verify?: string
   shadowquic_jls_addr?: string
   shadowquic_jls_sni?: string
+  shadowquic_jls_proxy?: string
   shadowquic_zero_rtt?: boolean
   snell_psk?: string
   snell_version?: number
@@ -137,13 +156,19 @@ export interface InboundSettings {
   sudoku_key?: string
   sudoku_aead_method?: string
   sudoku_table_type?: string
+  sudoku_custom_table?: string
+  sudoku_multiplex?: string
   sudoku_padding_min?: number
   sudoku_padding_max?: number
   sudoku_enable_pure_downlink?: boolean
   sudoku_disable_http_mask?: boolean
   sudoku_http_mask_mode?: string
+  sudoku_http_mask_tls?: boolean
+  sudoku_http_mask_host?: string
   sudoku_path_root?: string
   sudoku_fallback?: string
+  extra_server_yaml?: string
+  extra_client_yaml?: string
 }
 
 export interface Inbound {

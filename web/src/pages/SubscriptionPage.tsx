@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation } from "react-router-dom"
@@ -23,7 +24,7 @@ import { ApiError, api, queryKeys } from "@/lib/api"
 import { daysUntil, formatBytes, formatDateTime } from "@/lib/format"
 import type { PublicSubInfo } from "@/lib/types"
 
-function getStatusBadge(status: PublicSubInfo["status"], t: ReturnType<typeof useTranslation>["t"]) {
+function getStatusBadge(status: PublicSubInfo["status"], t: TFunction) {
   switch (status) {
     case "disabled":
       return { label: t("users.statusDisabled"), className: "bg-muted text-muted-foreground" }
