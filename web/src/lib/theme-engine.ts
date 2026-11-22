@@ -1,6 +1,6 @@
 import type { CustomTheme } from "./types"
 
-export const THEME_CSS_CACHE_KEY = "mihob_theme_css_cache"
+export const THEME_CSS_CACHE_KEY = "mihob_theme_css_cache_v2"
 export const THEME_FONT_URL_CACHE_KEY = "mihob_theme_font_url_cache"
 const STYLE_EL_ID = "mihob-custom-theme"
 const FONT_LINK_ID = "mihob-theme-fonts"
@@ -384,10 +384,10 @@ export function buildThemeStyleCSS(theme: CustomTheme | null): string {
 
   const parts: string[] = []
   if (rootLines.length > 0) {
-    parts.push(`:root {\n${rootLines.join("\n")}\n}`)
+    parts.push(`:root:root {\n${rootLines.join("\n")}\n}`)
   }
   if (darkLines.length > 0) {
-    parts.push(`.dark {\n${darkLines.join("\n")}\n}`)
+    parts.push(`:root.dark {\n${darkLines.join("\n")}\n}`)
   }
   return parts.join("\n\n")
 }
@@ -439,11 +439,12 @@ export function applyThemeToDOM(theme: CustomTheme | null) {
     if (!styleEl) {
       styleEl = document.createElement("style")
       styleEl.id = STYLE_EL_ID
-      document.head.appendChild(styleEl)
     }
     if (styleEl.textContent !== css) {
       styleEl.textContent = css
     }
+    // Always keep the override sheet last in <head> so it wins over bundled CSS
+    document.head.appendChild(styleEl)
   } else if (styleEl) {
     styleEl.remove()
   }
