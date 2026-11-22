@@ -334,6 +334,27 @@ export interface SystemSettings {
   sub_path: string
 }
 
+export interface CustomTheme {
+  id: string
+  name: string
+  source_url?: string
+  theme?: Record<string, string>
+  light: Record<string, string>
+  dark: Record<string, string>
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ThemeConfig {
+  active_theme_id: string
+  custom_themes: CustomTheme[]
+}
+
+export interface PublicThemeResponse {
+  active_theme_id: string
+  active_custom_theme?: CustomTheme | null
+}
+
 export interface PublicSubNode {
   name: string
   region: string

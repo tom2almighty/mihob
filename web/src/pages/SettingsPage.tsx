@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "react-router-dom"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import {
@@ -13,12 +14,14 @@ import {
   FolderGit2,
   Globe,
   Loader2,
+  Palette,
   RotateCcw,
   ShieldCheck,
 } from "lucide-react"
 import { siGithub } from "simple-icons"
 import { toast } from "sonner"
 import { CopyButton, ErrorState, PageHeader } from "@/components/common/CommonUI"
+import { AppearanceTab } from "@/pages/settings/AppearanceTab"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -95,7 +98,15 @@ type PasswordFormValues = {
   confirm_password: string
 }
 
-type SettingsTab = "general" | "deployment" | "security" | "projects"
+type SettingsTab = "general" | "deployment" | "appearance" | "security" | "projects"
+
+const VALID_SETTINGS_TABS = new Set<SettingsTab>([
+  "general",
+  "deployment",
+  "appearance",
+  "security",
+  "projects",
+])
 
 function SimpleIconSvg({
   path,
@@ -121,8 +132,28 @@ export function SettingsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { admin } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general")
+  const tabParam = searchParams.get("tab") as SettingsTab | null
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
+    tabParam && VALID_SETTINGS_TABS.has(tabParam) ? tabParam : "general"
+  )
+
+  useEffect(() => {
+    if (tabParam && VALID_SETTINGS_TABS.has(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam, activeTab])
+
+  const handleTabChange = (next: SettingsTab) => {
+    setActiveTab(next)
+    if (next === "general") {
+      searchParams.delete("tab")
+    } else {
+      searchParams.set("tab", next)
+    }
+    setSearchParams(searchParams, { replace: true })
+  }
   const [showOldPw, setShowOldPw] = useState(false)
   const [showNewPw, setShowNewPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
@@ -242,10 +273,10 @@ export function SettingsPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as SettingsTab)}
-        className="max-w-3xl space-y-5"
+        onValueChange={(v) => handleTabChange(v as SettingsTab)}
+        className="max-w-4xl space-y-5"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
           <TabsTrigger value="general" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
             <Globe className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.general")}</span>
@@ -253,6 +284,10 @@ export function SettingsPage() {
           <TabsTrigger value="deployment" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
             <Container className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.deployment")}</span>
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+            <Palette className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.appearance")}</span>
           </TabsTrigger>
           <TabsTrigger value="security" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
             <ShieldCheck className="size-3.5 shrink-0" />
@@ -485,6 +520,11 @@ export function SettingsPage() {
             </TabsContent>
           </form>
         </Form>
+
+        {/* Appearance & Themes Tab */}
+        <TabsContent value="appearance" className="mt-0">
+          <AppearanceTab />
+        </TabsContent>
 
         {/* Security & Password Tab */}
         <TabsContent value="security" className="mt-0">

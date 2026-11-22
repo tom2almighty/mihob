@@ -5,6 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>mihob</title>
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem("mihob_theme") || "system";
+          var isDark =
+            mode === "dark" ||
+            (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.add(isDark ? "dark" : "light");
+
+          var css = localStorage.getItem("mihob_theme_css_cache");
+          if (css) {
+            var style = document.createElement("style");
+            style.id = "mihob-custom-theme";
+            style.textContent = css;
+            document.head.appendChild(style);
+          }
+
+          var fontUrl = localStorage.getItem("mihob_theme_font_url_cache");
+          if (fontUrl && fontUrl.indexOf("https://fonts.googleapis.com/") === 0) {
+            var link = document.createElement("link");
+            link.id = "mihob-theme-fonts";
+            link.rel = "stylesheet";
+            link.href = fontUrl;
+            document.head.appendChild(link);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-background text-foreground antialiased">
     <div id="root"></div>

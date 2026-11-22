@@ -78,8 +78,8 @@ const PROTECTED_ROUTES: { path: string; element: ReactNode }[] = [
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
         <TooltipProvider delay={200}>
           <AuthProvider>
             <BrowserRouter>
@@ -101,7 +101,7 @@ export default function App() {
             <Toaster position="top-right" richColors closeButton />
           </AuthProvider>
         </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }

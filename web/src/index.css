@@ -58,7 +58,22 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-heading: var(--font-sans);
-  --font-sans: "Twemoji Country Flags", "Geist Variable", sans-serif;
+  --font-sans: "Twemoji Country Flags", var(--theme-font-sans);
+  --font-serif: "Twemoji Country Flags", var(--theme-font-serif);
+  --font-mono: "Twemoji Country Flags", var(--theme-font-mono);
+  --shadow-2xs: var(--theme-shadow-2xs);
+  --shadow-xs: var(--theme-shadow-xs);
+  --shadow-sm: var(--theme-shadow-sm);
+  --shadow-md: var(--theme-shadow-md);
+  --shadow-lg: var(--theme-shadow-lg);
+  --shadow-xl: var(--theme-shadow-xl);
+  --shadow-2xl: var(--theme-shadow-2xl);
+  --tracking-tighter: calc(var(--theme-tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--theme-tracking-normal) - 0.025em);
+  --tracking-normal: var(--theme-tracking-normal);
+  --tracking-wide: calc(var(--theme-tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--theme-tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--theme-tracking-normal) + 0.1em);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
@@ -67,6 +82,17 @@
 /* Official shadcn/ui Neutral palette (pure achromatic OKLCH neutrals) */
 :root {
   --radius: 0.625rem;
+  --theme-font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --theme-font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --theme-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --theme-tracking-normal: 0em;
+  --theme-shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
+  --theme-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --theme-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --theme-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --theme-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --theme-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --theme-shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -190,6 +216,7 @@
 
   body {
     @apply bg-background text-foreground;
+    letter-spacing: var(--theme-tracking-normal);
   }
 
   /* Prevent react-remove-scroll from double-compensating scrollbar width on top of scrollbar-gutter: stable */

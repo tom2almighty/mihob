@@ -8,8 +8,10 @@ import type {
   InstallCommands,
   Node,
   PublicSubInfo,
+  PublicThemeResponse,
   SystemSettings,
   Template,
+  ThemeConfig,
   User,
 } from "./types"
 
@@ -83,6 +85,8 @@ export const queryKeys = {
   users: ["users"] as const,
   templates: ["templates"] as const,
   settings: ["settings"] as const,
+  themes: ["themes"] as const,
+  publicTheme: ["public", "theme"] as const,
   publicSub: (path: string) => ["public", "sub", path] as const,
 }
 
@@ -218,6 +222,18 @@ export const api = {
   getSettings: () => request<SystemSettings>("/api/settings"),
   updateSettings: (body: SystemSettings) =>
     request<SystemSettings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
+
+  // Themes
+  getPublicTheme: () =>
+    request<PublicThemeResponse>("/api/public/theme", undefined, { public: true }),
+  getThemes: () => request<ThemeConfig>("/api/themes"),
+  updateThemes: (body: ThemeConfig) =>
+    request<ThemeConfig>("/api/themes", { method: "PUT", body: JSON.stringify(body) }),
+  fetchThemeUrl: (url: string) =>
+    request<{ url: string; content_type: string; content: string }>("/api/themes/fetch", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
 
   // Public Subscription Info
   getPublicSub: (path: string) =>

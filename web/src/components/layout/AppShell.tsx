@@ -12,6 +12,7 @@ import {
   Monitor,
   Moon,
   Network,
+  Palette,
   PanelLeftClose,
   PanelLeftOpen,
   Server,
@@ -170,13 +171,15 @@ export function ThemeSwitcher({
   side = "bottom",
   align = "end",
   tooltipSide = "top",
+  onOpenThemeSettings,
 }: {
   side?: "top" | "bottom" | "left" | "right"
   align?: "start" | "center" | "end"
   tooltipSide?: "top" | "bottom" | "left" | "right"
+  onOpenThemeSettings?: () => void
 } = {}) {
   const { t } = useTranslation()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, activeTheme } = useTheme()
 
   return (
     <DropdownMenu>
@@ -200,7 +203,7 @@ export function ThemeSwitcher({
         />
         <TooltipContent side={tooltipSide}>{t("nav.themeTooltip")}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent side={side} align={align} sideOffset={6} className="min-w-44">
+      <DropdownMenuContent side={side} align={align} sideOffset={6} className="min-w-48">
         <DropdownMenuItem onClick={() => setTheme("light")} className="whitespace-nowrap">
           <Sun className="mr-2 size-4 shrink-0" />
           <span className="flex-1">{t("nav.themeLight")}</span>
@@ -216,6 +219,18 @@ export function ThemeSwitcher({
           <span className="flex-1">{t("nav.themeSystem")}</span>
           {theme === "system" && <Check className="ml-2 size-3.5 shrink-0" />}
         </DropdownMenuItem>
+        {onOpenThemeSettings && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onOpenThemeSettings} className="whitespace-nowrap">
+              <Palette className="mr-2 size-4 shrink-0" />
+              <span className="flex-1 truncate">{t("nav.manageThemes")}</span>
+              <span className="ml-2 max-w-20 truncate text-[11px] text-muted-foreground">
+                {activeTheme.name}
+              </span>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -290,6 +305,10 @@ function SidebarFooter({
               side={collapsed ? "right" : "top"}
               align={collapsed ? "end" : "start"}
               tooltipSide={collapsed ? "right" : "top"}
+              onOpenThemeSettings={() => {
+                onNavigate?.()
+                navigate("/settings?tab=appearance")
+              }}
             />
           </div>
         </div>
