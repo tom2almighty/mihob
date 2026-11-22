@@ -5,13 +5,10 @@ import {
   Check,
   Copy,
   ExternalLink,
-  Monitor,
-  Moon,
   Palette,
   Pencil,
   Plus,
   RotateCcw,
-  Sun,
   Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -39,7 +36,7 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
-import { useTheme, type Theme as ColorMode } from "@/lib/theme"
+import { useTheme } from "@/lib/theme"
 import { exportThemeAsCSS, getThemePreviewColors } from "@/lib/theme-engine"
 import { BUILTIN_THEME_PRESETS, type ThemePreset } from "@/lib/theme-presets"
 import type { CustomTheme, ThemeConfig } from "@/lib/types"
@@ -250,8 +247,7 @@ function ThemePresetCard({
 export function AppearanceTab() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { theme: colorMode, resolvedMode, setTheme: setColorMode, activeThemeId, applyActiveTheme } =
-    useTheme()
+  const { resolvedMode, activeThemeId, applyActiveTheme } = useTheme()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTheme, setEditingTheme] = useState<CustomTheme | null>(null)
@@ -333,43 +329,8 @@ export function AppearanceTab() {
     }
   }
 
-  const modeOptions: { value: ColorMode; label: string; icon: typeof Sun }[] = [
-    { value: "light", label: t("nav.themeLight"), icon: Sun },
-    { value: "dark", label: t("nav.themeDark"), icon: Moon },
-    { value: "system", label: t("nav.themeSystem"), icon: Monitor },
-  ]
-
   return (
     <div className="space-y-4">
-      {/* Color Mode Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("settings.appearance.modeCardTitle")}</CardTitle>
-          <CardDescription>{t("settings.appearance.modeCardDesc")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-2 sm:max-w-md">
-            {modeOptions.map((opt) => {
-              const Icon = opt.icon
-              const isSelected = colorMode === opt.value
-              return (
-                <Button
-                  key={opt.value}
-                  type="button"
-                  variant={isSelected ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setColorMode(opt.value)}
-                  className="justify-center gap-1.5"
-                >
-                  <Icon className="size-3.5" />
-                  <span>{opt.label}</span>
-                </Button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Theme Presets & Custom tweakcn Themes Card */}
       <Card>
         <CardHeader>

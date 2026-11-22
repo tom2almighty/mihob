@@ -1,6 +1,14 @@
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { AlertTriangle, Check, Copy, Loader2, RefreshCw } from "lucide-react"
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Loader2,
+  RefreshCw,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -14,6 +22,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatBytes } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -247,5 +262,105 @@ export function ConfirmDeleteDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+export function TablePagination({
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 20, 50, 100],
+}: {
+  total: number
+  page: number
+  pageSize: number
+  onPageChange: (nextPage: number) => void
+  onPageSizeChange: (nextSize: number) => void
+  pageSizeOptions?: number[]
+}) {
+  const { t } = useTranslation()
+  if (total <= 0) return null
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const start = (safePage - 1) * pageSize + 1
+  const end = Math.min(total, safePage * pageSize)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+      <div className="tabular-nums">
+        {t("common.pagination.summary", { start, end, total })}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span>{t("common.pagination.perPage")}</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(v) => {
+              const num = Number(v)
+              if (num > 0) {
+                onPageSizeChange(num)
+                onPageChange(1)
+              }
+            }}
+          >
+            <SelectTrigger size="sm" className="h-7 w-16 px-2 text-xs tabular-nums">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" className="min-w-20">
+              {pageSizeOptions.map((opt) => (
+                <SelectItem key={opt} value={String(opt)} className="text-xs tabular-nums">
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-7"
+                  disabled={safePage <= 1}
+                  onClick={() => onPageChange(safePage - 1)}
+                  aria-label={t("common.pagination.prevPage")}
+                >
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("common.pagination.prevPage")}</TooltipContent>
+          </Tooltip>
+          <span className="min-w-12 text-center font-mono text-xs text-foreground tabular-nums">
+            {safePage} / {totalPages}
+          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-7"
+                  disabled={safePage >= totalPages}
+                  onClick={() => onPageChange(safePage + 1)}
+                  aria-label={t("common.pagination.nextPage")}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("common.pagination.nextPage")}</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </div>
   )
 }

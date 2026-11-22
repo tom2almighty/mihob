@@ -20,6 +20,7 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
+  TablePagination,
   TrafficProgress,
 } from "@/components/common/CommonUI"
 import { Badge } from "@/components/ui/badge"
@@ -72,6 +73,8 @@ export function UsersPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "inactive">("all")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
   const [subUserId, setSubUserId] = useState<number | null>(null)
@@ -140,6 +143,10 @@ export function UsersPage() {
   const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
   const canDrag = !hasActiveFilter && filtered.length > 1
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pagedUsers = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
   const { draggingId, overId, getRowDragProps } = useDragReorder({
     items: allUsers,
     enabled: canDrag,
@@ -174,7 +181,10 @@ export function UsersPage() {
           <Input
             placeholder={t("users.searchPlaceholder")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             className="pr-8 pl-9"
           />
           {search && (
@@ -183,7 +193,10 @@ export function UsersPage() {
               variant="ghost"
               size="icon"
               className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setSearch("")}
+              onClick={() => {
+                setSearch("")
+                setPage(1)
+              }}
               aria-label={t("common.clearSearch")}
             >
               <X className="size-3.5" />
@@ -206,7 +219,10 @@ export function UsersPage() {
               variant={statusFilter === item.key ? "secondary" : "ghost"}
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => setStatusFilter(item.key)}
+              onClick={() => {
+                setStatusFilter(item.key)
+                setPage(1)
+              }}
             >
               <span>{item.label}</span>
               <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
@@ -257,7 +273,7 @@ export function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((u) => {
+              {pagedUsers.map((u) => {
                 const st = getUserStatus(u, t)
                 return (
                   <TableRow
@@ -380,6 +396,13 @@ export function UsersPage() {
               })}
             </TableBody>
           </Table>
+          <TablePagination
+            total={filtered.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

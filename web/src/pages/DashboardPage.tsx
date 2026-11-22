@@ -32,7 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
-import { daysUntil, formatBytes, formatRate } from "@/lib/format"
+import { daysUntil, formatBytes, formatBytesCompact, formatRate } from "@/lib/format"
 import { PROTOCOL_LABELS, type DashboardRange, type Protocol } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -391,7 +391,7 @@ export function DashboardPage() {
                   responsive
                   style={{ width: "100%", height: "100%" }}
                   data={trendData}
-                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                  margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
@@ -411,11 +411,11 @@ export function DashboardPage() {
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tickFormatter={(v) => formatBytesCompact(Number(v))}
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
-                    width={66}
+                    width={72}
                   />
                   <RechartsTooltip
                     contentStyle={TOOLTIP_STYLE}
@@ -554,7 +554,7 @@ export function DashboardPage() {
                   responsive
                   style={{ width: "100%", height: "100%" }}
                   data={nodeTrafficData}
-                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                  margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis
@@ -564,11 +564,11 @@ export function DashboardPage() {
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tickFormatter={(v) => formatBytesCompact(Number(v))}
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
-                    width={66}
+                    width={72}
                   />
                   <RechartsTooltip
                     contentStyle={TOOLTIP_STYLE}
@@ -618,7 +618,7 @@ export function DashboardPage() {
                   responsive
                   style={{ width: "100%", height: "100%" }}
                   data={userTrafficData}
-                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                  margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis
@@ -628,11 +628,11 @@ export function DashboardPage() {
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tickFormatter={(v) => formatBytesCompact(Number(v))}
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     axisLine={false}
                     tickLine={false}
-                    width={66}
+                    width={72}
                   />
                   <RechartsTooltip
                     contentStyle={TOOLTIP_STYLE}
@@ -728,7 +728,7 @@ export function DashboardPage() {
                           />
                           <span className="truncate font-medium text-foreground">{item.label}</span>
                         </div>
-                        <div className="shrink-0 text-right text-muted-foreground">
+                        <div className="shrink-0 whitespace-nowrap text-right text-muted-foreground">
                           <span className="text-foreground">{formatBytes(item.value)}</span>{" "}
                           <span>({pct}%)</span>
                         </div>

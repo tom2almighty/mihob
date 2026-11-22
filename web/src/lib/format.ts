@@ -10,6 +10,14 @@ export function formatBytes(bytes: number): string {
   return `${val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2)} ${units[i]}`
 }
 
+export function formatBytesCompact(bytes: number): string {
+  if (!bytes || bytes <= 0) return "0B"
+  const units = ["B", "KB", "MB", "GB", "TB", "PB"]
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const val = bytes / Math.pow(1024, i)
+  return `${val >= 100 ? val.toFixed(0) : val >= 10 ? val.toFixed(1) : val.toFixed(2)}${units[i]}`
+}
+
 export function formatRate(bytesPerSec: number): string {
   return `${formatBytes(bytesPerSec)}/s`
 }

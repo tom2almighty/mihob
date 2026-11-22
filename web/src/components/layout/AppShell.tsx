@@ -75,8 +75,8 @@ function SidebarNavItem({
         "flex h-9 w-full shrink-0 items-center rounded-md px-2.5 text-sm transition-colors duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         isActive
-          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-2xs"
-          : "font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+          ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground shadow-2xs"
+          : "font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       )}
     >
       <Icon className="size-4 shrink-0" />
@@ -179,7 +179,7 @@ export function ThemeSwitcher({
   onOpenThemeSettings?: () => void
 } = {}) {
   const { t } = useTranslation()
-  const { theme, setTheme, activeTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   return (
     <DropdownMenu>
@@ -225,9 +225,6 @@ export function ThemeSwitcher({
             <DropdownMenuItem onClick={onOpenThemeSettings} className="whitespace-nowrap">
               <Palette className="mr-2 size-4 shrink-0" />
               <span className="flex-1 truncate">{t("nav.manageThemes")}</span>
-              <span className="ml-2 max-w-20 truncate text-[11px] text-muted-foreground">
-                {activeTheme.name}
-              </span>
             </DropdownMenuItem>
           </>
         )}
@@ -253,7 +250,7 @@ function SidebarFooter({
     <Button
       variant="ghost"
       className={cn(
-        "h-9 w-full justify-start px-2 font-normal text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+        "h-9 w-full justify-start px-2 font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         collapsed && "px-0 justify-center"
       )}
       aria-label={t("nav.adminAccount")}
@@ -422,7 +419,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 shrink-0 text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                  className="size-8 shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   onClick={toggleCollapsed}
                   aria-label={collapsed ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
                 >

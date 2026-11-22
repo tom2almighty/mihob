@@ -40,6 +40,12 @@
     "dragDisabledFiltered": "清空搜索或筛选后可拖拽排序",
     "reorderFailed": "排序保存失败",
     "removeTag": "移除标签 {{tag}}",
+    "pagination": {
+      "summary": "第 {{start}}-{{end}} 条，共 {{total}} 条",
+      "perPage": "每页",
+      "prevPage": "上一页",
+      "nextPage": "下一页"
+    },
     "datePresets": {
       "placeholder": "快捷选择...",
       "plus7d": "7 天后",
@@ -217,6 +223,8 @@
       "updateAvailable": "可升级",
       "upgradeMenu": "升级 Mihomo 内核",
       "upgradeMenuWithVer": "升级内核至 {{version}}",
+      "alreadyLatest": "内核已是最新",
+      "agentTooOld": "升级内核（需先更新 Agent）",
       "singleDialogTitle": "升级节点「{{name}}」内核至 {{version}}",
       "batchDialogTitle": "批量升级 {{count}} 台节点内核至 {{version}}",
       "dialogDesc": "Hub 将从官方 Release 下载并缓存二进制，通过节点 Token 安全下发；Agent 端会校验 SHA-256、执行 mihomo -t 配置兼容性预检，若重启探活失败将自动回滚至原版本。",
@@ -769,8 +777,6 @@
       "projects": "项目地址"
     },
     "appearance": {
-      "modeCardTitle": "亮暗模式",
-      "modeCardDesc": "切换控制台界面的亮色、深色或跟随操作系统外观（与下方主题配色自动适配）",
       "themeCardTitle": "shadcn/ui 主题配置",
       "themeCardDesc": "内置精选 tweakcn 主题，支持直接粘贴 CSS / Registry JSON 或输入链接导入，全站（含登录页与订阅页）实时生效",
       "openTweakcn": "打开 tweakcn",

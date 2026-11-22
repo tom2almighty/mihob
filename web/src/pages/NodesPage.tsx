@@ -25,6 +25,7 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
+  TablePagination,
   TrafficProgress,
 } from "@/components/common/CommonUI"
 import {
@@ -86,6 +87,7 @@ function isVersionOlder(current?: string, latest?: string): boolean {
 function canUpgradeNode(n: Node): boolean {
   return (
     n.online &&
+    Boolean(n.supports_core_upgrade) &&
     n.upgrade_status !== "upgrading" &&
     (!n.os || n.os === "linux") &&
     (n.arch === "amd64" || n.arch === "arm64")
@@ -97,6 +99,8 @@ export function NodesPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
   const [editingNode, setEditingNode] = useState<Node | null>(null)
   const [installNodeId, setInstallNodeId] = useState<number | null>(null)
@@ -245,6 +249,10 @@ export function NodesPage() {
   const hasActiveFilter = Boolean(search.trim()) || statusFilter !== "all"
   const canDrag = !hasActiveFilter && filtered.length > 1
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pagedNodes = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
   const { draggingId, overId, getRowDragProps } = useDragReorder({
     items: allNodes,
     enabled: canDrag,
@@ -340,7 +348,10 @@ export function NodesPage() {
           <Input
             placeholder={t("nodes.searchPlaceholder")}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             className="pr-8 pl-9"
           />
           {search && (
@@ -349,7 +360,10 @@ export function NodesPage() {
               variant="ghost"
               size="icon"
               className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setSearch("")}
+              onClick={() => {
+                setSearch("")
+                setPage(1)
+              }}
               aria-label={t("common.clearSearch")}
             >
               <X className="size-3.5" />
@@ -371,7 +385,10 @@ export function NodesPage() {
               variant={statusFilter === item.key ? "secondary" : "ghost"}
               size="sm"
               className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => setStatusFilter(item.key)}
+              onClick={() => {
+                setStatusFilter(item.key)
+                setPage(1)
+              }}
             >
               <span>{item.label}</span>
               <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
@@ -423,7 +440,7 @@ export function NodesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((n) => (
+              {pagedNodes.map((n) => (
                 <TableRow
                   key={n.id}
                   {...getRowDragProps(n.id)}
@@ -670,15 +687,34 @@ export function NodesPage() {
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.restartMihomo")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={!canUpgradeNode(n) || !latestVersion}
-                            onClick={() => setUpgradeTarget({ mode: "single", node: n })}
-                          >
-                            <ArrowUpCircle className="mr-2 size-4" />
-                            {latestVersion
-                              ? t("nodes.mihomo.upgradeMenuWithVer", { version: latestVersion })
-                              : t("nodes.mihomo.upgradeMenu")}
-                          </DropdownMenuItem>
+                          {(() => {
+                            const hasUpdate = Boolean(
+                              latestVersion && isVersionOlder(n.mihomo_version, latestVersion)
+                            )
+                            const alreadyLatest = Boolean(
+                              latestVersion &&
+                                n.mihomo_version &&
+                                !isVersionOlder(n.mihomo_version, latestVersion)
+                            )
+                            const agentTooOld = n.online && !n.supports_core_upgrade
+                            const disabled = !canUpgradeNode(n) || !hasUpdate
+                            const label = agentTooOld
+                              ? t("nodes.mihomo.agentTooOld")
+                              : alreadyLatest
+                                ? t("nodes.mihomo.alreadyLatest")
+                                : latestVersion
+                                  ? t("nodes.mihomo.upgradeMenuWithVer", { version: latestVersion })
+                                  : t("nodes.mihomo.upgradeMenu")
+                            return (
+                              <DropdownMenuItem
+                                disabled={disabled}
+                                onClick={() => setUpgradeTarget({ mode: "single", node: n })}
+                              >
+                                <ArrowUpCircle className="mr-2 size-4" />
+                                {label}
+                              </DropdownMenuItem>
+                            )
+                          })()}
                           <DropdownMenuItem onClick={() => resetTrafficMutation.mutate(n.id)}>
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.resetTraffic")}
@@ -699,6 +735,13 @@ export function NodesPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            total={filtered.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

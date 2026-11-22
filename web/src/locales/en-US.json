@@ -40,6 +40,12 @@
     "dragDisabledFiltered": "Clear search or filters to reorder",
     "reorderFailed": "Failed to save order",
     "removeTag": "Remove tag {{tag}}",
+    "pagination": {
+      "summary": "{{start}}-{{end}} of {{total}}",
+      "perPage": "Rows",
+      "prevPage": "Previous page",
+      "nextPage": "Next page"
+    },
     "datePresets": {
       "placeholder": "Quick select...",
       "plus7d": "In 7 days",
@@ -217,6 +223,8 @@
       "updateAvailable": "Update",
       "upgradeMenu": "Upgrade Mihomo Core",
       "upgradeMenuWithVer": "Upgrade Core to {{version}}",
+      "alreadyLatest": "Core Up to Date",
+      "agentTooOld": "Upgrade Core (Update Agent First)",
       "singleDialogTitle": "Upgrade \"{{name}}\" Core to {{version}}",
       "batchDialogTitle": "Upgrade {{count}} Nodes to {{version}}",
       "dialogDesc": "Hub downloads and caches the official release binary and serves it over authenticated Node Token. Each Agent verifies SHA-256, runs mihomo -t pre-flight validation, and automatically rolls back if health checks fail.",
@@ -769,8 +777,6 @@
       "projects": "Projects"
     },
     "appearance": {
-      "modeCardTitle": "Color Mode",
-      "modeCardDesc": "Choose light, dark, or system color mode (paired automatically with the active theme palette)",
       "themeCardTitle": "shadcn/ui Themes",
       "themeCardDesc": "Switch built-in tweakcn presets or import custom themes via CSS, Registry JSON, or URL; synced across the console, login, and subscription pages",
       "openTweakcn": "Open tweakcn",
