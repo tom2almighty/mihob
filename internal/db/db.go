@@ -443,6 +443,9 @@ func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 	if v, err := s.GetSetting("sub_path"); err == nil && v != "" {
 		out.SubPath = v
 	}
+	if v, err := s.GetSetting("github_token"); err == nil {
+		out.GitHubToken = v
+	}
 	return out, nil
 }
 
@@ -463,6 +466,9 @@ func (s *Store) SaveSystemSettings(st *model.SystemSettings) error {
 		subPath = "sub"
 	}
 	if err := s.SetSetting("sub_path", subPath); err != nil {
+		return err
+	}
+	if err := s.SetSetting("github_token", st.GitHubToken); err != nil {
 		return err
 	}
 	return nil

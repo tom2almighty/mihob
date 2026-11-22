@@ -206,6 +206,29 @@ func (a *Agent) connectAndServe(ctx context.Context, wsURL string) error {
 		case protocol.MsgRestartMihomo:
 			log.Printf("[agent] restarting mihomo by hub command")
 			a.sup.Restart()
+
+		case protocol.MsgUpgradeMihomo:
+			var p protocol.UpgradeMihomoPayload
+			if err := json.Unmarshal(env.Payload, &p); err != nil {
+				_ = sendEnv(protocol.MsgUpgradeAck, env.RequestID, protocol.UpgradeAckPayload{
+					Success: false,
+					Error:   "invalid upgrade payload",
+				})
+				continue
+			}
+			reqID := env.RequestID
+			go func(payload protocol.UpgradeMihomoPayload, id string) {
+				ver, err := a.sup.UpgradeMihomo(sessionCtx, a.cfg.HubURL, a.cfg.NodeToken, &payload)
+				ack := protocol.UpgradeAckPayload{
+					Success: err == nil,
+					Version: ver,
+				}
+				if err != nil {
+					ack.Error = err.Error()
+					log.Printf("[agent] mihomo upgrade to %s failed: %v", payload.Version, err)
+				}
+				_ = sendEnv(protocol.MsgUpgradeAck, id, ack)
+			}(p, reqID)
 		}
 	}
 }

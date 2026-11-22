@@ -22,6 +22,11 @@ type NodeRuntime struct {
 	Online            bool
 	MihomoRunning     bool
 	MihomoVersion     string
+	OS                string
+	Arch              string
+	UpgradeStatus     string
+	UpgradeError      string
+	UpgradeTarget     string
 	CPUPercent        float64
 	MemUsed           uint64
 	MemTotal          uint64
@@ -79,6 +84,11 @@ func (m *WSManager) EnrichNode(n *model.Node) {
 	rt := m.GetRuntime(n.ID)
 	n.Online = rt.Online
 	n.MihomoRunning = rt.MihomoRunning
+	n.OS = rt.OS
+	n.Arch = rt.Arch
+	n.UpgradeStatus = rt.UpgradeStatus
+	n.UpgradeError = rt.UpgradeError
+	n.UpgradeTarget = rt.UpgradeTarget
 	n.CPUPercent = rt.CPUPercent
 	n.MemUsed = rt.MemUsed
 	n.MemTotal = rt.MemTotal
@@ -168,6 +178,8 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 		if err := json.Unmarshal(env.Payload, &p); err == nil {
 			m.mu.Lock()
 			ac.runtime.MihomoVersion = p.MihomoVersion
+			ac.runtime.OS = p.OS
+			ac.runtime.Arch = p.Arch
 			m.mu.Unlock()
 			_ = m.store.UpdateNodeAgentInfo(ac.NodeID, p.AgentVersion, p.MihomoVersion)
 		}
@@ -203,6 +215,29 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 		var p protocol.TrafficReportPayload
 		if err := json.Unmarshal(env.Payload, &p); err == nil {
 			m.processTrafficReport(ac.NodeID, &p)
+		}
+
+	case protocol.MsgUpgradeAck:
+		var p protocol.UpgradeAckPayload
+		if err := json.Unmarshal(env.Payload, &p); err == nil {
+			m.mu.Lock()
+			if p.Success {
+				ac.runtime.UpgradeStatus = "success"
+				ac.runtime.UpgradeError = ""
+				if p.Version != "" {
+					ac.runtime.MihomoVersion = p.Version
+				}
+			} else {
+				ac.runtime.UpgradeStatus = "error"
+				ac.runtime.UpgradeError = p.Error
+			}
+			m.mu.Unlock()
+			if p.Success && p.Version != "" {
+				_ = m.store.TouchNodeSeen(ac.NodeID, p.Version)
+				log.Printf("[ws] node #%d mihomo upgraded to %s", ac.NodeID, p.Version)
+			} else if !p.Success {
+				log.Printf("[ws] node #%d mihomo upgrade failed: %s", ac.NodeID, p.Error)
+			}
 		}
 	}
 }
@@ -383,4 +418,42 @@ func (m *WSManager) RestartNodeMihomo(nodeID int64) error {
 		return err
 	}
 	return ac.Send(env)
+}
+
+func (m *WSManager) UpgradeNodeMihomo(nodeID int64, version, downloadPath, sha256Hex string) error {
+	m.mu.Lock()
+	ac, online := m.conns[nodeID]
+	if !online {
+		m.mu.Unlock()
+		return fmt.Errorf("node is offline")
+	}
+	if ac.runtime.UpgradeStatus == "upgrading" {
+		m.mu.Unlock()
+		return fmt.Errorf("upgrade already in progress")
+	}
+	ac.runtime.UpgradeStatus = "upgrading"
+	ac.runtime.UpgradeTarget = version
+	ac.runtime.UpgradeError = ""
+	m.mu.Unlock()
+
+	env, err := protocol.NewEnvelope(protocol.MsgUpgradeMihomo, crypto.RandomHex(6), protocol.UpgradeMihomoPayload{
+		Version:      version,
+		DownloadPath: downloadPath,
+		SHA256:       sha256Hex,
+	})
+	if err != nil {
+		m.mu.Lock()
+		ac.runtime.UpgradeStatus = "error"
+		ac.runtime.UpgradeError = err.Error()
+		m.mu.Unlock()
+		return err
+	}
+	if err := ac.Send(env); err != nil {
+		m.mu.Lock()
+		ac.runtime.UpgradeStatus = "error"
+		ac.runtime.UpgradeError = err.Error()
+		m.mu.Unlock()
+		return fmt.Errorf("send upgrade_mihomo: %w", err)
+	}
+	return nil
 }

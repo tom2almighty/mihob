@@ -85,6 +85,11 @@ type Node struct {
 	// Runtime fields populated from WS manager
 	Online            bool    `json:"online"`
 	MihomoRunning     bool    `json:"mihomo_running"`
+	OS                string  `json:"os,omitempty"`
+	Arch              string  `json:"arch,omitempty"`
+	UpgradeStatus     string  `json:"upgrade_status,omitempty"` // "" | "upgrading" | "success" | "error"
+	UpgradeError      string  `json:"upgrade_error,omitempty"`
+	UpgradeTarget     string  `json:"upgrade_target,omitempty"`
 	CPUPercent        float64 `json:"cpu_percent"`
 	MemUsed           uint64  `json:"mem_used"`
 	MemTotal          uint64  `json:"mem_total"`
@@ -344,6 +349,16 @@ type SystemSettings struct {
 	ACMEEmail    string `json:"acme_email"`
 	AgentImage   string `json:"agent_image"`
 	SubPath      string `json:"sub_path"`
+	GitHubToken  string `json:"github_token"`
+}
+
+type MihomoReleaseInfo struct {
+	Version     string    `json:"version"`
+	PublishedAt string    `json:"published_at,omitempty"`
+	ReleaseURL  string    `json:"release_url,omitempty"`
+	Assets      []string  `json:"assets"`
+	CheckedAt   time.Time `json:"checked_at"`
+	Cached      bool      `json:"cached"`
 }
 
 type CustomTheme struct {

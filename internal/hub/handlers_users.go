@@ -636,6 +636,7 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	req.HubPublicURL = strings.TrimRight(strings.TrimSpace(req.HubPublicURL), "/")
 	req.ACMEEmail = strings.TrimSpace(req.ACMEEmail)
 	req.AgentImage = strings.TrimSpace(req.AgentImage)
+	req.GitHubToken = strings.TrimSpace(req.GitHubToken)
 
 	normSubPath, err := normalizeSubPath(req.SubPath)
 	if err != nil {

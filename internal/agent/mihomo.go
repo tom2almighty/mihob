@@ -25,13 +25,16 @@ import (
 )
 
 type MihomoSupervisor struct {
-	binPath    string
-	dataDir    string
-	socketPath string
-	ctrlAddr   string
-	secret     string
+	defaultBinPath string
+	managedBinPath string
+	binPath        string
+	dataDir        string
+	socketPath     string
+	ctrlAddr       string
+	secret         string
 
 	mu         sync.RWMutex
+	upgradeMu  sync.Mutex
 	cmd        *exec.Cmd
 	running    bool
 	version    string
@@ -53,13 +56,22 @@ func NewMihomoSupervisor(binPath, dataDir string) *MihomoSupervisor {
 	ctrlAddr := "127.0.0.1:19090"
 	secret := crypto.RandomHex(16)
 
+	managedName := "mihomo"
+	if runtime.GOOS == "windows" {
+		managedName = "mihomo.exe"
+	}
+	managedPath := filepath.Join(dataDir, "bin", managedName)
+	activeBin := resolveInitialMihomoBin(binPath, managedPath)
+
 	s := &MihomoSupervisor{
-		binPath:    binPath,
-		dataDir:    dataDir,
-		socketPath: sockPath,
-		ctrlAddr:   ctrlAddr,
-		secret:     secret,
-		restartCh:  make(chan struct{}, 1),
+		defaultBinPath: binPath,
+		managedBinPath: managedPath,
+		binPath:        activeBin,
+		dataDir:        dataDir,
+		socketPath:     sockPath,
+		ctrlAddr:       ctrlAddr,
+		secret:         secret,
+		restartCh:      make(chan struct{}, 1),
 	}
 
 	if runtime.GOOS != "windows" {
@@ -132,12 +144,13 @@ func (s *MihomoSupervisor) superviseLoop(ctx context.Context) {
 			_ = os.Remove(s.socketPath)
 		}
 
-		cmd := exec.CommandContext(ctx, s.binPath, "-d", s.dataDir, "-f", cfgPath)
+		binPath := s.currentBinPath()
+		cmd := exec.CommandContext(ctx, binPath, "-d", s.dataDir, "-f", cfgPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Start(); err != nil {
-			log.Printf("[mihomo] failed to start (%s): %v; retrying in 5s", s.binPath, err)
+			log.Printf("[mihomo] failed to start (%s): %v; retrying in 5s", binPath, err)
 			s.setRunning(false, nil)
 			select {
 			case <-ctx.Done():
@@ -192,6 +205,18 @@ func (s *MihomoSupervisor) setRunning(running bool, cmd *exec.Cmd) {
 	defer s.mu.Unlock()
 	s.running = running
 	s.cmd = cmd
+}
+
+func (s *MihomoSupervisor) currentBinPath() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.binPath
+}
+
+func (s *MihomoSupervisor) setBinPath(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.binPath = path
 }
 
 func (s *MihomoSupervisor) Status() (running bool, version string, configHash string) {
@@ -255,7 +280,7 @@ func (s *MihomoSupervisor) ApplyConfig(payload *protocol.PushConfigPayload) erro
 	}
 	defer func() { _ = os.Remove(candPath) }()
 
-	testCmd := exec.Command(s.binPath, "-t", "-d", s.dataDir, "-f", candPath)
+	testCmd := exec.Command(s.currentBinPath(), "-t", "-d", s.dataDir, "-f", candPath)
 	if out, err := testCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("mihomo config validation failed: %s", strings.TrimSpace(string(out)))
 	}

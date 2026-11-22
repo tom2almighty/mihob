@@ -680,7 +680,7 @@ INSTALL_DIR="/opt/mihob-agent"
 MIHOB_REPO="${MIHOB_REPO:-tom2almighty/mihob}"
 MIHOB_VERSION="${MIHOB_VERSION:-latest}"
 MIHOB_BIN_URL="${MIHOB_BIN_URL:-}"
-MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.34}"
+MIHOMO_VERSION="${MIHOMO_VERSION:-latest}"
 UNINSTALL=0
 UPDATE=0
 
@@ -829,6 +829,10 @@ fi
 mkdir -p "$INSTALL_DIR/data"
 
 if ! command -v mihomo >/dev/null 2>&1; then
+  if [[ "$MIHOMO_VERSION" == "latest" ]]; then
+    MIHOMO_VERSION="$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" 2>/dev/null | grep -Eo '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]+"' | head -n 1 | sed -E 's/.*"([^"]+)"/\1/' || true)"
+    MIHOMO_VERSION="${MIHOMO_VERSION:-v1.19.34}"
+  fi
   echo "[mihob] Installing mihomo ${MIHOMO_VERSION} (${GO_ARCH})..."
   TMP_GZ="/tmp/mihomo.gz"
   curl -fL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-${GO_ARCH}-${MIHOMO_VERSION}.gz" -o "$TMP_GZ"

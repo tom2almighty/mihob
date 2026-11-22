@@ -21,6 +21,7 @@ type Server struct {
 	store     *db.Store
 	ws        *WSManager
 	acme      *acme.Manager
+	mihomo    *MihomoReleaseManager
 	scheduler *Scheduler
 	jwtSecret string
 	webFS     fs.FS
@@ -40,6 +41,7 @@ func NewServer(cfg Config) (*Server, error) {
 		return nil, err
 	}
 	acmeMgr := acme.NewManager(cfg.DataDir)
+	mihomoMgr := NewMihomoReleaseManager(cfg.Store, cfg.DataDir)
 	wsMgr := NewWSManager(cfg.Store)
 	sched := NewScheduler(cfg.Store, wsMgr, acmeMgr)
 
@@ -47,6 +49,7 @@ func NewServer(cfg Config) (*Server, error) {
 		store:     cfg.Store,
 		ws:        wsMgr,
 		acme:      acmeMgr,
+		mihomo:    mihomoMgr,
 		scheduler: sched,
 		jwtSecret: jwtSecret,
 		webFS:     cfg.WebFS,
@@ -81,6 +84,8 @@ func (s *Server) Router() http.Handler {
 		api.Get("/public/sub", s.handlePublicSubInfo)
 		// Public active theme endpoint for login / subscription / initial render
 		api.Get("/public/theme", s.handlePublicTheme)
+		// Agent-authenticated mihomo binary download endpoint (X-Node-Token)
+		api.Get("/agent/mihomo-binary", s.handleAgentMihomoBinary)
 
 		// Protected Admin routes
 		api.Group(func(pr chi.Router) {
@@ -102,7 +107,10 @@ func (s *Server) Router() http.Handler {
 			pr.Post("/nodes/{id}/regenerate-token", s.handleRegenerateNodeToken)
 			pr.Post("/nodes/{id}/push-config", s.handlePushNodeConfig)
 			pr.Post("/nodes/{id}/restart", s.handleRestartNode)
+			pr.Post("/nodes/{id}/upgrade-mihomo", s.handleUpgradeNodeMihomo)
+			pr.Post("/nodes/upgrade-mihomo", s.handleBatchUpgradeMihomo)
 			pr.Get("/nodes/{id}/install", s.handleNodeInstallCommands)
+			pr.Get("/mihomo/latest", s.handleLatestMihomo)
 
 			// Inbounds
 			pr.Get("/inbounds", s.handleListAllInbounds)

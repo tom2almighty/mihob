@@ -9,6 +9,8 @@ const (
 	MsgConfigAck     = "config_ack"
 	MsgKickUser      = "kick_user"
 	MsgRestartMihomo = "restart_mihomo"
+	MsgUpgradeMihomo = "upgrade_mihomo"
+	MsgUpgradeAck    = "upgrade_ack"
 	MsgTrafficReport = "traffic_report"
 	MsgCommandAck    = "command_ack"
 	MsgPing          = "ping"
@@ -96,5 +98,17 @@ type TrafficReportPayload struct {
 type CommandAckPayload struct {
 	Success bool   `json:"success"`
 	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+type UpgradeMihomoPayload struct {
+	Version      string `json:"version"`
+	DownloadPath string `json:"download_path"`
+	SHA256       string `json:"sha256"`
+}
+
+type UpgradeAckPayload struct {
+	Success bool   `json:"success"`
+	Version string `json:"version,omitempty"`
 	Error   string `json:"error,omitempty"`
 }
