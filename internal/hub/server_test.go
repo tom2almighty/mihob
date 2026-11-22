@@ -293,7 +293,7 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	_ = store.RecordTrafficHourly(node.ID, 1024, 4096)
 	_ = store.RecordUserTrafficHourly(user.ID, 1024, 4096)
 	_ = store.RecordProtocolTrafficHourly(model.ProtoVLESS, 1024, 4096)
-	for _, rng := range []string{"24h", "7d", "30d", "90d"} {
+	for _, rng := range []string{"24h", "7d", "30d", "all"} {
 		resp, raw = doJSON(http.MethodGet, "/api/dashboard?range="+rng, tok, nil)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("dashboard (%s) failed: %d %s", rng, resp.StatusCode, string(raw))

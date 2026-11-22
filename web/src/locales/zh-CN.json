@@ -110,7 +110,7 @@
     "range24h": "24小时",
     "range7d": "7天",
     "range30d": "30天",
-    "range90d": "90天",
+    "rangeAll": "全部",
     "metricTotal": "总流量",
     "metricDownload": "下行",
     "metricUpload": "上行",

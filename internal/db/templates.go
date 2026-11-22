@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/mihob/mihob/internal/model"
@@ -160,7 +161,7 @@ func (s *Store) PruneOldTrafficHourly(keepDays int) error {
 
 func NormalizeDashboardRange(r string) string {
 	switch r {
-	case "7d", "30d", "90d":
+	case "7d", "30d", "all":
 		return r
 	default:
 		return "24h"
@@ -176,9 +177,8 @@ func rangeSinceBucket(rangeKey string, now time.Time) (since string, days int, b
 	case "30d":
 		startDay := now.Truncate(24*time.Hour).AddDate(0, 0, -29)
 		return startDay.Format("2006-01-02") + " 00:00", 30, true
-	case "90d":
-		startDay := now.Truncate(24*time.Hour).AddDate(0, 0, -89)
-		return startDay.Format("2006-01-02") + " 00:00", 90, true
+	case "all":
+		return "", 0, true
 	default:
 		startHour := now.Truncate(time.Hour).Add(-23 * time.Hour)
 		return startHour.Format("2006-01-02 15:00"), 1, false
@@ -187,30 +187,48 @@ func rangeSinceBucket(rangeKey string, now time.Time) (since string, days int, b
 
 func (s *Store) QueryTrafficSeries(rangeKey string) ([]model.TrafficPoint, error) {
 	now := time.Now().UTC()
-	since, days, byDay := rangeSinceBucket(rangeKey, now)
+	norm := NormalizeDashboardRange(rangeKey)
+	since, days, byDay := rangeSinceBucket(norm, now)
 
 	if !byDay {
 		return s.QueryTrafficHourly(24)
 	}
 
-	rows, err := s.db.Query(
-		`SELECT substr(bucket, 1, 10) AS day_bucket, SUM(upload), SUM(download)
-		 FROM traffic_hourly
-		 WHERE bucket >= ?
-		 GROUP BY day_bucket
-		 ORDER BY day_bucket ASC`,
-		since,
+	var (
+		rows *sql.Rows
+		err  error
 	)
+	if norm == "all" {
+		rows, err = s.db.Query(
+			`SELECT substr(bucket, 1, 10) AS day_bucket, SUM(upload), SUM(download)
+			 FROM traffic_hourly
+			 GROUP BY day_bucket
+			 ORDER BY day_bucket ASC`,
+		)
+	} else {
+		rows, err = s.db.Query(
+			`SELECT substr(bucket, 1, 10) AS day_bucket, SUM(upload), SUM(download)
+			 FROM traffic_hourly
+			 WHERE bucket >= ?
+			 GROUP BY day_bucket
+			 ORDER BY day_bucket ASC`,
+			since,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	byBucket := map[string]model.TrafficPoint{}
+	earliestDay := ""
 	for rows.Next() {
 		var p model.TrafficPoint
 		if err := rows.Scan(&p.Bucket, &p.Upload, &p.Download); err != nil {
 			return nil, err
+		}
+		if earliestDay == "" || p.Bucket < earliestDay {
+			earliestDay = p.Bucket
 		}
 		byBucket[p.Bucket] = p
 	}
@@ -218,8 +236,32 @@ func (s *Store) QueryTrafficSeries(rangeKey string) ([]model.TrafficPoint, error
 		return nil, err
 	}
 
-	out := make([]model.TrafficPoint, 0, days)
 	today := now.Truncate(24 * time.Hour)
+	if norm == "all" {
+		// Span from the earliest recorded day to today (minimum 7 days so the chart has a clean axis).
+		startDay := today.AddDate(0, 0, -6)
+		if earliestDay != "" {
+			if parsed, parseErr := time.Parse("2006-01-02", earliestDay); parseErr == nil && parsed.Before(startDay) {
+				startDay = parsed
+			}
+		}
+		spanDays := int(today.Sub(startDay)/(24*time.Hour)) + 1
+		if spanDays < 1 {
+			spanDays = 1
+		}
+		out := make([]model.TrafficPoint, 0, spanDays)
+		for d := startDay; !d.After(today); d = d.AddDate(0, 0, 1) {
+			b := d.Format("2006-01-02")
+			if p, ok := byBucket[b]; ok {
+				out = append(out, p)
+			} else {
+				out = append(out, model.TrafficPoint{Bucket: b})
+			}
+		}
+		return out, nil
+	}
+
+	out := make([]model.TrafficPoint, 0, days)
 	for i := days - 1; i >= 0; i-- {
 		b := today.AddDate(0, 0, -i).Format("2006-01-02")
 		if p, ok := byBucket[b]; ok {

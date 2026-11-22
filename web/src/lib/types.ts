@@ -261,7 +261,7 @@ export interface Template {
   updated_at: string
 }
 
-export type DashboardRange = "24h" | "7d" | "30d" | "90d"
+export type DashboardRange = "24h" | "7d" | "30d" | "all"
 
 export interface TrafficPoint {
   bucket: string

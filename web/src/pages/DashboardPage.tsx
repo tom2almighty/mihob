@@ -124,17 +124,25 @@ export function DashboardPage() {
   const data = query.data
   const s = data?.summary
 
-  const trendData = useMemo(
-    () =>
-      (data?.traffic_series ?? []).map((pt) => ({
-        label: range === "24h" ? pt.bucket.slice(11, 16) : pt.bucket.slice(5, 10),
-        bucket: pt.bucket,
-        upload: pt.upload,
-        download: pt.download,
-        total: pt.upload + pt.download,
-      })),
-    [data?.traffic_series, range]
-  )
+  const trendData = useMemo(() => {
+    const series = data?.traffic_series ?? []
+    const spansMultiYear =
+      range === "all" &&
+      series.length > 1 &&
+      series[0].bucket.slice(0, 4) !== series[series.length - 1].bucket.slice(0, 4)
+    return series.map((pt) => ({
+      label:
+        range === "24h"
+          ? pt.bucket.slice(11, 16)
+          : spansMultiYear
+            ? pt.bucket.slice(0, 10)
+            : pt.bucket.slice(5, 10),
+      bucket: pt.bucket,
+      upload: pt.upload,
+      download: pt.download,
+      total: pt.upload + pt.download,
+    }))
+  }, [data?.traffic_series, range])
 
   const nodeTrafficData = useMemo(
     () =>
@@ -268,8 +276,8 @@ export function DashboardPage() {
                 <TabsTrigger value="30d" className="min-h-7 px-2.5 text-xs">
                   {t("dashboard.range30d")}
                 </TabsTrigger>
-                <TabsTrigger value="90d" className="min-h-7 px-2.5 text-xs">
-                  {t("dashboard.range90d")}
+                <TabsTrigger value="all" className="min-h-7 px-2.5 text-xs">
+                  {t("dashboard.rangeAll")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -349,7 +357,21 @@ export function DashboardPage() {
                 </CardTitle>
                 <CardDescription className="text-xs">{t("dashboard.chartDescription")}</CardDescription>
               </div>
-              <MetricTabs value={trendMetric} onChange={setTrendMetric} />
+              <div className="flex flex-wrap items-center gap-3">
+                {trendMetric === "total" && (
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full bg-chart-1" />
+                      {t("dashboard.download")}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full bg-chart-2" />
+                      {t("dashboard.upload")}
+                    </span>
+                  </div>
+                )}
+                <MetricTabs value={trendMetric} onChange={setTrendMetric} />
+              </div>
             </div>
           </CardHeader>
           <CardContent className={CARD_CONTENT}>
@@ -367,10 +389,6 @@ export function DashboardPage() {
                       <linearGradient id="fillUp" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.25} />
                         <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="fillTotal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -398,30 +416,24 @@ export function DashboardPage() {
                             : t("dashboard.total"),
                       ]}
                     />
-                    {trendMetric === "total" ? (
-                      <>
-                        <Area
-                          type="monotone"
-                          dataKey="download"
-                          stroke="var(--chart-1)"
-                          strokeWidth={2}
-                          fill="url(#fillDown)"
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="upload"
-                          stroke="var(--chart-2)"
-                          strokeWidth={2}
-                          fill="url(#fillUp)"
-                        />
-                      </>
-                    ) : (
+                    {(trendMetric === "total" || trendMetric === "download") && (
                       <Area
+                        key="download"
                         type="monotone"
-                        dataKey={trendMetric}
-                        stroke={metricStrokeColor(trendMetric)}
+                        dataKey="download"
+                        stroke="var(--chart-1)"
                         strokeWidth={2}
-                        fill={trendMetric === "download" ? "url(#fillDown)" : "url(#fillUp)"}
+                        fill="url(#fillDown)"
+                      />
+                    )}
+                    {(trendMetric === "total" || trendMetric === "upload") && (
+                      <Area
+                        key="upload"
+                        type="monotone"
+                        dataKey="upload"
+                        stroke="var(--chart-2)"
+                        strokeWidth={2}
+                        fill="url(#fillUp)"
                       />
                     )}
                   </AreaChart>
