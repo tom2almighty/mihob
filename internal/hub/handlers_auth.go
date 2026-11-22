@@ -21,6 +21,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	admin, err := s.store.GetAdminByUsername(req.Username)
 	if err != nil || !crypto.CheckPassword(admin.PasswordHash, req.Password) {
+		if s.notify != nil {
+			s.notify.NotifyAdminLoginFailed(req.Username, r.RemoteAddr)
+		}
 		writeError(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}

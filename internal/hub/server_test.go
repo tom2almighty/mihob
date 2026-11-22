@@ -507,4 +507,112 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	if cp0["name"] != "UNLOCK-US" || cp0["type"] != "vless" || cp0["server"] != "us-unlock.example.com" {
 		t.Fatalf("unexpected expanded chain proxy: %+v", cp0)
 	}
+
+	// 14. Verify Notifications API (channels, rules, schedules, logs, reserved sub_path)
+	resp, _ = doJSON(http.MethodPut, "/api/settings", tok, map[string]any{
+		"agent_image": "ghcr.io/tom2almighty/mihob-agent:latest",
+		"sub_path":    "notifications",
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for reserved notifications sub_path, got %d", resp.StatusCode)
+	}
+
+	// Reject invalid Shoutrrr URL
+	resp, _ = doJSON(http.MethodPost, "/api/notifications/channels", tok, map[string]any{
+		"name": "Bad Channel",
+		"url":  "invalid-scheme://nope",
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid shoutrrr url, got %d", resp.StatusCode)
+	}
+
+	// Create valid Bark channel & verify URL is masked in response
+	resp, raw = doJSON(http.MethodPost, "/api/notifications/channels", tok, map[string]any{
+		"name":     "Ops Bark",
+		"provider": "bark",
+		"url":      "bark://:superSecretDeviceKey123@api.day.app?group=mihob",
+		"enabled":  true,
+		"events":   []string{"node_offline", "node_traffic"},
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create notification channel failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var ch model.NotificationChannel
+	_ = json.Unmarshal(raw, &ch)
+	if ch.ID == 0 || ch.URL != "" || strings.Contains(ch.MaskedURL, "superSecretDeviceKey123") {
+		t.Fatalf("unexpected channel response (secret should be masked): %+v", ch)
+	}
+
+	// Update channel without passing URL should preserve stored URL
+	resp, raw = doJSON(http.MethodPut, fmt.Sprintf("/api/notifications/channels/%d", ch.ID), tok, map[string]any{
+		"name":    "Ops Bark Renamed",
+		"enabled": false,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update notification channel failed: %d %s", resp.StatusCode, string(raw))
+	}
+	storedCh, err := store.GetNotificationChannel(ch.ID)
+	if err != nil || storedCh.URL != "bark://:superSecretDeviceKey123@api.day.app?group=mihob" || storedCh.Enabled {
+		t.Fatalf("expected stored URL preserved and enabled=false, got %+v (err=%v)", storedCh, err)
+	}
+
+	// Rules GET & PUT
+	resp, raw = doJSON(http.MethodGet, "/api/notifications/rules", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get notification rules failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var rules model.NotificationRules
+	_ = json.Unmarshal(raw, &rules)
+	rules.NodeOfflineDelaySec = 90
+	rules.NodeTrafficThresholds = []int{95, 80, 100}
+	resp, raw = doJSON(http.MethodPut, "/api/notifications/rules", tok, rules)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update notification rules failed: %d %s", resp.StatusCode, string(raw))
+	}
+	_ = json.Unmarshal(raw, &rules)
+	if rules.NodeOfflineDelaySec != 90 || len(rules.NodeTrafficThresholds) != 3 || rules.NodeTrafficThresholds[0] != 80 {
+		t.Fatalf("unexpected saved rules: %+v", rules)
+	}
+
+	// Schedules CRUD
+	resp, raw = doJSON(http.MethodPost, "/api/notifications/schedules", tok, map[string]any{
+		"name":                 "Daily Node Report",
+		"enabled":              true,
+		"frequency":            "daily",
+		"time_of_day":          "09:00",
+		"timezone":             "Asia/Shanghai",
+		"traffic_display_mode": "remaining",
+		"include_summary":      true,
+		"include_node_traffic": true,
+		"include_expiring":     true,
+		"channel_ids":          []int64{ch.ID},
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create schedule failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var sc model.NotificationSchedule
+	_ = json.Unmarshal(raw, &sc)
+	if sc.ID == 0 || sc.TrafficDisplayMode != "remaining" {
+		t.Fatalf("unexpected created schedule: %+v", sc)
+	}
+
+	// Logs list & clear
+	resp, _ = doJSON(http.MethodGet, "/api/notifications/logs", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list notification logs failed: %d", resp.StatusCode)
+	}
+	resp, _ = doJSON(http.MethodDelete, "/api/notifications/logs", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("clear notification logs failed: %d", resp.StatusCode)
+	}
+
+	// Cleanup schedule & channel
+	resp, _ = doJSON(http.MethodDelete, fmt.Sprintf("/api/notifications/schedules/%d", sc.ID), tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete schedule failed: %d", resp.StatusCode)
+	}
+	resp, _ = doJSON(http.MethodDelete, fmt.Sprintf("/api/notifications/channels/%d", ch.ID), tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete channel failed: %d", resp.StatusCode)
+	}
 }

@@ -431,3 +431,110 @@ type PublicSubInfo struct {
 	Nodes        []PublicSubNode `json:"nodes"`
 	YAML         string          `json:"yaml,omitempty"`
 }
+
+// Notification event types
+const (
+	NotifyEventNodeOffline     = "node_offline"
+	NotifyEventNodeOnline      = "node_online"
+	NotifyEventNodeConfigError = "node_config_error"
+	NotifyEventNodeUpgrade     = "node_upgrade"
+	NotifyEventNodeTraffic     = "node_traffic"
+	NotifyEventNodeExpiring    = "node_expiring"
+	NotifyEventHubStarted      = "hub_started"
+	NotifyEventCertRenew       = "cert_renew"
+	NotifyEventCertExpiring    = "cert_expiring"
+	NotifyEventUserExhausted   = "user_exhausted"
+	NotifyEventAdminLoginFail  = "admin_login_failed"
+	NotifyEventScheduledReport = "scheduled_report"
+	NotifyEventTest            = "test"
+)
+
+type NotificationChannel struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Provider  string    `json:"provider"` // telegram | bark | discord | generic | smtp | custom
+	URL       string    `json:"url,omitempty"`
+	MaskedURL string    `json:"masked_url,omitempty"`
+	Enabled   bool      `json:"enabled"`
+	Events    []string  `json:"events"` // empty => all alert events
+	Remark    string    `json:"remark"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type NotificationRules struct {
+	Enabled bool `json:"enabled"`
+
+	// Agent / Node events
+	NodeOffline           bool  `json:"node_offline"`
+	NodeOfflineDelaySec   int   `json:"node_offline_delay_sec"`
+	NodeOnline            bool  `json:"node_online"`
+	NodeConfigError       bool  `json:"node_config_error"`
+	NodeUpgrade           bool  `json:"node_upgrade"`
+	NodeTrafficAlert      bool  `json:"node_traffic_alert"`
+	NodeTrafficThresholds []int `json:"node_traffic_thresholds"`
+	NodeExpiring          bool  `json:"node_expiring"`
+	NodeExpiringDays      int   `json:"node_expiring_days"`
+
+	// Hub / Cert / Security events
+	HubStarted       bool `json:"hub_started"`
+	CertRenew        bool `json:"cert_renew"`
+	CertExpiring     bool `json:"cert_expiring"`
+	CertExpiringDays int  `json:"cert_expiring_days"`
+	UserExhausted    bool `json:"user_exhausted"`
+	AdminLoginFailed bool `json:"admin_login_failed"`
+}
+
+func DefaultNotificationRules() NotificationRules {
+	return NotificationRules{
+		Enabled:               true,
+		NodeOffline:           true,
+		NodeOfflineDelaySec:   60,
+		NodeOnline:            true,
+		NodeConfigError:       true,
+		NodeUpgrade:           true,
+		NodeTrafficAlert:      true,
+		NodeTrafficThresholds: []int{80, 95, 100},
+		NodeExpiring:          true,
+		NodeExpiringDays:      7,
+		HubStarted:            false,
+		CertRenew:             true,
+		CertExpiring:          true,
+		CertExpiringDays:      14,
+		UserExhausted:         false,
+		AdminLoginFailed:      true,
+	}
+}
+
+type NotificationSchedule struct {
+	ID                 int64      `json:"id"`
+	Name               string     `json:"name"`
+	Enabled            bool       `json:"enabled"`
+	Frequency          string     `json:"frequency"`            // daily | weekly | monthly
+	TimeOfDay          string     `json:"time_of_day"`          // "HH:MM"
+	Weekday            int        `json:"weekday"`              // 0=Sun..6=Sat
+	DayOfMonth         int        `json:"day_of_month"`         // 1..31
+	Timezone           string     `json:"timezone"`             // e.g. "Asia/Shanghai"
+	TrafficDisplayMode string     `json:"traffic_display_mode"` // used | remaining
+	IncludeSummary     bool       `json:"include_summary"`
+	IncludeNodeTraffic bool       `json:"include_node_traffic"`
+	NodeLimit          int        `json:"node_limit"` // 0 = all
+	IncludeExpiring    bool       `json:"include_expiring"`
+	IncludeTopUsers    bool       `json:"include_top_users"`
+	ChannelIDs         []int64    `json:"channel_ids"` // empty = all enabled
+	LastRunAt          *time.Time `json:"last_run_at"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+type NotificationLog struct {
+	ID          int64     `json:"id"`
+	EventType   string    `json:"event_type"`
+	ChannelID   *int64    `json:"channel_id"`
+	ChannelName string    `json:"channel_name"`
+	Title       string    `json:"title"`
+	Message     string    `json:"message"`
+	Status      string    `json:"status"` // success | failed
+	Error       string    `json:"error"`
+	CreatedAt   time.Time `json:"created_at"`
+}

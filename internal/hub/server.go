@@ -15,6 +15,7 @@ import (
 	"github.com/mihob/mihob/internal/acme"
 	"github.com/mihob/mihob/internal/crypto"
 	"github.com/mihob/mihob/internal/db"
+	"github.com/mihob/mihob/internal/notify"
 )
 
 type Server struct {
@@ -22,6 +23,7 @@ type Server struct {
 	ws        *WSManager
 	acme      *acme.Manager
 	mihomo    *MihomoReleaseManager
+	notify    *notify.Service
 	scheduler *Scheduler
 	jwtSecret string
 	webFS     fs.FS
@@ -42,14 +44,16 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 	acmeMgr := acme.NewManager(cfg.DataDir)
 	mihomoMgr := NewMihomoReleaseManager(cfg.Store, cfg.DataDir)
-	wsMgr := NewWSManager(cfg.Store)
-	sched := NewScheduler(cfg.Store, wsMgr, acmeMgr)
+	notifySvc := notify.NewService(cfg.Store)
+	wsMgr := NewWSManager(cfg.Store, notifySvc)
+	sched := NewScheduler(cfg.Store, wsMgr, acmeMgr, notifySvc)
 
 	return &Server{
 		store:     cfg.Store,
 		ws:        wsMgr,
 		acme:      acmeMgr,
 		mihomo:    mihomoMgr,
+		notify:    notifySvc,
 		scheduler: sched,
 		jwtSecret: jwtSecret,
 		webFS:     cfg.WebFS,
@@ -58,7 +62,9 @@ func NewServer(cfg Config) (*Server, error) {
 }
 
 func (s *Server) StartBackground(ctx context.Context) {
+	go s.notify.Start(ctx)
 	go s.scheduler.Start(ctx)
+	s.notify.NotifyHubStarted(s.version)
 }
 
 func (s *Server) Router() http.Handler {
@@ -154,6 +160,26 @@ func (s *Server) Router() http.Handler {
 			pr.Get("/themes", s.handleGetThemes)
 			pr.Put("/themes", s.handleUpdateThemes)
 			pr.Post("/themes/fetch", s.handleFetchThemeURL)
+
+			// Notifications
+			pr.Get("/notifications/channels", s.handleListNotificationChannels)
+			pr.Post("/notifications/channels", s.handleCreateNotificationChannel)
+			pr.Put("/notifications/channels/{id}", s.handleUpdateNotificationChannel)
+			pr.Delete("/notifications/channels/{id}", s.handleDeleteNotificationChannel)
+			pr.Post("/notifications/channels/{id}/test", s.handleTestNotificationChannel)
+			pr.Post("/notifications/test-url", s.handleTestNotificationURL)
+
+			pr.Get("/notifications/rules", s.handleGetNotificationRules)
+			pr.Put("/notifications/rules", s.handleUpdateNotificationRules)
+
+			pr.Get("/notifications/schedules", s.handleListNotificationSchedules)
+			pr.Post("/notifications/schedules", s.handleCreateNotificationSchedule)
+			pr.Put("/notifications/schedules/{id}", s.handleUpdateNotificationSchedule)
+			pr.Delete("/notifications/schedules/{id}", s.handleDeleteNotificationSchedule)
+			pr.Post("/notifications/schedules/{id}/run", s.handleRunNotificationSchedule)
+
+			pr.Get("/notifications/logs", s.handleListNotificationLogs)
+			pr.Delete("/notifications/logs", s.handleClearNotificationLogs)
 		})
 	})
 

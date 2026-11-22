@@ -15,6 +15,7 @@ import (
 	"github.com/mihob/mihob/internal/db"
 	"github.com/mihob/mihob/internal/mihomogen"
 	"github.com/mihob/mihob/internal/model"
+	"github.com/mihob/mihob/internal/notify"
 	"github.com/mihob/mihob/internal/protocol"
 )
 
@@ -54,17 +55,19 @@ func (a *AgentConn) Send(env *protocol.Envelope) error {
 }
 
 type WSManager struct {
-	store *db.Store
-	mu    sync.RWMutex
-	conns map[int64]*AgentConn
+	store  *db.Store
+	notify *notify.Service
+	mu     sync.RWMutex
+	conns  map[int64]*AgentConn
 
 	upgrader websocket.Upgrader
 }
 
-func NewWSManager(store *db.Store) *WSManager {
+func NewWSManager(store *db.Store, notifySvc *notify.Service) *WSManager {
 	return &WSManager{
-		store: store,
-		conns: make(map[int64]*AgentConn),
+		store:  store,
+		notify: notifySvc,
+		conns:  make(map[int64]*AgentConn),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  16 * 1024,
 			WriteBufferSize: 16 * 1024,
@@ -141,6 +144,9 @@ func (m *WSManager) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[ws] node #%d (%s) connected from %s", node.ID, node.Name, r.RemoteAddr)
 	_ = m.store.TouchNodeSeen(node.ID, "")
+	if m.notify != nil {
+		m.notify.OnNodeConnected(node)
+	}
 
 	// Immediately push latest config upon connect
 	go func() {
@@ -150,13 +156,18 @@ func (m *WSManager) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	defer func() {
+		wasActive := false
 		m.mu.Lock()
 		if cur, ok := m.conns[node.ID]; ok && cur == ac {
 			delete(m.conns, node.ID)
+			wasActive = true
 		}
 		m.mu.Unlock()
 		_ = conn.Close()
 		log.Printf("[ws] node #%d (%s) disconnected", node.ID, node.Name)
+		if wasActive && m.notify != nil {
+			m.notify.OnNodeDisconnected(node)
+		}
 	}()
 
 	for {
@@ -216,6 +227,11 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 				_ = m.store.UpdateNodeConfigStatus(ac.NodeID, p.ConfigHash, "synced", "")
 			} else {
 				_ = m.store.UpdateNodeConfigStatus(ac.NodeID, p.ConfigHash, "error", p.Error)
+				if m.notify != nil {
+					if n, err := m.store.GetNode(ac.NodeID); err == nil {
+						m.notify.NotifyNodeConfigError(n, p.Error)
+					}
+				}
 			}
 		}
 
@@ -245,6 +261,11 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 				log.Printf("[ws] node #%d mihomo upgraded to %s", ac.NodeID, p.Version)
 			} else if !p.Success {
 				log.Printf("[ws] node #%d mihomo upgrade failed: %s", ac.NodeID, p.Error)
+			}
+			if m.notify != nil {
+				if n, err := m.store.GetNode(ac.NodeID); err == nil {
+					m.notify.NotifyNodeUpgradeResult(n, p.Success, p.Version, p.Error)
+				}
 			}
 		}
 	}
@@ -300,6 +321,9 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 		user.TrafficUsed += scaledUp + scaledDown
 		if wasActive && !user.IsActive(time.Now().UTC()) {
 			kickIdentifiers = append(kickIdentifiers, user.Username, user.UUID)
+			if m.notify != nil && user.TrafficLimit > 0 && user.TrafficUsed >= user.TrafficLimit {
+				m.notify.NotifyUserExhausted(user)
+			}
 			fullUser, err := m.store.GetUser(user.ID)
 			if err == nil {
 				for _, nid := range fullUser.NodeIDs {
@@ -312,7 +336,11 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 	}
 
 	// Re-check node quota
+	prevNodeUsed := node.TrafficUsed
 	node.TrafficUsed += report.NodeUpload + report.NodeDownload
+	if m.notify != nil && (report.NodeUpload > 0 || report.NodeDownload > 0) {
+		m.notify.NotifyNodeTrafficThreshold(node, prevNodeUsed, node.TrafficUsed)
+	}
 	if !wasNodeExceeded && node.IsQuotaExceeded() {
 		log.Printf("[quota] node #%d (%s) reached traffic limit, disabling listeners", node.ID, node.Name)
 		affectedNodes[nodeID] = struct{}{}

@@ -191,10 +191,56 @@ CREATE TABLE IF NOT EXISTS traffic_protocol_hourly (
 	PRIMARY KEY(bucket, protocol)
 );
 
+CREATE TABLE IF NOT EXISTS notification_channels (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	provider TEXT NOT NULL DEFAULT 'custom',
+	url TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	events TEXT NOT NULL DEFAULT '[]',
+	remark TEXT NOT NULL DEFAULT '',
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notification_schedules (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	frequency TEXT NOT NULL DEFAULT 'daily',
+	time_of_day TEXT NOT NULL DEFAULT '09:00',
+	weekday INTEGER NOT NULL DEFAULT 1,
+	day_of_month INTEGER NOT NULL DEFAULT 1,
+	timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+	traffic_display_mode TEXT NOT NULL DEFAULT 'used',
+	include_summary INTEGER NOT NULL DEFAULT 1,
+	include_node_traffic INTEGER NOT NULL DEFAULT 1,
+	node_limit INTEGER NOT NULL DEFAULT 0,
+	include_expiring INTEGER NOT NULL DEFAULT 1,
+	include_top_users INTEGER NOT NULL DEFAULT 0,
+	channel_ids TEXT NOT NULL DEFAULT '[]',
+	last_run_at DATETIME,
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	event_type TEXT NOT NULL,
+	channel_id INTEGER,
+	channel_name TEXT NOT NULL DEFAULT '',
+	title TEXT NOT NULL DEFAULT '',
+	message TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL DEFAULT 'success',
+	error TEXT NOT NULL DEFAULT '',
+	created_at DATETIME NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_inbounds_node ON inbounds(node_id);
 CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 CREATE INDEX IF NOT EXISTS idx_traffic_user_hourly_bucket ON traffic_user_hourly(bucket);
 CREATE INDEX IF NOT EXISTS idx_traffic_protocol_hourly_bucket ON traffic_protocol_hourly(bucket);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_created ON notification_logs(created_at DESC);
 `
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate schema: %w", err)

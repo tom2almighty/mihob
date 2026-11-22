@@ -586,9 +586,10 @@ var reservedFirstSegments = map[string]bool{
 	"nodes":        true,
 	"certificates": true,
 	"users":        true,
-	"templates":    true,
-	"settings":     true,
-	".well-known":  true,
+	"templates":     true,
+	"notifications": true,
+	"settings":      true,
+	".well-known":   true,
 }
 
 func normalizeSubPath(raw string) (string, error) {

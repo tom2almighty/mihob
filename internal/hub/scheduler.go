@@ -3,26 +3,30 @@ package hub
 import (
 	"context"
 	"log"
+	"math"
 	"time"
 
 	"github.com/mihob/mihob/internal/acme"
 	"github.com/mihob/mihob/internal/db"
+	"github.com/mihob/mihob/internal/notify"
 )
 
 type Scheduler struct {
-	store *db.Store
-	ws    *WSManager
-	acme  *acme.Manager
+	store  *db.Store
+	ws     *WSManager
+	acme   *acme.Manager
+	notify *notify.Service
 
 	// Tracks which users were last known active so expiration triggers exactly one push+kick.
 	knownActive map[int64]bool
 }
 
-func NewScheduler(store *db.Store, ws *WSManager, acmeMgr *acme.Manager) *Scheduler {
+func NewScheduler(store *db.Store, ws *WSManager, acmeMgr *acme.Manager, notifySvc *notify.Service) *Scheduler {
 	return &Scheduler{
 		store:       store,
 		ws:          ws,
 		acme:        acmeMgr,
+		notify:      notifySvc,
 		knownActive: make(map[int64]bool),
 	}
 }
@@ -70,10 +74,15 @@ func (s *Scheduler) tickExpirationAndResets() {
 		}
 	}
 
-	// 2. Check monthly node traffic reset day
+	// 2. Check monthly node traffic reset day & expiring nodes
 	nodes, err := s.store.ListNodes()
 	if err == nil {
-		for _, n := range nodes {
+		for i := range nodes {
+			n := nodes[i]
+			if s.notify != nil && n.ExpireAt != nil {
+				daysLeft := int(math.Ceil(n.ExpireAt.Sub(now).Hours() / 24))
+				s.notify.NotifyNodeExpiring(&n, daysLeft)
+			}
 			if !shouldResetNodeTraffic(n.ResetDay, n.LastResetAt, now) {
 				continue
 			}
@@ -85,6 +94,22 @@ func (s *Scheduler) tickExpirationAndResets() {
 				}
 			}
 		}
+	}
+
+	// 3. Check expiring certificates
+	if s.notify != nil {
+		if certs, err := s.store.ListCertificates(); err == nil {
+			for i := range certs {
+				c := certs[i]
+				if c.NotAfter == nil {
+					continue
+				}
+				daysLeft := int(math.Ceil(c.NotAfter.Sub(now).Hours() / 24))
+				s.notify.NotifyCertExpiring(&c, daysLeft)
+			}
+		}
+		// 4. Scheduled notification reports
+		s.notify.TickSchedules(now, s.ws.EnrichNode)
 	}
 }
 
@@ -131,6 +156,9 @@ func (s *Scheduler) tickACMERenew() {
 			log.Printf("[acme] renew cert #%d failed: %v", c.ID, err)
 			c.LastError = err.Error()
 			_ = s.store.UpdateCertificate(&c)
+			if s.notify != nil {
+				s.notify.NotifyCertRenew(&c, false, err.Error())
+			}
 			continue
 		}
 		c.CertPEM = res.CertPEM
@@ -141,6 +169,9 @@ func (s *Scheduler) tickACMERenew() {
 		c.LastError = ""
 		if err := s.store.UpdateCertificate(&c); err != nil {
 			continue
+		}
+		if s.notify != nil {
+			s.notify.NotifyCertRenew(&c, true, "")
 		}
 		if nids, err := s.store.ListNodeIDsByCert(c.ID); err == nil {
 			s.ws.PushConfigToNodes(nids)
