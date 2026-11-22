@@ -1,12 +1,16 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import {
+  ArrowUpCircle,
   GripVertical,
+  Loader2,
   MoreHorizontal,
   Pencil,
   Plus,
   Radio,
+  RefreshCw,
   RotateCcw,
   Search,
   Send,
@@ -23,6 +27,16 @@ import {
   PageHeader,
   TrafficProgress,
 } from "@/components/common/CommonUI"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,6 +66,32 @@ import { InboundManagerSheet } from "./nodes/InboundManagerSheet"
 import { InstallCommandDialog } from "./nodes/InstallCommandDialog"
 import { NodeFormDialog } from "./nodes/NodeFormDialog"
 
+function parseSemver(raw?: string): [number, number, number] | null {
+  if (!raw) return null
+  const m = raw.match(/v?(\d+)\.(\d+)\.(\d+)/)
+  if (!m) return null
+  return [Number(m[1]), Number(m[2]), Number(m[3])]
+}
+
+function isVersionOlder(current?: string, latest?: string): boolean {
+  const c = parseSemver(current)
+  const l = parseSemver(latest)
+  if (!c || !l) return false
+  for (let i = 0; i < 3; i++) {
+    if (c[i] !== l[i]) return c[i] < l[i]
+  }
+  return false
+}
+
+function canUpgradeNode(n: Node): boolean {
+  return (
+    n.online &&
+    n.upgrade_status !== "upgrading" &&
+    (!n.os || n.os === "linux") &&
+    (n.arch === "amd64" || n.arch === "arm64")
+  )
+}
+
 export function NodesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -62,11 +102,69 @@ export function NodesPage() {
   const [installNodeId, setInstallNodeId] = useState<number | null>(null)
   const [inboundNodeId, setInboundNodeId] = useState<number | null>(null)
   const [deletingNode, setDeletingNode] = useState<Node | null>(null)
+  const [upgradeTarget, setUpgradeTarget] = useState<
+    | { mode: "single"; node: Node }
+    | { mode: "batch"; nodes: Node[] }
+    | null
+  >(null)
+  const [refreshingRelease, setRefreshingRelease] = useState(false)
 
   const query = useQuery({
     queryKey: queryKeys.nodes,
     queryFn: api.listNodes,
-    refetchInterval: 8_000,
+    refetchInterval: (q) => {
+      const list = q.state.data ?? []
+      return list.some((n) => n.upgrade_status === "upgrading") ? 2_500 : 8_000
+    },
+  })
+
+  const latestMihomoQuery = useQuery({
+    queryKey: queryKeys.mihomoLatest,
+    queryFn: () => api.getLatestMihomo(false),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  const latestVersion = latestMihomoQuery.data?.version ?? ""
+
+  const handleRefreshLatest = async () => {
+    setRefreshingRelease(true)
+    try {
+      const fresh = await api.getLatestMihomo(true)
+      qc.setQueryData(queryKeys.mihomoLatest, fresh)
+      toast.success(t("nodes.mihomo.checkedToast", { version: fresh.version }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("common.loadFailed"))
+    } finally {
+      setRefreshingRelease(false)
+    }
+  }
+
+  const upgradeSingleMutation = useMutation({
+    mutationFn: ({ id, version }: { id: number; version?: string }) =>
+      api.upgradeNodeMihomo(id, version),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      toast.success(t("nodes.mihomo.toastStarted", { version: res.version }))
+      setUpgradeTarget(null)
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const upgradeBatchMutation = useMutation({
+    mutationFn: ({ nodeIds, version }: { nodeIds: number[]; version?: string }) =>
+      api.batchUpgradeMihomo(nodeIds, version),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      toast.success(
+        t("nodes.mihomo.toastBatchStarted", {
+          count: res.started.length,
+          version: res.version,
+        })
+      )
+      setUpgradeTarget(null)
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const installNode = (query.data ?? []).find((n) => n.id === installNodeId) ?? null
@@ -121,6 +219,15 @@ export function NodesPage() {
   const allNodes = query.data ?? []
   const onlineCount = allNodes.filter((n) => n.online).length
   const offlineCount = allNodes.length - onlineCount
+  const upgradableNodes = useMemo(
+    () =>
+      latestVersion
+        ? allNodes.filter(
+            (n) => canUpgradeNode(n) && isVersionOlder(n.mihomo_version, latestVersion)
+          )
+        : [],
+    [allNodes, latestVersion]
+  )
 
   const filtered = allNodes.filter((n) => {
     if (statusFilter === "online" && !n.online) return false
@@ -153,16 +260,77 @@ export function NodesPage() {
         title={t("nodes.title")}
         description={t("nodes.description")}
         actions={
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditingNode(null)
-              setFormOpen(true)
-            }}
-          >
-            <Plus className="mr-1.5 size-4" />
-            {t("nodes.createNode")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {latestVersion && (
+              <div className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs shadow-2xs">
+                <span className="text-muted-foreground">{t("nodes.mihomo.latestLabel")}</span>
+                <span className="font-mono font-medium text-foreground">{latestVersion}</span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => void handleRefreshLatest()}
+                        disabled={refreshingRelease}
+                        aria-label={t("nodes.mihomo.refreshAria")}
+                      >
+                        <RefreshCw className={cn("size-3", refreshingRelease && "animate-spin")} />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t("nodes.mihomo.refreshTooltip")}</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+            {!latestVersion && latestMihomoQuery.isError && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleRefreshLatest()}
+                      disabled={refreshingRelease}
+                      className="text-xs text-muted-foreground"
+                    >
+                      <RefreshCw
+                        className={cn("mr-1.5 size-3.5", refreshingRelease && "animate-spin")}
+                      />
+                      {t("nodes.mihomo.checkUpdate")}
+                    </Button>
+                  }
+                />
+                <TooltipContent className="max-w-xs">
+                  {latestMihomoQuery.error.message}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {upgradableNodes.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setUpgradeTarget({ mode: "batch", nodes: upgradableNodes })}
+              >
+                <ArrowUpCircle className="mr-1.5 size-4 text-primary" />
+                {t("nodes.mihomo.upgradeAll", { count: upgradableNodes.length })}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingNode(null)
+                setFormOpen(true)
+              }}
+            >
+              <Plus className="mr-1.5 size-4" />
+              {t("nodes.createNode")}
+            </Button>
+          </div>
         }
       />
 
@@ -241,7 +409,7 @@ export function NodesPage() {
           }
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-xs">
           <Table>
             <TableHeader>
               <TableRow>
@@ -371,6 +539,42 @@ export function NodesPage() {
                               <span className="opacity-40">·</span>
                             )}
                             {n.mihomo_version && <span>{n.mihomo_version}</span>}
+                            {n.upgrade_status === "upgrading" ? (
+                              <Badge
+                                variant="secondary"
+                                className="gap-1 px-1.5 py-0 font-sans text-[10px] font-normal"
+                              >
+                                <Loader2 className="size-2.5 animate-spin" />
+                                {t("nodes.mihomo.upgradingBadge")}
+                              </Badge>
+                            ) : n.upgrade_status === "error" ? (
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <Badge
+                                      variant="destructive"
+                                      className="cursor-help px-1.5 py-0 font-sans text-[10px] font-normal"
+                                    >
+                                      {t("nodes.mihomo.upgradeFailedBadge")}
+                                    </Badge>
+                                  }
+                                />
+                                <TooltipContent className="max-w-xs wrap-break-word font-sans">
+                                  {n.upgrade_error || t("nodes.mihomo.upgradeFailedFallback")}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : latestVersion &&
+                              canUpgradeNode(n) &&
+                              isVersionOlder(n.mihomo_version, latestVersion) ? (
+                              <button
+                                type="button"
+                                onClick={() => setUpgradeTarget({ mode: "single", node: n })}
+                                className="inline-flex items-center gap-0.5 rounded-full border border-primary/35 bg-primary/10 px-1.5 py-0 font-sans text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
+                              >
+                                <ArrowUpCircle className="size-2.5" />
+                                {t("nodes.mihomo.updateAvailable")}
+                              </button>
+                            ) : null}
                           </>
                         ) : (
                           <span className="font-sans text-xs">{t("nodes.waitingAgent")}</span>
@@ -466,6 +670,15 @@ export function NodesPage() {
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.restartMihomo")}
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!canUpgradeNode(n) || !latestVersion}
+                            onClick={() => setUpgradeTarget({ mode: "single", node: n })}
+                          >
+                            <ArrowUpCircle className="mr-2 size-4" />
+                            {latestVersion
+                              ? t("nodes.mihomo.upgradeMenuWithVer", { version: latestVersion })
+                              : t("nodes.mihomo.upgradeMenu")}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => resetTrafficMutation.mutate(n.id)}>
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.resetTraffic")}
@@ -509,6 +722,66 @@ export function NodesPage() {
         loading={deleteMutation.isPending}
         onConfirm={() => deletingNode && deleteMutation.mutate(deletingNode.id)}
       />
+
+      <AlertDialog
+        open={Boolean(upgradeTarget)}
+        onOpenChange={(o) => !o && setUpgradeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {upgradeTarget?.mode === "batch"
+                ? t("nodes.mihomo.batchDialogTitle", {
+                    count: upgradeTarget.nodes.length,
+                    version: latestVersion,
+                  })
+                : t("nodes.mihomo.singleDialogTitle", {
+                    name: upgradeTarget?.node.name ?? "",
+                    version: latestVersion,
+                  })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("nodes.mihomo.dialogDesc", { version: latestVersion })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {latestMihomoQuery.isError && (
+            <p className="text-xs text-muted-foreground">
+              <Link to="/settings?tab=deployment" className="underline hover:text-foreground">
+                {t("nodes.mihomo.configureTokenHint")}
+              </Link>
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={upgradeSingleMutation.isPending || upgradeBatchMutation.isPending}
+            >
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={upgradeSingleMutation.isPending || upgradeBatchMutation.isPending}
+              onClick={() => {
+                if (!upgradeTarget) return
+                if (upgradeTarget.mode === "single") {
+                  upgradeSingleMutation.mutate({
+                    id: upgradeTarget.node.id,
+                    version: latestVersion || undefined,
+                  })
+                } else {
+                  upgradeBatchMutation.mutate({
+                    nodeIds: upgradeTarget.nodes.map((n) => n.id),
+                    version: latestVersion || undefined,
+                  })
+                }
+              }}
+            >
+              {(upgradeSingleMutation.isPending || upgradeBatchMutation.isPending) && (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              )}
+              {t("nodes.mihomo.confirmUpgrade")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

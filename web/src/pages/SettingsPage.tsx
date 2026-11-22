@@ -90,6 +90,7 @@ type SystemFormValues = {
   sub_path: string
   acme_email?: string
   agent_image: string
+  github_token?: string
 }
 
 type PasswordFormValues = {
@@ -157,6 +158,7 @@ export function SettingsPage() {
   const [showOldPw, setShowOldPw] = useState(false)
   const [showNewPw, setShowNewPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [showGithubToken, setShowGithubToken] = useState(false)
 
   const systemSchema = useMemo(
     () =>
@@ -168,6 +170,7 @@ export function SettingsPage() {
           .refine(isValidSubPath, t("settings.validation.subPathInvalid")),
         acme_email: z.string().trim().optional(),
         agent_image: z.string().trim().min(1, t("settings.validation.agentImageRequired")),
+        github_token: z.string().trim().optional(),
       }),
     [t]
   )
@@ -199,6 +202,7 @@ export function SettingsPage() {
       sub_path: "sub",
       acme_email: "",
       agent_image: DEFAULT_AGENT_IMAGE,
+      github_token: "",
     },
   })
 
@@ -218,6 +222,7 @@ export function SettingsPage() {
         sub_path: query.data.sub_path || "sub",
         acme_email: query.data.acme_email || "",
         agent_image: query.data.agent_image || DEFAULT_AGENT_IMAGE,
+        github_token: query.data.github_token || "",
       })
     }
   }, [query.data, sysForm])
@@ -229,10 +234,12 @@ export function SettingsPage() {
         sub_path: v.sub_path.trim().replace(/^\/+|\/+$/g, "") || "sub",
         acme_email: v.acme_email || "",
         agent_image: v.agent_image,
+        github_token: v.github_token?.trim() || "",
       }),
     onSuccess: (updated) => {
       qc.setQueryData(queryKeys.settings, updated)
       qc.invalidateQueries({ queryKey: queryKeys.settings })
+      qc.invalidateQueries({ queryKey: queryKeys.mihomoLatest })
       toast.success(t("settings.toastSaved"))
     },
     onError: (err: Error) => toast.error(err.message),
@@ -487,6 +494,49 @@ export function SettingsPage() {
                               <Input type="email" placeholder="ops@example.com" {...field} />
                             </FormControl>
                             <FormDescription>{t("settings.acmeEmailDesc")}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Separator />
+
+                      <FormField
+                        control={sysForm.control}
+                        name="github_token"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t("settings.githubToken")}</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input
+                                  type={showGithubToken ? "text" : "password"}
+                                  autoComplete="off"
+                                  placeholder={t("settings.githubTokenPlaceholder")}
+                                  className="pr-9 font-mono text-xs sm:text-sm"
+                                  {...field}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute top-1/2 right-1 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowGithubToken((v) => !v)}
+                                  aria-label={
+                                    showGithubToken
+                                      ? t("common.hidePassword")
+                                      : t("common.showPassword")
+                                  }
+                                >
+                                  {showGithubToken ? (
+                                    <EyeOff className="size-3.5" />
+                                  ) : (
+                                    <Eye className="size-3.5" />
+                                  )}
+                                </Button>
+                              </div>
+                            </FormControl>
+                            <FormDescription>{t("settings.githubTokenDesc")}</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}

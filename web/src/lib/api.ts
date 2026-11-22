@@ -1,11 +1,13 @@
 import i18n from "./i18n"
 import type {
   Admin,
+  BatchUpgradeResult,
   Certificate,
   DashboardData,
   DashboardRange,
   Inbound,
   InstallCommands,
+  MihomoReleaseInfo,
   Node,
   PublicSubInfo,
   PublicThemeResponse,
@@ -78,6 +80,7 @@ export const queryKeys = {
   dashboard: ["dashboard"] as const,
   dashboardRange: (range: DashboardRange) => ["dashboard", range] as const,
   nodes: ["nodes"] as const,
+  mihomoLatest: ["mihomo", "latest"] as const,
   nodeInstall: (id: number) => ["nodes", id, "install"] as const,
   allInbounds: ["inbounds", "all"] as const,
   inbounds: (nodeId: number) => ["nodes", nodeId, "inbounds"] as const,
@@ -127,6 +130,18 @@ export const api = {
     request<{ status: string }>(`/api/nodes/${id}/push-config`, { method: "POST" }),
   restartNode: (id: number) =>
     request<{ status: string }>(`/api/nodes/${id}/restart`, { method: "POST" }),
+  getLatestMihomo: (refresh = false) =>
+    request<MihomoReleaseInfo>(`/api/mihomo/latest${refresh ? "?refresh=1" : ""}`),
+  upgradeNodeMihomo: (id: number, version?: string) =>
+    request<{ status: string; version: string; sha256: string }>(`/api/nodes/${id}/upgrade-mihomo`, {
+      method: "POST",
+      body: JSON.stringify(version ? { version } : {}),
+    }),
+  batchUpgradeMihomo: (nodeIds: number[], version?: string) =>
+    request<BatchUpgradeResult>("/api/nodes/upgrade-mihomo", {
+      method: "POST",
+      body: JSON.stringify({ node_ids: nodeIds, ...(version ? { version } : {}) }),
+    }),
   getNodeInstall: (id: number) => request<InstallCommands>(`/api/nodes/${id}/install`),
 
   // Inbounds

@@ -68,6 +68,11 @@ export interface Node {
   updated_at: string
   online: boolean
   mihomo_running: boolean
+  os?: string
+  arch?: string
+  upgrade_status?: "" | "upgrading" | "success" | "error"
+  upgrade_error?: string
+  upgrade_target?: string
   cpu_percent: number
   mem_used: number
   mem_total: number
@@ -332,6 +337,22 @@ export interface SystemSettings {
   acme_email: string
   agent_image: string
   sub_path: string
+  github_token?: string
+}
+
+export interface MihomoReleaseInfo {
+  version: string
+  published_at?: string
+  release_url?: string
+  assets: string[]
+  checked_at: string
+  cached: boolean
+}
+
+export interface BatchUpgradeResult {
+  version: string
+  started: number[]
+  skipped: { node_id: number; reason: string }[]
 }
 
 export interface CustomTheme {
