@@ -9,6 +9,7 @@ import { Eye, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton } from "@/components/common/CommonUI"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
+import { NodeProxyRefPicker } from "@/components/common/NodeProxyRefPicker"
 import { TagInput } from "@/components/common/TagInput"
 import { YamlCodeBlock, YamlEditor } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
@@ -105,6 +106,12 @@ export function NodeFormDialog({
   const templatesQuery = useQuery({
     queryKey: queryKeys.templates,
     queryFn: api.listTemplates,
+    enabled: open,
+  })
+
+  const inboundsQuery = useQuery({
+    queryKey: queryKeys.allInbounds,
+    queryFn: api.listAllInbounds,
     enabled: open,
   })
 
@@ -670,6 +677,13 @@ export function NodeFormDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t("nodes.form.extraServerYaml")}</FormLabel>
+                        <NodeProxyRefPicker
+                          nodes={nodesQuery.data ?? []}
+                          inbounds={inboundsQuery.data ?? []}
+                          excludeNodeId={node?.id}
+                          value={field.value || ""}
+                          onChange={(nextYaml) => field.onChange(nextYaml)}
+                        />
                         <FormControl>
                           <YamlEditor
                             name={field.name}

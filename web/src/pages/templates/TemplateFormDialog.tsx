@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { NodeProxyRefPicker } from "@/components/common/NodeProxyRefPicker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -138,6 +139,49 @@ rules:
   - MATCH,DIRECT
 `
 
+function buildServerPresetChain(sampleNodeName: string): string {
+  const escaped = JSON.stringify(sampleNodeName || "US-LA-01")
+  return `# Dynamic node chaining & streaming/AI unlock template
+# Uses type: mihob-node to reference another managed node without hardcoding IP/port/keys
+# Internal relay credentials and self-loop protection are handled automatically by Hub
+mode: rule
+log-level: info
+ipv6: true
+allow-lan: false
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+
+proxies:
+  - name: UNLOCK-NODE
+    type: mihob-node
+    node: ${escaped}
+    # inbound: vless-reality-443   # Optional: pick a specific inbound name/tag/ID
+    # protocol: vless              # Optional: filter by protocol
+    # dialer-proxy: HOP-NODE       # Optional: multi-hop chaining through another proxy
+
+rules:
+  # Route AI & streaming traffic through the referenced landing node
+  - DOMAIN-SUFFIX,openai.com,UNLOCK-NODE
+  - DOMAIN-SUFFIX,chatgpt.com,UNLOCK-NODE
+  - DOMAIN-SUFFIX,claude.ai,UNLOCK-NODE
+  - DOMAIN-SUFFIX,anthropic.com,UNLOCK-NODE
+  - DOMAIN-SUFFIX,netflix.com,UNLOCK-NODE
+  - DOMAIN-SUFFIX,nflxvideo.net,UNLOCK-NODE
+  - DOMAIN-SUFFIX,disneyplus.com,UNLOCK-NODE
+  # Change MATCH to UNLOCK-NODE for full-traffic relay forwarding
+  - MATCH,DIRECT
+`
+}
+
 export function TemplateFormDialog({
   open,
   onOpenChange,
@@ -154,6 +198,23 @@ export function TemplateFormDialog({
   const isEdit = Boolean(template)
   const kind: TemplateKind = template?.kind ?? defaultKind
   const isServer = kind === "server"
+
+  const nodesQuery = useQuery({
+    queryKey: queryKeys.nodes,
+    queryFn: api.listNodes,
+    enabled: open && isServer,
+  })
+
+  const inboundsQuery = useQuery({
+    queryKey: queryKeys.allInbounds,
+    queryFn: api.listAllInbounds,
+    enabled: open && isServer,
+  })
+
+  const sampleChainNodeName = useMemo(
+    () => (nodesQuery.data ?? []).find((n) => n.enabled)?.name ?? "US-LA-01",
+    [nodesQuery.data]
+  )
 
   const templateSchema = useMemo(
     () =>
@@ -297,44 +358,69 @@ export function TemplateFormDialog({
             </div>
 
             {isServer && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <Sparkles className="size-3.5" />
-                  {t("templates.form.presetsLabel")}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() =>
-                    applyServerPreset(t("templates.form.presetDirect"), SERVER_PRESET_DIRECT)
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Sparkles className="size-3.5" />
+                    {t("templates.form.presetsLabel")}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() =>
+                      applyServerPreset(t("templates.form.presetDirect"), SERVER_PRESET_DIRECT)
+                    }
+                  >
+                    {t("templates.form.presetDirect")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() =>
+                      applyServerPreset(t("templates.form.presetAudit"), SERVER_PRESET_AUDIT)
+                    }
+                  >
+                    {t("templates.form.presetAudit")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() =>
+                      applyServerPreset(t("templates.form.presetWarp"), SERVER_PRESET_WARP)
+                    }
+                  >
+                    {t("templates.form.presetWarp")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() =>
+                      applyServerPreset(
+                        t("templates.form.presetChain"),
+                        buildServerPresetChain(sampleChainNodeName)
+                      )
+                    }
+                  >
+                    {t("templates.form.presetChain")}
+                  </Button>
+                </div>
+
+                <NodeProxyRefPicker
+                  nodes={nodesQuery.data ?? []}
+                  inbounds={inboundsQuery.data ?? []}
+                  value={form.watch("content") || ""}
+                  onChange={(nextYaml) =>
+                    form.setValue("content", nextYaml, { shouldDirty: true, shouldValidate: true })
                   }
-                >
-                  {t("templates.form.presetDirect")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() =>
-                    applyServerPreset(t("templates.form.presetAudit"), SERVER_PRESET_AUDIT)
-                  }
-                >
-                  {t("templates.form.presetAudit")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() =>
-                    applyServerPreset(t("templates.form.presetWarp"), SERVER_PRESET_WARP)
-                  }
-                >
-                  {t("templates.form.presetWarp")}
-                </Button>
+                />
               </div>
             )}
 
