@@ -224,7 +224,6 @@
       "upgradeMenu": "Upgrade Mihomo Core",
       "upgradeMenuWithVer": "Upgrade Core to {{version}}",
       "alreadyLatest": "Core Up to Date",
-      "agentTooOld": "Upgrade Core (Update Agent First)",
       "singleDialogTitle": "Upgrade \"{{name}}\" Core to {{version}}",
       "batchDialogTitle": "Upgrade {{count}} Nodes to {{version}}",
       "dialogDesc": "Hub downloads and caches the official release binary and serves it over authenticated Node Token. Each Agent verifies SHA-256, runs mihomo -t pre-flight validation, and automatically rolls back if health checks fail.",

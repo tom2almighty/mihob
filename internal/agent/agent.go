@@ -127,7 +127,6 @@ func (a *Agent) connectAndServe(ctx context.Context, wsURL string) error {
 		OS:            runtime.GOOS,
 		Arch:          runtime.GOARCH,
 		Hostname:      hostname,
-		Capabilities:  []string{"upgrade_mihomo"},
 	})
 	log.Printf("[agent] connected to hub successfully")
 

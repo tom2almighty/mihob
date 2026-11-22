@@ -40,12 +40,11 @@ func NewEnvelope(msgType, requestID string, payload any) (*Envelope, error) {
 }
 
 type HelloPayload struct {
-	AgentVersion  string   `json:"agent_version"`
-	MihomoVersion string   `json:"mihomo_version"`
-	OS            string   `json:"os"`
-	Arch          string   `json:"arch"`
-	Hostname      string   `json:"hostname"`
-	Capabilities  []string `json:"capabilities,omitempty"`
+	AgentVersion  string `json:"agent_version"`
+	MihomoVersion string `json:"mihomo_version"`
+	OS            string `json:"os"`
+	Arch          string `json:"arch"`
+	Hostname      string `json:"hostname"`
 }
 
 type HeartbeatPayload struct {

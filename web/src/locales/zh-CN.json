@@ -224,7 +224,6 @@
       "upgradeMenu": "升级 Mihomo 内核",
       "upgradeMenuWithVer": "升级内核至 {{version}}",
       "alreadyLatest": "内核已是最新",
-      "agentTooOld": "升级内核（需先更新 Agent）",
       "singleDialogTitle": "升级节点「{{name}}」内核至 {{version}}",
       "batchDialogTitle": "批量升级 {{count}} 台节点内核至 {{version}}",
       "dialogDesc": "Hub 将从官方 Release 下载并缓存二进制，通过节点 Token 安全下发；Agent 端会校验 SHA-256、执行 mihomo -t 配置兼容性预检，若重启探活失败将自动回滚至原版本。",

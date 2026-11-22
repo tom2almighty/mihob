@@ -87,7 +87,6 @@ function isVersionOlder(current?: string, latest?: string): boolean {
 function canUpgradeNode(n: Node): boolean {
   return (
     n.online &&
-    Boolean(n.supports_core_upgrade) &&
     n.upgrade_status !== "upgrading" &&
     (!n.os || n.os === "linux") &&
     (n.arch === "amd64" || n.arch === "arm64")
@@ -696,15 +695,12 @@ export function NodesPage() {
                                 n.mihomo_version &&
                                 !isVersionOlder(n.mihomo_version, latestVersion)
                             )
-                            const agentTooOld = n.online && !n.supports_core_upgrade
                             const disabled = !canUpgradeNode(n) || !hasUpdate
-                            const label = agentTooOld
-                              ? t("nodes.mihomo.agentTooOld")
-                              : alreadyLatest
-                                ? t("nodes.mihomo.alreadyLatest")
-                                : latestVersion
-                                  ? t("nodes.mihomo.upgradeMenuWithVer", { version: latestVersion })
-                                  : t("nodes.mihomo.upgradeMenu")
+                            const label = alreadyLatest
+                              ? t("nodes.mihomo.alreadyLatest")
+                              : latestVersion
+                                ? t("nodes.mihomo.upgradeMenuWithVer", { version: latestVersion })
+                                : t("nodes.mihomo.upgradeMenu")
                             return (
                               <DropdownMenuItem
                                 disabled={disabled}

@@ -70,7 +70,6 @@ export interface Node {
   mihomo_running: boolean
   os?: string
   arch?: string
-  supports_core_upgrade?: boolean
   upgrade_status?: "" | "upgrading" | "success" | "error"
   upgrade_error?: string
   upgrade_target?: string

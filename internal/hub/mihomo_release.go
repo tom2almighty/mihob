@@ -511,10 +511,6 @@ func (s *Server) handleUpgradeNodeMihomo(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "node is offline")
 		return
 	}
-	if !rt.SupportsCoreUpgrade {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("agent version (%s) is too old; please update mihob-agent to v0.10.0+ first", rt.AgentVersion))
-		return
-	}
 	if rt.UpgradeStatus == "upgrading" {
 		writeError(w, http.StatusConflict, "node upgrade already in progress")
 		return
@@ -600,10 +596,6 @@ func (s *Server) handleBatchUpgradeMihomo(w http.ResponseWriter, r *http.Request
 		rt := s.ws.GetRuntime(id)
 		if !rt.Online {
 			skipped = append(skipped, skippedItem{NodeID: id, Reason: "offline"})
-			continue
-		}
-		if !rt.SupportsCoreUpgrade {
-			skipped = append(skipped, skippedItem{NodeID: id, Reason: "agent too old (update mihob-agent to v0.10.0+)"})
 			continue
 		}
 		if rt.UpgradeStatus == "upgrading" {

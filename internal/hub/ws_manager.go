@@ -19,26 +19,24 @@ import (
 )
 
 type NodeRuntime struct {
-	Online              bool
-	MihomoRunning       bool
-	MihomoVersion       string
-	AgentVersion        string
-	OS                  string
-	Arch                string
-	SupportsCoreUpgrade bool
-	UpgradeStatus       string
-	UpgradeError        string
-	UpgradeTarget       string
-	UpgradeRequestID    string
-	UpgradeStartedAt    time.Time
-	CPUPercent          float64
-	MemUsed             uint64
-	MemTotal            uint64
-	ActiveConnections   int
-	UpRate              int64
-	DownRate            int64
-	ConfigHash          string
-	ConnectedAt         time.Time
+	Online            bool
+	MihomoRunning     bool
+	MihomoVersion     string
+	OS                string
+	Arch              string
+	UpgradeStatus     string
+	UpgradeError      string
+	UpgradeTarget     string
+	UpgradeRequestID  string
+	UpgradeStartedAt  time.Time
+	CPUPercent        float64
+	MemUsed           uint64
+	MemTotal          uint64
+	ActiveConnections int
+	UpRate            int64
+	DownRate          int64
+	ConfigHash        string
+	ConnectedAt       time.Time
 }
 
 type AgentConn struct {
@@ -90,7 +88,6 @@ func (m *WSManager) EnrichNode(n *model.Node) {
 	n.MihomoRunning = rt.MihomoRunning
 	n.OS = rt.OS
 	n.Arch = rt.Arch
-	n.SupportsCoreUpgrade = rt.SupportsCoreUpgrade
 	n.UpgradeStatus = rt.UpgradeStatus
 	n.UpgradeError = rt.UpgradeError
 	n.UpgradeTarget = rt.UpgradeTarget
@@ -181,13 +178,10 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 	case protocol.MsgHello:
 		var p protocol.HelloPayload
 		if err := json.Unmarshal(env.Payload, &p); err == nil {
-			supportsUpgrade := hasCapability(p.Capabilities, "upgrade_mihomo") || compareSemver(p.AgentVersion, "v0.10.0") >= 0
 			m.mu.Lock()
 			ac.runtime.MihomoVersion = p.MihomoVersion
-			ac.runtime.AgentVersion = p.AgentVersion
 			ac.runtime.OS = p.OS
 			ac.runtime.Arch = p.Arch
-			ac.runtime.SupportsCoreUpgrade = supportsUpgrade
 			m.mu.Unlock()
 			_ = m.store.UpdateNodeAgentInfo(ac.NodeID, p.AgentVersion, p.MihomoVersion)
 		}
@@ -434,15 +428,6 @@ func (m *WSManager) RestartNodeMihomo(nodeID int64) error {
 	return ac.Send(env)
 }
 
-func hasCapability(caps []string, target string) bool {
-	for _, c := range caps {
-		if c == target {
-			return true
-		}
-	}
-	return false
-}
-
 const upgradeAckTimeout = 2 * time.Minute
 
 func (m *WSManager) UpgradeNodeMihomo(nodeID int64, version, downloadPath, sha256Hex string) error {
@@ -453,10 +438,6 @@ func (m *WSManager) UpgradeNodeMihomo(nodeID int64, version, downloadPath, sha25
 	if !online {
 		m.mu.Unlock()
 		return fmt.Errorf("node is offline")
-	}
-	if !ac.runtime.SupportsCoreUpgrade {
-		m.mu.Unlock()
-		return fmt.Errorf("agent version (%s) does not support remote core upgrade; update mihob-agent to v0.10.0+ first", ac.runtime.AgentVersion)
 	}
 	if ac.runtime.UpgradeStatus == "upgrading" {
 		m.mu.Unlock()
