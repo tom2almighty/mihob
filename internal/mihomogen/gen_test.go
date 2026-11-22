@@ -144,7 +144,7 @@ func TestGenerateAllFifteenProtocols(t *testing.T) {
 		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true, ExpireAt: &expiredTime,
 	}
 
-	bundle, err := GenerateServerConfig(node, inbounds, []model.User{activeUser, expiredUser}, certs, time.Now())
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{activeUser, expiredUser}, certs, "", time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig failed: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestPerInboundUserAccessFiltering(t *testing.T) {
 		},
 	}
 
-	bundle, err := GenerateServerConfig(node, inbounds, []model.User{userVLESS, userSS}, map[int64]*model.Certificate{}, time.Now())
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{userVLESS, userSS}, map[int64]*model.Certificate{}, "", time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig failed: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestProtocolRefinementsAndExtraYAMLOverride(t *testing.T) {
 		},
 	}
 
-	bundle, err := GenerateServerConfig(node, []model.Inbound{tt, sdk, anytls}, []model.User{user}, certs, time.Now())
+	bundle, err := GenerateServerConfig(node, []model.Inbound{tt, sdk, anytls}, []model.User{user}, certs, "", time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig: %v", err)
 	}
@@ -467,5 +467,99 @@ func TestProtocolRefinementsAndExtraYAMLOverride(t *testing.T) {
 	}
 	if srvPreview == "" {
 		t.Fatalf("expected non-empty server preview")
+	}
+}
+
+func TestServerTemplateAndPerNodeOverrides(t *testing.T) {
+	ipv6False := false
+	node := &model.Node{
+		ID:             1,
+		Name:           "JP-Unlock",
+		Host:           "jp.example.com",
+		Enabled:        true,
+		ServerLogLevel: "warning",
+		ServerIPv6:     &ipv6False,
+		ExtraServerYAML: `
+external-controller: 0.0.0.0:9999
+secret: leaked
+listeners:
+  - name: fake
+dns:
+  nameserver:
+    - 8.8.8.8
+sniffer:
+  enable: true
+`,
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 1, Name: "mixed-in", Tag: "Mixed", Protocol: model.ProtoMixed,
+			Port: 1080, Enabled: true, Settings: model.InboundSettings{Security: "none"},
+		},
+	}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw1",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32),
+		Enabled: true, AccessPolicy: model.DefaultAccessPolicy(),
+	}
+
+	serverTmpl := `
+mode: rule
+log-level: debug
+ipv6: true
+external-controller-unix: /tmp/evil.sock
+dns:
+  enable: true
+  nameserver:
+    - 1.1.1.1
+rules:
+  - DST-PORT,25,REJECT
+  - MATCH,DIRECT
+`
+
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, serverTmpl, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(bundle.ConfigYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// Layer 1 (template): mode=rule, rules present
+	if parsed["mode"] != "rule" {
+		t.Fatalf("expected mode=rule from template, got %v", parsed["mode"])
+	}
+	// Layer 3 (quick overrides): log-level=warning, ipv6=false
+	if parsed["log-level"] != "warning" {
+		t.Fatalf("expected log-level=warning from quick override, got %v", parsed["log-level"])
+	}
+	if parsed["ipv6"] != false {
+		t.Fatalf("expected ipv6=false from quick override, got %v", parsed["ipv6"])
+	}
+	// Layer 2 (node extra_server_yaml): deep merged dns (enable kept from template, nameserver overridden) + sniffer added
+	dnsMap, ok := parsed["dns"].(map[string]any)
+	if !ok || dnsMap["enable"] != true {
+		t.Fatalf("expected dns.enable=true preserved from template, got %+v", parsed["dns"])
+	}
+	nsList, ok := dnsMap["nameserver"].([]any)
+	if !ok || len(nsList) != 1 || nsList[0] != "8.8.8.8" {
+		t.Fatalf("expected dns.nameserver overridden to [8.8.8.8], got %+v", dnsMap["nameserver"])
+	}
+	snifferMap, ok := parsed["sniffer"].(map[string]any)
+	if !ok || snifferMap["enable"] != true {
+		t.Fatalf("expected sniffer.enable=true from node extra YAML, got %+v", parsed["sniffer"])
+	}
+	// Layer 4 (protected keys): controller/secret stripped, listeners generated
+	for _, k := range []string{"external-controller", "external-controller-unix", "external-controller-tls", "secret"} {
+		if _, exists := parsed[k]; exists {
+			t.Fatalf("protected key %q must be stripped from generated server config", k)
+		}
+	}
+	ls, ok := parsed["listeners"].([]any)
+	if !ok || len(ls) != 1 {
+		t.Fatalf("expected 1 generated listener, got %+v", parsed["listeners"])
+	}
+	if ls[0].(map[string]any)["name"] != "mixed-in" {
+		t.Fatalf("expected real listener mixed-in, got %+v", ls[0])
 	}
 }

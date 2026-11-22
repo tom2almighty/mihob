@@ -144,6 +144,7 @@ func (s *Server) Router() http.Handler {
 			pr.Put("/templates/{id}", s.handleUpdateTemplate)
 			pr.Delete("/templates/{id}", s.handleDeleteTemplate)
 			pr.Post("/templates/preview", s.handlePreviewTemplate)
+			pr.Post("/templates/preview-server", s.handlePreviewServerConfig)
 
 			// Settings
 			pr.Get("/settings", s.handleGetSettings)

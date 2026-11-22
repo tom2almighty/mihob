@@ -10,18 +10,42 @@ import (
 func scanTemplate(row interface{ Scan(...any) error }) (*model.Template, error) {
 	var t model.Template
 	var isDef int
-	err := row.Scan(&t.ID, &t.Name, &t.Description, &t.Content, &isDef, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.ID, &t.Kind, &t.Name, &t.Description, &t.Content, &isDef, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
+	t.Kind = model.NormalizeTemplateKind(t.Kind)
 	t.IsDefault = isDef == 1
 	return &t, nil
 }
 
+const templateSelectCols = `id, kind, name, description, content, is_default, created_at, updated_at`
+
 func (s *Store) ListTemplates() ([]model.Template, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, description, content, is_default, created_at, updated_at
-		 FROM templates ORDER BY is_default DESC, id DESC`,
+		`SELECT ` + templateSelectCols + `
+		 FROM templates ORDER BY kind ASC, is_default DESC, id DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.Template{}
+	for rows.Next() {
+		t, err := scanTemplate(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ListTemplatesByKind(kind string) ([]model.Template, error) {
+	rows, err := s.db.Query(
+		`SELECT `+templateSelectCols+`
+		 FROM templates WHERE kind = ? ORDER BY is_default DESC, id DESC`,
+		model.NormalizeTemplateKind(kind),
 	)
 	if err != nil {
 		return nil, err
@@ -40,20 +64,30 @@ func (s *Store) ListTemplates() ([]model.Template, error) {
 
 func (s *Store) GetTemplate(id int64) (*model.Template, error) {
 	return scanTemplate(s.db.QueryRow(
-		`SELECT id, name, description, content, is_default, created_at, updated_at FROM templates WHERE id = ?`,
+		`SELECT `+templateSelectCols+` FROM templates WHERE id = ?`,
 		id,
 	))
 }
 
-func (s *Store) GetDefaultTemplate() (*model.Template, error) {
+func (s *Store) GetDefaultTemplateByKind(kind string) (*model.Template, error) {
 	return scanTemplate(s.db.QueryRow(
-		`SELECT id, name, description, content, is_default, created_at, updated_at
-		 FROM templates ORDER BY is_default DESC, id ASC LIMIT 1`,
+		`SELECT `+templateSelectCols+`
+		 FROM templates WHERE kind = ? ORDER BY is_default DESC, id ASC LIMIT 1`,
+		model.NormalizeTemplateKind(kind),
 	))
+}
+
+func (s *Store) GetDefaultTemplate() (*model.Template, error) {
+	return s.GetDefaultTemplateByKind(model.TemplateKindClient)
+}
+
+func (s *Store) GetDefaultServerTemplate() (*model.Template, error) {
+	return s.GetDefaultTemplateByKind(model.TemplateKindServer)
 }
 
 func (s *Store) CreateTemplate(t *model.Template) error {
 	now := time.Now().UTC()
+	t.Kind = model.NormalizeTemplateKind(t.Kind)
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -61,13 +95,13 @@ func (s *Store) CreateTemplate(t *model.Template) error {
 	defer func() { _ = tx.Rollback() }()
 
 	if t.IsDefault {
-		if _, err := tx.Exec(`UPDATE templates SET is_default = 0`); err != nil {
+		if _, err := tx.Exec(`UPDATE templates SET is_default = 0 WHERE kind = ?`, t.Kind); err != nil {
 			return err
 		}
 	}
 	res, err := tx.Exec(
-		`INSERT INTO templates(name, description, content, is_default, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)`,
-		t.Name, t.Description, t.Content, boolToInt(t.IsDefault), now, now,
+		`INSERT INTO templates(kind, name, description, content, is_default, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		t.Kind, t.Name, t.Description, t.Content, boolToInt(t.IsDefault), now, now,
 	)
 	if err != nil {
 		return err
@@ -79,6 +113,7 @@ func (s *Store) CreateTemplate(t *model.Template) error {
 }
 
 func (s *Store) UpdateTemplate(t *model.Template) error {
+	t.Kind = model.NormalizeTemplateKind(t.Kind)
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -86,7 +121,7 @@ func (s *Store) UpdateTemplate(t *model.Template) error {
 	defer func() { _ = tx.Rollback() }()
 
 	if t.IsDefault {
-		if _, err := tx.Exec(`UPDATE templates SET is_default = 0`); err != nil {
+		if _, err := tx.Exec(`UPDATE templates SET is_default = 0 WHERE kind = ?`, t.Kind); err != nil {
 			return err
 		}
 	}
@@ -101,8 +136,19 @@ func (s *Store) UpdateTemplate(t *model.Template) error {
 }
 
 func (s *Store) DeleteTemplate(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM templates WHERE id = ?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`UPDATE nodes SET server_template_id = NULL WHERE server_template_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM templates WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // --- Hourly Traffic Aggregation ---

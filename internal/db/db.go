@@ -98,6 +98,10 @@ CREATE TABLE IF NOT EXISTS nodes (
 	expire_at DATETIME,
 	billing_cycle TEXT NOT NULL DEFAULT '',
 	remark TEXT NOT NULL DEFAULT '',
+	server_template_id INTEGER,
+	server_log_level TEXT NOT NULL DEFAULT '',
+	server_ipv6 INTEGER,
+	extra_server_yaml TEXT NOT NULL DEFAULT '',
 	mihomo_version TEXT NOT NULL DEFAULT '',
 	agent_version TEXT NOT NULL DEFAULT '',
 	config_hash TEXT NOT NULL DEFAULT '',
@@ -130,6 +134,7 @@ CREATE TABLE IF NOT EXISTS inbounds (
 
 CREATE TABLE IF NOT EXISTS templates (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	kind TEXT NOT NULL DEFAULT 'client',
 	name TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	content TEXT NOT NULL,
@@ -221,6 +226,21 @@ CREATE INDEX IF NOT EXISTS idx_traffic_protocol_hourly_bucket ON traffic_protoco
 	if err := s.ensureColumn("certificates", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("templates", "kind", "TEXT NOT NULL DEFAULT 'client'"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("nodes", "server_template_id", "INTEGER"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("nodes", "server_log_level", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("nodes", "server_ipv6", "INTEGER"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("nodes", "extra_server_yaml", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
 	_, _ = s.db.Exec(`DROP TABLE IF EXISTS user_nodes`)
 	return s.seedDefaults()
 }
@@ -309,6 +329,16 @@ rules:
   - MATCH,节点选择
 `
 
+const DefaultServerMihomoTemplate = `# Mihob Default Mihomo Server Template
+# 节点服务端基础配置模板：
+# - listeners / external-controller(-unix) / secret 由控制平面自动托管
+# - 可按需自定义 mode、log-level、ipv6、dns、sniffer、proxies、proxy-groups、rules、sub-rules 等
+mode: direct
+log-level: info
+ipv6: true
+allow-lan: false
+`
+
 func (s *Store) seedDefaults() error {
 	now := time.Now().UTC()
 
@@ -325,17 +355,35 @@ func (s *Store) seedDefaults() error {
 		_ = s.SetSetting("sub_path", "sub")
 	}
 
-	// Seed default template if none exists
-	var tmplCount int
-	if err := s.db.QueryRow(`SELECT COUNT(1) FROM templates`).Scan(&tmplCount); err != nil {
+	// Seed default client template if none exists
+	var clientTmplCount int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM templates WHERE kind = 'client'`).Scan(&clientTmplCount); err != nil {
 		return err
 	}
-	if tmplCount == 0 {
+	if clientTmplCount == 0 {
 		_, err := s.db.Exec(
-			`INSERT INTO templates(name, description, content, is_default, created_at, updated_at) VALUES(?, ?, ?, 1, ?, ?)`,
+			`INSERT INTO templates(kind, name, description, content, is_default, created_at, updated_at) VALUES('client', ?, ?, ?, 1, ?, ?)`,
 			"默认分流模板",
 			"内置 Mihomo 通用规则模板（含自动选择、故障转移、国内直连）",
 			DefaultMihomoTemplate,
+			now, now,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Seed default server template if none exists
+	var serverTmplCount int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM templates WHERE kind = 'server'`).Scan(&serverTmplCount); err != nil {
+		return err
+	}
+	if serverTmplCount == 0 {
+		_, err := s.db.Exec(
+			`INSERT INTO templates(kind, name, description, content, is_default, created_at, updated_at) VALUES('server', ?, ?, ?, 1, ?, ?)`,
+			"默认节点直连模板",
+			"内置 Mihomo 服务端基础模板（mode: direct，所有入站流量直接出站）",
+			DefaultServerMihomoTemplate,
 			now, now,
 		)
 		if err != nil {

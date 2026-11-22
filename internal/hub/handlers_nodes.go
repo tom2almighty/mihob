@@ -73,6 +73,10 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		ExpireAt          *time.Time `json:"expire_at"`
 		BillingCycle      string     `json:"billing_cycle"`
 		Remark            string     `json:"remark"`
+		ServerTemplateID  *int64     `json:"server_template_id"`
+		ServerLogLevel    string     `json:"server_log_level"`
+		ServerIPv6        *bool      `json:"server_ipv6"`
+		ExtraServerYAML   string     `json:"extra_server_yaml"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -80,6 +84,22 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Host) == "" {
 		writeError(w, http.StatusBadRequest, "节点名称与主机地址不能为空")
+		return
+	}
+	req.ServerLogLevel = strings.TrimSpace(req.ServerLogLevel)
+	if !model.IsValidServerLogLevel(req.ServerLogLevel) {
+		writeError(w, http.StatusBadRequest, "无效的日志级别")
+		return
+	}
+	if req.ServerTemplateID != nil {
+		t, err := s.store.GetTemplate(*req.ServerTemplateID)
+		if err != nil || t.Kind != model.TemplateKindServer {
+			writeError(w, http.StatusBadRequest, "指定的节点服务端模板不存在")
+			return
+		}
+	}
+	if err := mihomogen.ValidateExtraYAML(req.ExtraServerYAML); err != nil {
+		writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
 		return
 	}
 	enabled := true
@@ -98,6 +118,10 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		ExpireAt:          req.ExpireAt,
 		BillingCycle:      strings.TrimSpace(req.BillingCycle),
 		Remark:            strings.TrimSpace(req.Remark),
+		ServerTemplateID:  req.ServerTemplateID,
+		ServerLogLevel:    req.ServerLogLevel,
+		ServerIPv6:        req.ServerIPv6,
+		ExtraServerYAML:   req.ExtraServerYAML,
 	}
 	if err := s.store.CreateNode(node); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -130,9 +154,29 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		ExpireAt          *time.Time `json:"expire_at"`
 		BillingCycle      string     `json:"billing_cycle"`
 		Remark            string     `json:"remark"`
+		ServerTemplateID  *int64     `json:"server_template_id"`
+		ServerLogLevel    string     `json:"server_log_level"`
+		ServerIPv6        *bool      `json:"server_ipv6"`
+		ExtraServerYAML   string     `json:"extra_server_yaml"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.ServerLogLevel = strings.TrimSpace(req.ServerLogLevel)
+	if !model.IsValidServerLogLevel(req.ServerLogLevel) {
+		writeError(w, http.StatusBadRequest, "无效的日志级别")
+		return
+	}
+	if req.ServerTemplateID != nil {
+		t, err := s.store.GetTemplate(*req.ServerTemplateID)
+		if err != nil || t.Kind != model.TemplateKindServer {
+			writeError(w, http.StatusBadRequest, "指定的节点服务端模板不存在")
+			return
+		}
+	}
+	if err := mihomogen.ValidateExtraYAML(req.ExtraServerYAML); err != nil {
+		writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
 		return
 	}
 	if strings.TrimSpace(req.Name) != "" {
@@ -154,6 +198,10 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	existing.ExpireAt = req.ExpireAt
 	existing.BillingCycle = strings.TrimSpace(req.BillingCycle)
 	existing.Remark = strings.TrimSpace(req.Remark)
+	existing.ServerTemplateID = req.ServerTemplateID
+	existing.ServerLogLevel = req.ServerLogLevel
+	existing.ServerIPv6 = req.ServerIPv6
+	existing.ExtraServerYAML = req.ExtraServerYAML
 
 	if err := s.store.UpdateNode(existing); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

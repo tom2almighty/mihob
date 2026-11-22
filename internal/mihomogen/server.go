@@ -18,7 +18,13 @@ type ServerBundle struct {
 	Certs      []protocol.CertFile
 }
 
-// GenerateServerConfig builds a complete mihomo server config for a node.
+// GenerateServerConfig builds a complete mihomo server config for a node by merging:
+//  1. Baseline defaults (mode: direct, log-level: info, ipv6: true, allow-lan: false)
+//  2. Server template YAML (if provided)
+//  3. Node-level extra_server_yaml override (deep-merged)
+//  4. Node-level quick overrides (server_log_level, server_ipv6)
+//  5. Control-plane managed fields (listeners always generated; external-controller* / secret stripped for Agent injection)
+//
 // Note: external-controller / external-controller-unix are injected by the Agent
 // right before writing so Hub remains OS-agnostic (Linux Unix socket vs Windows loopback).
 func GenerateServerConfig(
@@ -26,6 +32,7 @@ func GenerateServerConfig(
 	inbounds []model.Inbound,
 	users []model.User,
 	certs map[int64]*model.Certificate,
+	serverTemplateYAML string,
 	now time.Time,
 ) (*ServerBundle, error) {
 	activeUsers := make([]model.User, 0, len(users))
@@ -70,8 +77,27 @@ func GenerateServerConfig(
 		"log-level": "info",
 		"ipv6":      true,
 		"allow-lan": false,
-		"listeners": listeners,
 	}
+	if strings.TrimSpace(serverTemplateYAML) != "" {
+		if err := MergeExtraYAML(cfg, serverTemplateYAML, serverTopProtectedKeys); err != nil {
+			return nil, fmt.Errorf("server template YAML: %w", err)
+		}
+	}
+	if strings.TrimSpace(node.ExtraServerYAML) != "" {
+		if err := MergeExtraYAML(cfg, node.ExtraServerYAML, serverTopProtectedKeys); err != nil {
+			return nil, fmt.Errorf("node extra server YAML: %w", err)
+		}
+	}
+	if lvl := strings.TrimSpace(node.ServerLogLevel); lvl != "" {
+		cfg["log-level"] = lvl
+	}
+	if node.ServerIPv6 != nil {
+		cfg["ipv6"] = *node.ServerIPv6
+	}
+	for k := range serverTopProtectedKeys {
+		delete(cfg, k)
+	}
+	cfg["listeners"] = listeners
 
 	raw, err := yaml.Marshal(cfg)
 	if err != nil {

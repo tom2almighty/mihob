@@ -19,6 +19,13 @@ var (
 		"name": true,
 		"type": true,
 	}
+	serverTopProtectedKeys = map[string]bool{
+		"listeners":                true,
+		"external-controller":      true,
+		"external-controller-unix": true,
+		"external-controller-tls":  true,
+		"secret":                   true,
+	}
 )
 
 // ValidateExtraYAML verifies that raw YAML is either empty or a valid YAML mapping (object).

@@ -330,6 +330,18 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 	}
 }
 
+func resolveServerTemplateYAML(store *db.Store, templateID *int64) string {
+	if templateID != nil {
+		if t, err := store.GetTemplate(*templateID); err == nil && t.Kind == model.TemplateKindServer {
+			return t.Content
+		}
+	}
+	if t, err := store.GetDefaultServerTemplate(); err == nil {
+		return t.Content
+	}
+	return db.DefaultServerMihomoTemplate
+}
+
 func (m *WSManager) PushConfigToNode(nodeID int64) error {
 	node, err := m.store.GetNode(nodeID)
 	if err != nil {
@@ -352,7 +364,8 @@ func (m *WSManager) PushConfigToNode(nodeID int64) error {
 		certsMap[certsList[i].ID] = &certsList[i]
 	}
 
-	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, time.Now().UTC())
+	serverTemplateYAML := resolveServerTemplateYAML(m.store, node.ServerTemplateID)
+	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTemplateYAML, time.Now().UTC())
 	if err != nil {
 		_ = m.store.UpdateNodeConfigStatus(nodeID, "", "error", err.Error())
 		return err

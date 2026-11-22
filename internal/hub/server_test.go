@@ -356,4 +356,100 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 for loopback theme fetch, got %d", resp.StatusCode)
 	}
+
+	// 12. Verify server config templates CRUD, node assignment, and live server config preview
+	resp, raw = doJSON(http.MethodGet, "/api/templates?kind=server", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list server templates failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var srvTemplates []model.Template
+	if err := json.Unmarshal(raw, &srvTemplates); err != nil || len(srvTemplates) != 1 || !srvTemplates[0].IsDefault {
+		t.Fatalf("expected 1 default server template seeded, got %+v (err=%v)", srvTemplates, err)
+	}
+
+	// Create custom server template
+	resp, raw = doJSON(http.MethodPost, "/api/templates", tok, map[string]any{
+		"kind":        "server",
+		"name":        "Anti-Abuse Server",
+		"description": "Block SMTP",
+		"content":     "mode: rule\nlog-level: info\nipv6: true\nrules:\n  - DST-PORT,25,REJECT\n  - MATCH,DIRECT\n",
+		"is_default":  false,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create server template failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var customSrvTmpl model.Template
+	_ = json.Unmarshal(raw, &customSrvTmpl)
+	if customSrvTmpl.Kind != model.TemplateKindServer {
+		t.Fatalf("expected server kind, got %q", customSrvTmpl.Kind)
+	}
+
+	// Reject invalid server YAML
+	resp, _ = doJSON(http.MethodPost, "/api/templates", tok, map[string]any{
+		"kind":    "server",
+		"name":    "Bad YAML",
+		"content": "- just-a-list",
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-mapping server template, got %d", resp.StatusCode)
+	}
+
+	// Assign server template + quick overrides + extra YAML to node
+	ipv6Off := false
+	resp, raw = doJSON(http.MethodPut, fmt.Sprintf("/api/nodes/%d", node.ID), tok, map[string]any{
+		"name":               node.Name,
+		"host":               node.Host,
+		"region":             node.Region,
+		"tags":               node.Tags,
+		"enabled":            true,
+		"traffic_limit":      node.TrafficLimit,
+		"traffic_multiplier": 1.0,
+		"reset_day":          1,
+		"server_template_id": customSrvTmpl.ID,
+		"server_log_level":   "warning",
+		"server_ipv6":        ipv6Off,
+		"extra_server_yaml":  "sniffer:\n  enable: true\n",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update node server config failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var updatedNode model.Node
+	_ = json.Unmarshal(raw, &updatedNode)
+	if updatedNode.ServerTemplateID == nil || *updatedNode.ServerTemplateID != customSrvTmpl.ID || updatedNode.ServerLogLevel != "warning" || updatedNode.ServerIPv6 == nil || *updatedNode.ServerIPv6 {
+		t.Fatalf("unexpected updated node server config: %+v", updatedNode)
+	}
+
+	// Preview merged server config for this node
+	resp, raw = doJSON(http.MethodPost, "/api/templates/preview-server", tok, map[string]any{
+		"node_id": node.ID,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview server config failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var previewRes struct {
+		YAML string `json:"yaml"`
+	}
+	_ = json.Unmarshal(raw, &previewRes)
+	var previewParsed map[string]any
+	if err := yaml.Unmarshal([]byte(previewRes.YAML), &previewParsed); err != nil {
+		t.Fatalf("invalid preview server yaml: %v\n%s", err, previewRes.YAML)
+	}
+	if previewParsed["mode"] != "rule" || previewParsed["log-level"] != "warning" || previewParsed["ipv6"] != false {
+		t.Fatalf("unexpected preview server config: %+v", previewParsed)
+	}
+	if ls, ok := previewParsed["listeners"].([]any); !ok || len(ls) != 2 {
+		t.Fatalf("expected 2 active listeners in preview, got %+v", previewParsed["listeners"])
+	}
+
+	// Delete custom server template should reset node.server_template_id to nil
+	resp, _ = doJSON(http.MethodDelete, fmt.Sprintf("/api/templates/%d", customSrvTmpl.ID), tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete custom server template failed: %d", resp.StatusCode)
+	}
+	resp, raw = doJSON(http.MethodGet, fmt.Sprintf("/api/nodes/%d", node.ID), tok, nil)
+	var afterDeleteNode model.Node
+	_ = json.Unmarshal(raw, &afterDeleteNode)
+	if afterDeleteNode.ServerTemplateID != nil {
+		t.Fatalf("expected node.server_template_id reset to nil after template deletion, got %v", *afterDeleteNode.ServerTemplateID)
+	}
 }

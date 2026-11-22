@@ -13,11 +13,13 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	var n model.Node
 	var enabled int
 	var tagsJSON string
+	var serverTmplID, serverIPv6 sql.NullInt64
 	var lastReset, expireAt, lastSeen sql.NullTime
 	err := row.Scan(
 		&n.ID, &n.Name, &n.Host, &n.Region, &tagsJSON, &n.Token, &enabled,
 		&n.TrafficLimit, &n.TrafficUsed, &n.UploadUsed, &n.DownloadUsed,
 		&n.TrafficMultiplier, &n.ResetDay, &lastReset, &expireAt, &n.BillingCycle, &n.Remark,
+		&serverTmplID, &n.ServerLogLevel, &serverIPv6, &n.ExtraServerYAML,
 		&n.MihomoVersion, &n.AgentVersion, &n.ConfigHash, &n.ConfigStatus,
 		&n.ConfigError, &lastSeen, &n.CreatedAt, &n.UpdatedAt, &n.InboundCount,
 	)
@@ -27,6 +29,14 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	n.Enabled = enabled == 1
 	_ = json.Unmarshal([]byte(tagsJSON), &n.Tags)
 	n.Tags = model.NormalizeTags(n.Tags)
+	if serverTmplID.Valid {
+		v := serverTmplID.Int64
+		n.ServerTemplateID = &v
+	}
+	if serverIPv6.Valid {
+		v := serverIPv6.Int64 == 1
+		n.ServerIPv6 = &v
+	}
 	if lastReset.Valid {
 		t := lastReset.Time
 		n.LastResetAt = &t
@@ -42,10 +52,18 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	return &n, nil
 }
 
+func nullBoolToSQL(b *bool) any {
+	if b == nil {
+		return nil
+	}
+	return boolToInt(*b)
+}
+
 const nodeSelectSQL = `
 SELECT n.id, n.name, n.host, n.region, n.tags, n.token, n.enabled,
        n.traffic_limit, n.traffic_used, n.upload_used, n.download_used,
        n.traffic_multiplier, n.reset_day, n.last_reset_at, n.expire_at, n.billing_cycle, n.remark,
+       n.server_template_id, n.server_log_level, n.server_ipv6, n.extra_server_yaml,
        n.mihomo_version, n.agent_version, n.config_hash, n.config_status,
        n.config_error, n.last_seen_at, n.created_at, n.updated_at,
        (SELECT COUNT(1) FROM inbounds i WHERE i.node_id = n.id) AS inbound_count
@@ -105,10 +123,11 @@ func (s *Store) CreateNode(n *model.Node) error {
 	n.Tags = model.NormalizeTags(n.Tags)
 	tagsJSON, _ := json.Marshal(n.Tags)
 	res, err := s.db.Exec(
-		`INSERT INTO nodes(name, host, region, tags, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, config_status, created_at, updated_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		`INSERT INTO nodes(name, host, region, tags, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, server_template_id, server_log_level, server_ipv6, extra_server_yaml, config_status, created_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
 		n.Name, n.Host, n.Region, string(tagsJSON), n.Token, boolToInt(n.Enabled),
-		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, now,
+		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark,
+		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), n.ExtraServerYAML, now, now,
 	)
 	if err != nil {
 		return err
@@ -131,11 +150,37 @@ func (s *Store) UpdateNode(n *model.Node) error {
 	tagsJSON, _ := json.Marshal(n.Tags)
 	now := time.Now().UTC()
 	_, err := s.db.Exec(
-		`UPDATE nodes SET name=?, host=?, region=?, tags=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, updated_at=? WHERE id=?`,
+		`UPDATE nodes SET name=?, host=?, region=?, tags=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, server_template_id=?, server_log_level=?, server_ipv6=?, extra_server_yaml=?, updated_at=? WHERE id=?`,
 		n.Name, n.Host, n.Region, string(tagsJSON), boolToInt(n.Enabled),
-		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark, now, n.ID,
+		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark,
+		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), n.ExtraServerYAML, now, n.ID,
 	)
 	return err
+}
+
+func (s *Store) ListNodeIDsByServerTemplate(templateID int64, includeDefaultNodes bool) ([]int64, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if includeDefaultNodes {
+		rows, err = s.db.Query(`SELECT id FROM nodes WHERE server_template_id = ? OR server_template_id IS NULL`, templateID)
+	} else {
+		rows, err = s.db.Query(`SELECT id FROM nodes WHERE server_template_id = ?`, templateID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (s *Store) SetNodeTraffic(id, trafficUsed int64) error {

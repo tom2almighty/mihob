@@ -69,6 +69,13 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if req.TemplateID != nil {
+		tmpl, err := s.store.GetTemplate(*req.TemplateID)
+		if err != nil || tmpl.Kind != model.TemplateKindClient {
+			writeError(w, http.StatusBadRequest, "invalid client template")
+			return
+		}
+	}
 	u := &model.User{
 		Username:     req.Username,
 		Email:        strings.TrimSpace(req.Email),
@@ -133,6 +140,13 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	existing.TrafficLimit = req.TrafficLimit
 	existing.ExpireAt = req.ExpireAt
+	if req.TemplateID != nil {
+		tmpl, err := s.store.GetTemplate(*req.TemplateID)
+		if err != nil || tmpl.Kind != model.TemplateKindClient {
+			writeError(w, http.StatusBadRequest, "invalid client template")
+			return
+		}
+	}
 	existing.TemplateID = req.TemplateID
 	existing.Remark = strings.TrimSpace(req.Remark)
 
@@ -231,7 +245,20 @@ func (s *Server) handleRotateUserToken(w http.ResponseWriter, r *http.Request) {
 // --- Templates ---
 
 func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
-	list, err := s.store.ListTemplates()
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	var (
+		list []model.Template
+		err  error
+	)
+	if kind != "" {
+		if kind != model.TemplateKindClient && kind != model.TemplateKindServer {
+			writeError(w, http.StatusBadRequest, "invalid template kind")
+			return
+		}
+		list, err = s.store.ListTemplatesByKind(kind)
+	} else {
+		list, err = s.store.ListTemplates()
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -241,6 +268,7 @@ func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		Kind        string `json:"kind"`
 		Name        string `json:"name"`
 		Description string `json:"description"`
 		Content     string `json:"content"`
@@ -254,7 +282,22 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "template name and content are required")
 		return
 	}
+	kind := strings.TrimSpace(req.Kind)
+	if kind == "" {
+		kind = model.TemplateKindClient
+	}
+	if kind != model.TemplateKindClient && kind != model.TemplateKindServer {
+		writeError(w, http.StatusBadRequest, "invalid template kind")
+		return
+	}
+	if kind == model.TemplateKindServer {
+		if err := mihomogen.ValidateExtraYAML(req.Content); err != nil {
+			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
+			return
+		}
+	}
 	t := &model.Template{
+		Kind:        kind,
 		Name:        strings.TrimSpace(req.Name),
 		Description: strings.TrimSpace(req.Description),
 		Content:     req.Content,
@@ -263,6 +306,11 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.CreateTemplate(t); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if t.Kind == model.TemplateKindServer && t.IsDefault {
+		if nodeIDs, err := s.store.ListNodeIDsByServerTemplate(t.ID, true); err == nil {
+			s.ws.PushConfigToNodes(nodeIDs)
+		}
 	}
 	writeJSON(w, http.StatusCreated, t)
 }
@@ -278,6 +326,7 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "template not found")
 		return
 	}
+	wasDefault := existing.IsDefault
 	var req struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -295,10 +344,21 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Content) != "" {
 		existing.Content = req.Content
 	}
+	if existing.Kind == model.TemplateKindServer {
+		if err := mihomogen.ValidateExtraYAML(existing.Content); err != nil {
+			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
+			return
+		}
+	}
 	existing.IsDefault = req.IsDefault
 	if err := s.store.UpdateTemplate(existing); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if existing.Kind == model.TemplateKindServer {
+		if nodeIDs, err := s.store.ListNodeIDsByServerTemplate(existing.ID, wasDefault || existing.IsDefault); err == nil {
+			s.ws.PushConfigToNodes(nodeIDs)
+		}
 	}
 	writeJSON(w, http.StatusOK, existing)
 }
@@ -309,9 +369,25 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid template id")
 		return
 	}
+	existing, err := s.store.GetTemplate(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "template not found")
+		return
+	}
+	if existing.IsDefault {
+		writeError(w, http.StatusBadRequest, "cannot delete default template")
+		return
+	}
+	var affectedNodes []int64
+	if existing.Kind == model.TemplateKindServer {
+		affectedNodes, _ = s.store.ListNodeIDsByServerTemplate(id, false)
+	}
 	if err := s.store.DeleteTemplate(id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if len(affectedNodes) > 0 {
+		s.ws.PushConfigToNodes(affectedNodes)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -355,6 +431,114 @@ func (s *Server) handlePreviewTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"yaml": rendered})
+}
+
+func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		NodeID           *int64  `json:"node_id"`
+		TemplateID       *int64  `json:"template_id"`
+		Content          string  `json:"content"`
+		UseDraftTemplate bool    `json:"use_draft_template"`
+		ServerLogLevel   *string `json:"server_log_level"`
+		ServerIPv6       *bool   `json:"server_ipv6"`
+		ClearServerIPv6  bool    `json:"clear_server_ipv6"`
+		ExtraServerYAML  *string `json:"extra_server_yaml"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var (
+		node     *model.Node
+		inbounds []model.Inbound
+		users    []model.User
+	)
+	if req.NodeID != nil && *req.NodeID > 0 {
+		n, err := s.store.GetNode(*req.NodeID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "node not found")
+			return
+		}
+		node = n
+		inbounds, _ = s.store.ListInboundsByNode(n.ID)
+		users, _ = s.store.ListUsersByNode(n.ID)
+	} else {
+		node = &model.Node{
+			Name:    "preview-node",
+			Enabled: true,
+		}
+	}
+
+	// Apply draft node overrides if provided
+	if req.ServerLogLevel != nil {
+		lvl := strings.TrimSpace(*req.ServerLogLevel)
+		if !model.IsValidServerLogLevel(lvl) {
+			writeError(w, http.StatusBadRequest, "invalid server_log_level")
+			return
+		}
+		node.ServerLogLevel = lvl
+	}
+	if req.ClearServerIPv6 {
+		node.ServerIPv6 = nil
+	} else if req.ServerIPv6 != nil {
+		v := *req.ServerIPv6
+		node.ServerIPv6 = &v
+	}
+	if req.ExtraServerYAML != nil {
+		if err := mihomogen.ValidateExtraYAML(*req.ExtraServerYAML); err != nil {
+			writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
+			return
+		}
+		node.ExtraServerYAML = *req.ExtraServerYAML
+	}
+
+	// Resolve server template YAML
+	var serverTmplYAML string
+	if strings.TrimSpace(req.Content) != "" {
+		if err := mihomogen.ValidateExtraYAML(req.Content); err != nil {
+			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
+			return
+		}
+		serverTmplYAML = req.Content
+	} else if req.UseDraftTemplate {
+		if req.TemplateID != nil {
+			t, err := s.store.GetTemplate(*req.TemplateID)
+			if err != nil || t.Kind != model.TemplateKindServer {
+				writeError(w, http.StatusNotFound, "server template not found")
+				return
+			}
+			serverTmplYAML = t.Content
+		} else {
+			serverTmplYAML = resolveServerTemplateYAML(s.store, nil)
+		}
+	} else if req.TemplateID != nil {
+		t, err := s.store.GetTemplate(*req.TemplateID)
+		if err != nil || t.Kind != model.TemplateKindServer {
+			writeError(w, http.StatusNotFound, "server template not found")
+			return
+		}
+		serverTmplYAML = t.Content
+	} else {
+		serverTmplYAML = resolveServerTemplateYAML(s.store, node.ServerTemplateID)
+	}
+
+	certsList, err := s.store.ListCertificates()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	certsMap := make(map[int64]*model.Certificate, len(certsList))
+	for i := range certsList {
+		certsMap[certsList[i].ID] = &certsList[i]
+	}
+
+	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTmplYAML, time.Now().UTC())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"yaml": bundle.ConfigYAML})
 }
 
 // --- Public Subscription Path Matching & Endpoints ---
@@ -568,7 +752,7 @@ func (s *Server) serveSubscriptionYAML(w http.ResponseWriter, r *http.Request, t
 
 func (s *Server) resolveUserTemplate(u *model.User) (*model.Template, error) {
 	if u.TemplateID != nil {
-		if t, err := s.store.GetTemplate(*u.TemplateID); err == nil {
+		if t, err := s.store.GetTemplate(*u.TemplateID); err == nil && t.Kind == model.TemplateKindClient {
 			return t, nil
 		}
 	}

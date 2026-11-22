@@ -47,6 +47,27 @@ func IsValidProtocol(p string) bool {
 	return false
 }
 
+const (
+	TemplateKindClient = "client"
+	TemplateKindServer = "server"
+)
+
+func NormalizeTemplateKind(kind string) string {
+	if kind == TemplateKindServer {
+		return TemplateKindServer
+	}
+	return TemplateKindClient
+}
+
+func IsValidServerLogLevel(level string) bool {
+	switch level {
+	case "", "silent", "error", "warning", "info", "debug":
+		return true
+	default:
+		return false
+	}
+}
+
 type Admin struct {
 	ID           int64     `json:"id"`
 	Username     string    `json:"username"`
@@ -73,6 +94,10 @@ type Node struct {
 	ExpireAt          *time.Time `json:"expire_at"`
 	BillingCycle      string     `json:"billing_cycle"`
 	Remark            string     `json:"remark"`
+	ServerTemplateID  *int64     `json:"server_template_id"`
+	ServerLogLevel    string     `json:"server_log_level"`
+	ServerIPv6        *bool      `json:"server_ipv6"`
+	ExtraServerYAML   string     `json:"extra_server_yaml"`
 	MihomoVersion     string     `json:"mihomo_version"`
 	AgentVersion      string     `json:"agent_version"`
 	ConfigHash        string     `json:"config_hash"`
@@ -306,6 +331,7 @@ func (n *Node) IsQuotaExceeded() bool {
 
 type Template struct {
 	ID          int64     `json:"id"`
+	Kind        string    `json:"kind"` // "client" | "server"
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Content     string    `json:"content"`
