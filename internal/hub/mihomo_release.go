@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ const (
 
 var (
 	mihomoVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9._-]+)?$`)
+	semverTriplePattern  = regexp.MustCompile(`v?(\d+)\.(\d+)\.(\d+)`)
 	allowedMihomoHosts   = map[string]bool{
 		"github.com":                          true,
 		"objects.githubusercontent.com":       true,
@@ -98,6 +100,28 @@ func NewMihomoReleaseManager(store *db.Store, dataDir string) *MihomoReleaseMana
 
 func isValidMihomoVersion(v string) bool {
 	return mihomoVersionPattern.MatchString(strings.TrimSpace(v))
+}
+
+func compareSemver(a, b string) int {
+	ma := semverTriplePattern.FindStringSubmatch(a)
+	mb := semverTriplePattern.FindStringSubmatch(b)
+	if len(ma) != 4 || len(mb) != 4 {
+		return 0
+	}
+	for i := 1; i <= 3; i++ {
+		va, errA := strconv.Atoi(ma[i])
+		vb, errB := strconv.Atoi(mb[i])
+		if errA != nil || errB != nil {
+			return 0
+		}
+		if va > vb {
+			return 1
+		}
+		if va < vb {
+			return -1
+		}
+	}
+	return 0
 }
 
 func isValidMihomoArch(arch string) bool {
@@ -464,6 +488,7 @@ func (s *Server) handleUpgradeNodeMihomo(w http.ResponseWriter, r *http.Request)
 	}
 	var req struct {
 		Version string `json:"version"`
+		Force   bool   `json:"force"`
 	}
 	_ = decodeJSON(r, &req)
 
@@ -486,8 +511,16 @@ func (s *Server) handleUpgradeNodeMihomo(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "node is offline")
 		return
 	}
+	if !rt.SupportsCoreUpgrade {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("agent version (%s) is too old; please update mihob-agent to v0.10.0+ first", rt.AgentVersion))
+		return
+	}
 	if rt.UpgradeStatus == "upgrading" {
 		writeError(w, http.StatusConflict, "node upgrade already in progress")
+		return
+	}
+	if !req.Force && rt.MihomoVersion != "" && compareSemver(rt.MihomoVersion, version) >= 0 {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("node is already running %s (>= %s)", rt.MihomoVersion, version))
 		return
 	}
 	if rt.OS != "" && rt.OS != "linux" {
@@ -569,8 +602,16 @@ func (s *Server) handleBatchUpgradeMihomo(w http.ResponseWriter, r *http.Request
 			skipped = append(skipped, skippedItem{NodeID: id, Reason: "offline"})
 			continue
 		}
+		if !rt.SupportsCoreUpgrade {
+			skipped = append(skipped, skippedItem{NodeID: id, Reason: "agent too old (update mihob-agent to v0.10.0+)"})
+			continue
+		}
 		if rt.UpgradeStatus == "upgrading" {
 			skipped = append(skipped, skippedItem{NodeID: id, Reason: "already upgrading"})
+			continue
+		}
+		if rt.MihomoVersion != "" && compareSemver(rt.MihomoVersion, version) >= 0 {
+			skipped = append(skipped, skippedItem{NodeID: id, Reason: "already up to date"})
 			continue
 		}
 		if rt.OS != "" && rt.OS != "linux" {

@@ -83,13 +83,14 @@ type Node struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 
 	// Runtime fields populated from WS manager
-	Online            bool    `json:"online"`
-	MihomoRunning     bool    `json:"mihomo_running"`
-	OS                string  `json:"os,omitempty"`
-	Arch              string  `json:"arch,omitempty"`
-	UpgradeStatus     string  `json:"upgrade_status,omitempty"` // "" | "upgrading" | "success" | "error"
-	UpgradeError      string  `json:"upgrade_error,omitempty"`
-	UpgradeTarget     string  `json:"upgrade_target,omitempty"`
+	Online              bool    `json:"online"`
+	MihomoRunning       bool    `json:"mihomo_running"`
+	OS                  string  `json:"os,omitempty"`
+	Arch                string  `json:"arch,omitempty"`
+	SupportsCoreUpgrade bool    `json:"supports_core_upgrade"`
+	UpgradeStatus       string  `json:"upgrade_status,omitempty"` // "" | "upgrading" | "success" | "error"
+	UpgradeError        string  `json:"upgrade_error,omitempty"`
+	UpgradeTarget       string  `json:"upgrade_target,omitempty"`
 	CPUPercent        float64 `json:"cpu_percent"`
 	MemUsed           uint64  `json:"mem_used"`
 	MemTotal          uint64  `json:"mem_total"`
