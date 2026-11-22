@@ -5,10 +5,12 @@ import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format } from "date-fns"
 import { z } from "zod"
-import { Loader2 } from "lucide-react"
+import { Eye, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { CopyButton } from "@/components/common/CommonUI"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { TagInput } from "@/components/common/TagInput"
+import { YamlCodeBlock, YamlEditor } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -54,6 +56,10 @@ type NodeFormValues = {
   billing_cycle?: string
   enabled: boolean
   remark?: string
+  server_template_id: string
+  server_log_level: string
+  server_ipv6: string
+  extra_server_yaml: string
 }
 
 function toLocalDateInput(iso: string | null): string {
@@ -61,6 +67,18 @@ function toLocalDateInput(iso: string | null): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ""
   return format(d, "yyyy-MM-dd")
+}
+
+function ipv6ToSelectValue(v: boolean | null | undefined): string {
+  if (v === true) return "true"
+  if (v === false) return "false"
+  return "follow"
+}
+
+function selectValueToIPv6(v: string): boolean | null {
+  if (v === "true") return true
+  if (v === "false") return false
+  return null
 }
 
 export function NodeFormDialog({
@@ -75,13 +93,30 @@ export function NodeFormDialog({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const isEdit = Boolean(node)
-  const [activeTab, setActiveTab] = useState<"basic" | "traffic">("basic")
+  const [activeTab, setActiveTab] = useState<"basic" | "traffic" | "config">("basic")
+  const [previewYAML, setPreviewYAML] = useState<string>("")
 
   const nodesQuery = useQuery({
     queryKey: queryKeys.nodes,
     queryFn: api.listNodes,
     enabled: open,
   })
+
+  const templatesQuery = useQuery({
+    queryKey: queryKeys.templates,
+    queryFn: api.listTemplates,
+    enabled: open,
+  })
+
+  const serverTemplates = useMemo(
+    () => (templatesQuery.data ?? []).filter((tmpl) => tmpl.kind === "server"),
+    [templatesQuery.data]
+  )
+
+  const defaultServerTemplate = useMemo(
+    () => serverTemplates.find((tmpl) => tmpl.is_default) ?? serverTemplates[0] ?? null,
+    [serverTemplates]
+  )
 
   const tagSuggestions = useMemo(() => {
     const set = new Set<string>()
@@ -115,6 +150,10 @@ export function NodeFormDialog({
         billing_cycle: z.string().optional(),
         enabled: z.boolean(),
         remark: z.string().trim().optional(),
+        server_template_id: z.string(),
+        server_log_level: z.string(),
+        server_ipv6: z.string(),
+        extra_server_yaml: z.string(),
       }),
     [t]
   )
@@ -134,12 +173,17 @@ export function NodeFormDialog({
       billing_cycle: "none",
       enabled: true,
       remark: "",
+      server_template_id: "default",
+      server_log_level: "follow",
+      server_ipv6: "follow",
+      extra_server_yaml: "",
     },
   })
 
   useEffect(() => {
     if (open) {
       setActiveTab("basic")
+      setPreviewYAML("")
       if (node) {
         form.reset({
           name: node.name,
@@ -154,6 +198,10 @@ export function NodeFormDialog({
           billing_cycle: node.billing_cycle || "none",
           enabled: node.enabled,
           remark: node.remark || "",
+          server_template_id: node.server_template_id ? String(node.server_template_id) : "default",
+          server_log_level: node.server_log_level || "follow",
+          server_ipv6: ipv6ToSelectValue(node.server_ipv6),
+          extra_server_yaml: node.extra_server_yaml || "",
         })
       } else {
         form.reset({
@@ -169,6 +217,10 @@ export function NodeFormDialog({
           billing_cycle: "none",
           enabled: true,
           remark: "",
+          server_template_id: "default",
+          server_log_level: "follow",
+          server_ipv6: "follow",
+          extra_server_yaml: "",
         })
       }
     }
@@ -192,6 +244,16 @@ export function NodeFormDialog({
         billing_cycle: values.billing_cycle && values.billing_cycle !== "none" ? values.billing_cycle : "",
         enabled: values.enabled,
         remark: values.remark || "",
+        server_template_id:
+          values.server_template_id && values.server_template_id !== "default"
+            ? Number(values.server_template_id)
+            : null,
+        server_log_level:
+          values.server_log_level && values.server_log_level !== "follow"
+            ? values.server_log_level
+            : "",
+        server_ipv6: selectValueToIPv6(values.server_ipv6),
+        extra_server_yaml: values.extra_server_yaml || "",
       }
       if (isEdit && node && form.formState.dirtyFields.traffic_used_gb) {
         payload.traffic_used = gbToBytes(values.traffic_used_gb ?? 0)
@@ -207,6 +269,28 @@ export function NodeFormDialog({
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const previewMutation = useMutation({
+    mutationFn: () => {
+      const v = form.getValues()
+      const ipv6Val = selectValueToIPv6(v.server_ipv6)
+      return api.previewServerConfig({
+        node_id: node?.id ?? null,
+        use_draft_template: true,
+        template_id:
+          v.server_template_id && v.server_template_id !== "default"
+            ? Number(v.server_template_id)
+            : null,
+        server_log_level:
+          v.server_log_level && v.server_log_level !== "follow" ? v.server_log_level : "",
+        server_ipv6: ipv6Val,
+        clear_server_ipv6: ipv6Val === null,
+        extra_server_yaml: v.extra_server_yaml || "",
+      })
+    },
+    onSuccess: (res) => setPreviewYAML(res.yaml),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const handleInvalid = (errors: Record<string, unknown>) => {
     if (errors.name || errors.host || errors.region || errors.remark) {
       setActiveTab("basic")
@@ -219,13 +303,23 @@ export function NodeFormDialog({
       errors.billing_cycle
     ) {
       setActiveTab("traffic")
+    } else if (
+      errors.server_template_id ||
+      errors.server_log_level ||
+      errors.server_ipv6 ||
+      errors.extra_server_yaml
+    ) {
+      setActiveTab("config")
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(640px,86vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-14 pb-4">
+      <DialogContent
+        expandable
+        className="flex h-[min(680px,88vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
           <DialogTitle>
             {isEdit ? t("nodes.form.editTitle") : t("nodes.form.createTitle")}
           </DialogTitle>
@@ -242,13 +336,14 @@ export function NodeFormDialog({
           >
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as "basic" | "traffic")}
+              onValueChange={(v) => setActiveTab(v as "basic" | "traffic" | "config")}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
               <div className="shrink-0 border-b border-border px-6 py-2.5">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="basic">{t("nodes.form.tabBasic")}</TabsTrigger>
                   <TabsTrigger value="traffic">{t("nodes.form.tabTraffic")}</TabsTrigger>
+                  <TabsTrigger value="config">{t("nodes.form.tabConfig")}</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -473,6 +568,161 @@ export function NodeFormDialog({
                         </FormItem>
                       )}
                     />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="config" keepMounted className="mt-0 space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="server_template_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("nodes.form.serverTemplate")}</FormLabel>
+                        <Select
+                          value={field.value || "default"}
+                          onValueChange={(v) => field.onChange(v ?? "default")}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="default">
+                              {defaultServerTemplate
+                                ? t("nodes.form.serverTemplateDefaultNamed", {
+                                    name: defaultServerTemplate.name,
+                                  })
+                                : t("nodes.form.serverTemplateDefault")}
+                            </SelectItem>
+                            {serverTemplates.map((tmpl) => (
+                              <SelectItem key={tmpl.id} value={String(tmpl.id)}>
+                                {tmpl.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>{t("nodes.form.serverTemplateDesc")}</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="server_log_level"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("nodes.form.serverLogLevel")}</FormLabel>
+                          <Select
+                            value={field.value || "follow"}
+                            onValueChange={(v) => field.onChange(v ?? "follow")}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="follow">{t("nodes.form.followTemplate")}</SelectItem>
+                              <SelectItem value="silent">silent</SelectItem>
+                              <SelectItem value="error">error</SelectItem>
+                              <SelectItem value="warning">warning</SelectItem>
+                              <SelectItem value="info">info</SelectItem>
+                              <SelectItem value="debug">debug</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="server_ipv6"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("nodes.form.serverIPv6")}</FormLabel>
+                          <Select
+                            value={field.value || "follow"}
+                            onValueChange={(v) => field.onChange(v ?? "follow")}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="follow">{t("nodes.form.followTemplate")}</SelectItem>
+                              <SelectItem value="true">{t("nodes.form.ipv6Enabled")}</SelectItem>
+                              <SelectItem value="false">{t("nodes.form.ipv6Disabled")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="extra_server_yaml"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("nodes.form.extraServerYaml")}</FormLabel>
+                        <FormControl>
+                          <YamlEditor
+                            name={field.name}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            minHeightClass="min-h-[160px]"
+                          />
+                        </FormControl>
+                        <FormDescription>{t("nodes.form.extraServerYamlDesc")}</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium">{t("nodes.form.previewTitle")}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {t("nodes.form.previewDesc")}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {previewYAML && (
+                          <CopyButton
+                            value={previewYAML}
+                            label={t("templates.copyYaml")}
+                            size="sm"
+                            variant="outline"
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={previewMutation.isPending}
+                          onClick={() => previewMutation.mutate()}
+                        >
+                          {previewMutation.isPending ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Eye className="mr-1.5 size-3.5" />
+                          )}
+                          {previewYAML
+                            ? t("nodes.form.refreshPreview")
+                            : t("nodes.form.previewBtn")}
+                        </Button>
+                      </div>
+                    </div>
+                    {previewYAML && (
+                      <YamlCodeBlock value={previewYAML} className="max-h-64" />
+                    )}
                   </div>
                 </TabsContent>
               </div>

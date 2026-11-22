@@ -232,6 +232,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  previewServerConfig: (body: {
+    node_id?: number | null
+    template_id?: number | null
+    content?: string
+    use_draft_template?: boolean
+    server_log_level?: string
+    server_ipv6?: boolean | null
+    clear_server_ipv6?: boolean
+    extra_server_yaml?: string
+  }) =>
+    request<{ yaml: string }>("/api/templates/preview-server", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // Settings
   getSettings: () => request<SystemSettings>("/api/settings"),

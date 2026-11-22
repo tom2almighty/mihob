@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Eye, FileCode2, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Eye, FileCode2, Loader2, Pencil, Plus, Server, Smartphone, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import {
   ConfirmDeleteDialog,
@@ -29,20 +29,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { formatDateShort } from "@/lib/format"
-import type { Template } from "@/lib/types"
+import type { Template, TemplateKind } from "@/lib/types"
 import { TemplateFormDialog } from "./templates/TemplateFormDialog"
 
 export function TemplatesPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
+  const [activeKind, setActiveKind] = useState<TemplateKind>("client")
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Template | null>(null)
   const [deleting, setDeleting] = useState<Template | null>(null)
   const [previewTmpl, setPreviewTmpl] = useState<Template | null>(null)
   const [previewUserId, setPreviewUserId] = useState<string>("")
+  const [previewNodeId, setPreviewNodeId] = useState<string>("none")
   const [renderedYAML, setRenderedYAML] = useState<string>("")
 
   const query = useQuery({
@@ -53,25 +56,54 @@ export function TemplatesPage() {
   const usersQuery = useQuery({
     queryKey: queryKeys.users,
     queryFn: api.listUsers,
-    enabled: Boolean(previewTmpl),
+    enabled: Boolean(previewTmpl && previewTmpl.kind !== "server"),
   })
+
+  const nodesQuery = useQuery({
+    queryKey: queryKeys.nodes,
+    queryFn: api.listNodes,
+    enabled: Boolean(previewTmpl && previewTmpl.kind === "server"),
+  })
+
+  const clientTemplates = useMemo(
+    () => (query.data ?? []).filter((tmpl) => tmpl.kind !== "server"),
+    [query.data]
+  )
+  const serverTemplates = useMemo(
+    () => (query.data ?? []).filter((tmpl) => tmpl.kind === "server"),
+    [query.data]
+  )
+  const visibleTemplates = activeKind === "server" ? serverTemplates : clientTemplates
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.deleteTemplate(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.templates })
+      if (deleting?.kind === "server") {
+        qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      }
       toast.success(t("templates.toastDeleted"))
       setDeleting(null)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
-  const previewMutation = useMutation({
+  const previewClientMutation = useMutation({
     mutationFn: ({ userId, templateId }: { userId: number; templateId: number }) =>
       api.previewTemplate({ user_id: userId, template_id: templateId }),
     onSuccess: (res) => setRenderedYAML(res.yaml),
     onError: (err: Error) => toast.error(err.message),
   })
+
+  const previewServerMutation = useMutation({
+    mutationFn: ({ nodeId, templateId }: { nodeId: number | null; templateId: number }) =>
+      api.previewServerConfig({ node_id: nodeId, template_id: templateId }),
+    onSuccess: (res) => setRenderedYAML(res.yaml),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const isPreviewServer = previewTmpl?.kind === "server"
+  const previewPending = previewClientMutation.isPending || previewServerMutation.isPending
 
   return (
     <div className="space-y-6">
@@ -87,10 +119,31 @@ export function TemplatesPage() {
             }}
           >
             <Plus className="mr-1.5 size-4" />
-            {t("templates.createTemplate")}
+            {activeKind === "server"
+              ? t("templates.createServerTemplate")
+              : t("templates.createClientTemplate")}
           </Button>
         }
       />
+
+      <Tabs value={activeKind} onValueChange={(v) => setActiveKind(v as TemplateKind)}>
+        <TabsList>
+          <TabsTrigger value="client" className="gap-1.5">
+            <Smartphone className="size-3.5" />
+            <span>{t("templates.tabClient")}</span>
+            <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
+              ({clientTemplates.length})
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="server" className="gap-1.5">
+            <Server className="size-3.5" />
+            <span>{t("templates.tabServer")}</span>
+            <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
+              ({serverTemplates.length})
+            </span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {query.isError ? (
         <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
@@ -100,15 +153,19 @@ export function TemplatesPage() {
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
         </div>
-      ) : !query.data?.length ? (
+      ) : !visibleTemplates.length ? (
         <EmptyState
           icon={<FileCode2 className="size-5" />}
-          title={t("templates.emptyTitle")}
-          description={t("templates.emptyDesc")}
+          title={
+            activeKind === "server" ? t("templates.emptyServerTitle") : t("templates.emptyTitle")
+          }
+          description={
+            activeKind === "server" ? t("templates.emptyServerDesc") : t("templates.emptyDesc")
+          }
         />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {query.data.map((tmpl) => (
+          {visibleTemplates.map((tmpl) => (
             <Card key={tmpl.id} className="flex flex-col justify-between gap-2 py-4">
               <CardHeader className="px-4 pb-0">
                 <div className="flex items-start justify-between gap-2">
@@ -137,6 +194,7 @@ export function TemplatesPage() {
                             onClick={() => {
                               setPreviewTmpl(tmpl)
                               setPreviewUserId("")
+                              setPreviewNodeId("none")
                               setRenderedYAML("")
                             }}
                           >
@@ -144,7 +202,11 @@ export function TemplatesPage() {
                           </Button>
                         }
                       />
-                      <TooltipContent>{t("templates.previewTooltip")}</TooltipContent>
+                      <TooltipContent>
+                        {tmpl.kind === "server"
+                          ? t("templates.previewServerTooltip")
+                          : t("templates.previewTooltip")}
+                      </TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger
@@ -198,7 +260,12 @@ export function TemplatesPage() {
         </div>
       )}
 
-      <TemplateFormDialog open={formOpen} onOpenChange={setFormOpen} template={editing} />
+      <TemplateFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        template={editing}
+        defaultKind={activeKind}
+      />
 
       <Dialog open={Boolean(previewTmpl)} onOpenChange={(o) => !o && setPreviewTmpl(null)}>
         <DialogContent
@@ -207,35 +274,77 @@ export function TemplatesPage() {
         >
           <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
             <DialogTitle>{t("templates.previewTitle", { name: previewTmpl?.name ?? "" })}</DialogTitle>
-            <DialogDescription>{t("templates.previewDesc")}</DialogDescription>
+            <DialogDescription>
+              {isPreviewServer ? t("templates.previewServerDesc") : t("templates.previewDesc")}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-6 py-3">
-            <Select value={previewUserId} onValueChange={(v) => setPreviewUserId(v ?? "")}>
-              <SelectTrigger className="w-60 bg-background">
-                <SelectValue placeholder={t("templates.selectUserPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {(usersQuery.data ?? []).map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {t("templates.userNodeCount", {
-                      username: u.username,
-                      count: u.node_ids.length,
-                    })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              disabled={!previewUserId || previewMutation.isPending}
-              onClick={() =>
-                previewTmpl &&
-                previewMutation.mutate({ userId: Number(previewUserId), templateId: previewTmpl.id })
-              }
-            >
-              {previewMutation.isPending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              {t("templates.generatePreview")}
-            </Button>
+            {isPreviewServer ? (
+              <>
+                <Select value={previewNodeId} onValueChange={(v) => setPreviewNodeId(v ?? "none")}>
+                  <SelectTrigger className="w-64 bg-background">
+                    <SelectValue placeholder={t("templates.selectNodePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("templates.previewNoNodeOption")}</SelectItem>
+                    {(nodesQuery.data ?? []).map((n) => (
+                      <SelectItem key={n.id} value={String(n.id)}>
+                        {t("templates.nodeInboundCount", {
+                          name: n.name,
+                          count: n.inbound_count,
+                        })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  disabled={previewPending}
+                  onClick={() =>
+                    previewTmpl &&
+                    previewServerMutation.mutate({
+                      nodeId: previewNodeId !== "none" ? Number(previewNodeId) : null,
+                      templateId: previewTmpl.id,
+                    })
+                  }
+                >
+                  {previewPending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                  {t("templates.generatePreview")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Select value={previewUserId} onValueChange={(v) => setPreviewUserId(v ?? "")}>
+                  <SelectTrigger className="w-60 bg-background">
+                    <SelectValue placeholder={t("templates.selectUserPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(usersQuery.data ?? []).map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {t("templates.userNodeCount", {
+                          username: u.username,
+                          count: u.node_ids.length,
+                        })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  disabled={!previewUserId || previewPending}
+                  onClick={() =>
+                    previewTmpl &&
+                    previewClientMutation.mutate({
+                      userId: Number(previewUserId),
+                      templateId: previewTmpl.id,
+                    })
+                  }
+                >
+                  {previewPending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                  {t("templates.generatePreview")}
+                </Button>
+              </>
+            )}
             {renderedYAML && (
               <CopyButton
                 value={renderedYAML}
@@ -250,7 +359,7 @@ export function TemplatesPage() {
               <YamlCodeBlock value={renderedYAML} className="min-h-0 flex-1" />
             ) : (
               <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
-                {t("templates.previewDesc")}
+                {isPreviewServer ? t("templates.previewServerDesc") : t("templates.previewDesc")}
               </div>
             )}
           </div>
@@ -261,7 +370,11 @@ export function TemplatesPage() {
         open={Boolean(deleting)}
         onOpenChange={(o) => !o && setDeleting(null)}
         title={t("templates.deleteTitle")}
-        description={t("templates.deleteDesc", { name: deleting?.name ?? "" })}
+        description={
+          deleting?.kind === "server"
+            ? t("templates.deleteServerDesc", { name: deleting?.name ?? "" })
+            : t("templates.deleteDesc", { name: deleting?.name ?? "" })
+        }
         loading={deleteMutation.isPending}
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
       />

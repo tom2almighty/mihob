@@ -58,6 +58,10 @@ export interface Node {
   expire_at: string | null
   billing_cycle: string
   remark: string
+  server_template_id: number | null
+  server_log_level: string
+  server_ipv6: boolean | null
+  extra_server_yaml: string
   mihomo_version: string
   agent_version: string
   config_hash: string
@@ -256,8 +260,11 @@ export interface User {
   updated_at: string
 }
 
+export type TemplateKind = "client" | "server"
+
 export interface Template {
   id: number
+  kind: TemplateKind
   name: string
   description: string
   content: string

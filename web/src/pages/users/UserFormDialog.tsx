@@ -301,11 +301,13 @@ export function UserFormDialog({
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="default">{t("users.form.templateDefault")}</SelectItem>
-                              {(templatesQuery.data ?? []).map((tmpl) => (
-                                <SelectItem key={tmpl.id} value={String(tmpl.id)}>
-                                  {tmpl.name}
-                                </SelectItem>
-                              ))}
+                              {(templatesQuery.data ?? [])
+                                .filter((tmpl) => tmpl.kind !== "server")
+                                .map((tmpl) => (
+                                  <SelectItem key={tmpl.id} value={String(tmpl.id)}>
+                                    {tmpl.name}
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                         </FormItem>
