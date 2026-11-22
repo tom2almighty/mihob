@@ -346,6 +346,27 @@ type SystemSettings struct {
 	SubPath      string `json:"sub_path"`
 }
 
+type CustomTheme struct {
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	SourceURL string            `json:"source_url,omitempty"`
+	Theme     map[string]string `json:"theme,omitempty"`
+	Light     map[string]string `json:"light"`
+	Dark      map[string]string `json:"dark"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+type ThemeConfig struct {
+	ActiveThemeID string        `json:"active_theme_id"`
+	CustomThemes  []CustomTheme `json:"custom_themes"`
+}
+
+type PublicThemeResponse struct {
+	ActiveThemeID     string       `json:"active_theme_id"`
+	ActiveCustomTheme *CustomTheme `json:"active_custom_theme,omitempty"`
+}
+
 type PublicSubNode struct {
 	Name      string   `json:"name"`
 	Region    string   `json:"region"`

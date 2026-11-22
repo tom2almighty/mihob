@@ -302,4 +302,58 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 			t.Fatalf("dashboard (%s) missing new traffic fields: %s", rng, string(raw))
 		}
 	}
+
+	// 11. Check theme settings persistence, public theme endpoint, CSS sanitization, and SSRF protection
+	resp, raw = doJSON(http.MethodGet, "/api/public/theme", "", nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(raw), `"default"`) {
+		t.Fatalf("public theme default failed: %d %s", resp.StatusCode, string(raw))
+	}
+
+	resp, raw = doJSON(http.MethodPut, "/api/themes", tok, map[string]any{
+		"active_theme_id": "my-custom",
+		"custom_themes": []map[string]any{
+			{
+				"id":   "my-custom",
+				"name": "My Custom",
+				"light": map[string]string{
+					"primary":    "oklch(0.62 0.14 40)",
+					"background": "oklch(0.98 0.01 95)",
+					"evil-var":   "url(https://evil.test/x)",
+					"accent":     "red; } body { display: none; }",
+				},
+				"dark": map[string]string{
+					"primary": "oklch(0.67 0.13 38)",
+				},
+			},
+		},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update themes failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var savedThemes model.ThemeConfig
+	if err := json.Unmarshal(raw, &savedThemes); err != nil {
+		t.Fatalf("decode saved themes: %v", err)
+	}
+	if savedThemes.ActiveThemeID != "my-custom" || len(savedThemes.CustomThemes) != 1 {
+		t.Fatalf("unexpected saved themes: %+v", savedThemes)
+	}
+	if _, ok := savedThemes.CustomThemes[0].Light["evil-var"]; ok {
+		t.Fatalf("disallowed var key should be stripped")
+	}
+	if _, ok := savedThemes.CustomThemes[0].Light["accent"]; ok {
+		t.Fatalf("unsafe css value should be stripped")
+	}
+
+	resp, raw = doJSON(http.MethodGet, "/api/public/theme", "", nil)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(raw), `"my-custom"`) || !strings.Contains(string(raw), `oklch(0.62 0.14 40)`) {
+		t.Fatalf("public custom theme failed: %d %s", resp.StatusCode, string(raw))
+	}
+
+	// SSRF protection on theme URL fetch
+	resp, _ = doJSON(http.MethodPost, "/api/themes/fetch", tok, map[string]string{
+		"url": "http://127.0.0.1:8080/secret.json",
+	})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for loopback theme fetch, got %d", resp.StatusCode)
+	}
 }

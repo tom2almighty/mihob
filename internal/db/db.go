@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -465,6 +466,56 @@ func (s *Store) SaveSystemSettings(st *model.SystemSettings) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Store) GetThemeConfig() (*model.ThemeConfig, error) {
+	out := &model.ThemeConfig{
+		ActiveThemeID: "default",
+		CustomThemes:  []model.CustomTheme{},
+	}
+	raw, err := s.GetSetting("theme_config")
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return out, nil
+		}
+		return nil, err
+	}
+	if raw == "" {
+		return out, nil
+	}
+	if err := json.Unmarshal([]byte(raw), out); err != nil {
+		return &model.ThemeConfig{
+			ActiveThemeID: "default",
+			CustomThemes:  []model.CustomTheme{},
+		}, nil
+	}
+	if out.ActiveThemeID == "" {
+		out.ActiveThemeID = "default"
+	}
+	if out.CustomThemes == nil {
+		out.CustomThemes = []model.CustomTheme{}
+	}
+	return out, nil
+}
+
+func (s *Store) SaveThemeConfig(cfg *model.ThemeConfig) error {
+	if cfg == nil {
+		cfg = &model.ThemeConfig{
+			ActiveThemeID: "default",
+			CustomThemes:  []model.CustomTheme{},
+		}
+	}
+	if cfg.ActiveThemeID == "" {
+		cfg.ActiveThemeID = "default"
+	}
+	if cfg.CustomThemes == nil {
+		cfg.CustomThemes = []model.CustomTheme{}
+	}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.SetSetting("theme_config", string(b))
 }
 
 func boolToInt(b bool) int {

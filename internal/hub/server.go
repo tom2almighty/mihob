@@ -79,6 +79,8 @@ func (s *Server) Router() http.Handler {
 		api.Post("/auth/login", s.handleLogin)
 		// Public subscription info endpoint for the browser subscription page
 		api.Get("/public/sub", s.handlePublicSubInfo)
+		// Public active theme endpoint for login / subscription / initial render
+		api.Get("/public/theme", s.handlePublicTheme)
 
 		// Protected Admin routes
 		api.Group(func(pr chi.Router) {
@@ -138,6 +140,11 @@ func (s *Server) Router() http.Handler {
 			// Settings
 			pr.Get("/settings", s.handleGetSettings)
 			pr.Put("/settings", s.handleUpdateSettings)
+
+			// Themes
+			pr.Get("/themes", s.handleGetThemes)
+			pr.Put("/themes", s.handleUpdateThemes)
+			pr.Post("/themes/fetch", s.handleFetchThemeURL)
 		})
 	})
 
