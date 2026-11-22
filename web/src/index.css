@@ -224,6 +224,11 @@
     margin-right: 0 !important;
     padding-right: 0 !important;
   }
+
+  .recharts-wrapper:focus:not(:focus-visible),
+  .recharts-surface:focus:not(:focus-visible) {
+    outline: none;
+  }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [role="tab"]:not([data-disabled]),

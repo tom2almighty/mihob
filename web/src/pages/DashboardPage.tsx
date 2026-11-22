@@ -19,10 +19,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
@@ -193,6 +191,10 @@ export function DashboardPage() {
       }))
       .filter((item) => item.value > 0)
       .sort((a, b) => b.value - a.value)
+      .map((item, idx) => ({
+        ...item,
+        fill: CHART_PALETTE[idx % CHART_PALETTE.length],
+      }))
     const sum = items.reduce((acc, cur) => acc + cur.value, 0)
     return { items, sum }
   }, [data?.protocol_traffic, protoMetric])
@@ -231,6 +233,12 @@ export function DashboardPage() {
                 days,
                 displayDays: Math.max(0, days),
                 cycle: n.billing_cycle,
+                fill:
+                  days <= 7
+                    ? "var(--destructive)"
+                    : days <= 30
+                      ? "var(--warning)"
+                      : "var(--chart-2)",
               }
         })
         .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -379,65 +387,68 @@ export function DashboardPage() {
               <Skeleton className="h-56 w-full" />
             ) : (
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.28} />
-                        <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="fillUp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
+                <AreaChart
+                  responsive
+                  style={{ width: "100%", height: "100%" }}
+                  data={trendData}
+                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="fillUp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={66}
+                  />
+                  <RechartsTooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(val, name) => [
+                      formatBytes(Number(val ?? 0)),
+                      name === "download"
+                        ? t("dashboard.download")
+                        : name === "upload"
+                          ? t("dashboard.upload")
+                          : t("dashboard.total"),
+                    ]}
+                  />
+                  {(trendMetric === "total" || trendMetric === "download") && (
+                    <Area
+                      key="download"
+                      type="monotone"
+                      dataKey="download"
+                      stroke="var(--chart-1)"
+                      strokeWidth={2}
+                      fill="url(#fillDown)"
                     />
-                    <YAxis
-                      tickFormatter={(v) => formatBytes(Number(v))}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={66}
+                  )}
+                  {(trendMetric === "total" || trendMetric === "upload") && (
+                    <Area
+                      key="upload"
+                      type="monotone"
+                      dataKey="upload"
+                      stroke="var(--chart-2)"
+                      strokeWidth={2}
+                      fill="url(#fillUp)"
                     />
-                    <RechartsTooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(val, name) => [
-                        formatBytes(Number(val)),
-                        name === "download"
-                          ? t("dashboard.download")
-                          : name === "upload"
-                            ? t("dashboard.upload")
-                            : t("dashboard.total"),
-                      ]}
-                    />
-                    {(trendMetric === "total" || trendMetric === "download") && (
-                      <Area
-                        key="download"
-                        type="monotone"
-                        dataKey="download"
-                        stroke="var(--chart-1)"
-                        strokeWidth={2}
-                        fill="url(#fillDown)"
-                      />
-                    )}
-                    {(trendMetric === "total" || trendMetric === "upload") && (
-                      <Area
-                        key="upload"
-                        type="monotone"
-                        dataKey="upload"
-                        stroke="var(--chart-2)"
-                        strokeWidth={2}
-                        fill="url(#fillUp)"
-                      />
-                    )}
-                  </AreaChart>
-                </ResponsiveContainer>
+                  )}
+                </AreaChart>
               </div>
             )}
           </CardContent>
@@ -472,56 +483,43 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={nodeExpiryData}
-                    layout="vertical"
-                    margin={{ top: 4, right: 14, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      unit={t("dashboard.daysUnit")}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={76}
-                    />
-                    <RechartsTooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(_val, _name, item) => {
-                        const rawDays = item?.payload?.days ?? 0
-                        return [
-                          rawDays <= 0
-                            ? t("nodes.expired")
-                            : t("nodes.daysLeft", { days: rawDays }),
-                          item?.payload?.fullName ?? "",
-                        ]
-                      }}
-                    />
-                    <Bar dataKey="displayDays" radius={[0, 4, 4, 0]} barSize={16}>
-                      {nodeExpiryData.map((entry) => (
-                        <Cell
-                          key={entry.id}
-                          fill={
-                            entry.days <= 7
-                              ? "var(--destructive)"
-                              : entry.days <= 30
-                                ? "var(--warning)"
-                                : "var(--chart-2)"
-                          }
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart
+                  responsive
+                  style={{ width: "100%", height: "100%" }}
+                  data={nodeExpiryData}
+                  layout="vertical"
+                  margin={{ top: 4, right: 14, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    unit={t("dashboard.daysUnit")}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={76}
+                  />
+                  <RechartsTooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(_val, _name, item) => {
+                      const rawDays = Number(item?.payload?.days ?? 0)
+                      return [
+                        rawDays <= 0
+                          ? t("nodes.expired")
+                          : t("nodes.daysLeft", { days: rawDays }),
+                        String(item?.payload?.fullName ?? ""),
+                      ]
+                    }}
+                  />
+                  <Bar dataKey="displayDays" radius={[0, 4, 4, 0]} barSize={16} />
+                </BarChart>
               </div>
             )}
           </CardContent>
@@ -552,40 +550,43 @@ export function DashboardPage() {
               <ChartEmpty icon={<Server className="size-4" />} text={t("dashboard.nodeTrafficEmpty")} />
             ) : (
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={nodeTrafficData} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tickFormatter={(v) => formatBytes(Number(v))}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={66}
-                    />
-                    <RechartsTooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(val, _name, item) => {
-                        const p = item?.payload
-                        return [
-                          `${formatBytes(Number(val))} (${t("dashboard.upload")} ${formatBytes(p?.upload ?? 0)} · ${t("dashboard.download")} ${formatBytes(p?.download ?? 0)})`,
-                          p?.fullName ?? metricLabel(nodeMetric),
-                        ]
-                      }}
-                    />
-                    <Bar
-                      dataKey="value"
-                      fill={metricStrokeColor(nodeMetric)}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={36}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart
+                  responsive
+                  style={{ width: "100%", height: "100%" }}
+                  data={nodeTrafficData}
+                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={66}
+                  />
+                  <RechartsTooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(val, _name, item) => {
+                      const p = item?.payload
+                      return [
+                        `${formatBytes(Number(val ?? 0))} (${t("dashboard.upload")} ${formatBytes(Number(p?.upload ?? 0))} · ${t("dashboard.download")} ${formatBytes(Number(p?.download ?? 0))})`,
+                        String(p?.fullName ?? metricLabel(nodeMetric)),
+                      ]
+                    }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill={metricStrokeColor(nodeMetric)}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={36}
+                  />
+                </BarChart>
               </div>
             )}
           </CardContent>
@@ -613,40 +614,43 @@ export function DashboardPage() {
               <ChartEmpty icon={<Users className="size-4" />} text={t("dashboard.userTrafficEmpty")} />
             ) : (
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={userTrafficData} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tickFormatter={(v) => formatBytes(Number(v))}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={66}
-                    />
-                    <RechartsTooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(val, _name, item) => {
-                        const p = item?.payload
-                        return [
-                          `${formatBytes(Number(val))} (${t("dashboard.upload")} ${formatBytes(p?.upload ?? 0)} · ${t("dashboard.download")} ${formatBytes(p?.download ?? 0)})`,
-                          p?.fullName ?? metricLabel(userMetric),
-                        ]
-                      }}
-                    />
-                    <Bar
-                      dataKey="value"
-                      fill={metricStrokeColor(userMetric)}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={36}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart
+                  responsive
+                  style={{ width: "100%", height: "100%" }}
+                  data={userTrafficData}
+                  margin={{ top: 6, right: 8, left: -8, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => formatBytes(Number(v))}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={66}
+                  />
+                  <RechartsTooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(val, _name, item) => {
+                      const p = item?.payload
+                      return [
+                        `${formatBytes(Number(val ?? 0))} (${t("dashboard.upload")} ${formatBytes(Number(p?.upload ?? 0))} · ${t("dashboard.download")} ${formatBytes(Number(p?.download ?? 0))})`,
+                        String(p?.fullName ?? metricLabel(userMetric)),
+                      ]
+                    }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill={metricStrokeColor(userMetric)}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={36}
+                  />
+                </BarChart>
               </div>
             )}
           </CardContent>
@@ -681,38 +685,30 @@ export function DashboardPage() {
             ) : (
               <div className="grid h-56 grid-cols-1 items-center gap-3 sm:grid-cols-12">
                 <div className="h-44 w-full sm:col-span-6 sm:h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={protocolData.items}
-                        dataKey="value"
-                        nameKey="label"
-                        innerRadius="54%"
-                        outerRadius="84%"
-                        paddingAngle={2}
-                      >
-                        {protocolData.items.map((entry, idx) => (
-                          <Cell
-                            key={entry.protocol}
-                            fill={CHART_PALETTE[idx % CHART_PALETTE.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip
-                        contentStyle={TOOLTIP_STYLE}
-                        formatter={(val, name) => {
-                          const pct =
-                            protocolData.sum > 0
-                              ? Math.round((Number(val) / protocolData.sum) * 1000) / 10
-                              : 0
-                          return [
-                            `${formatBytes(Number(val))} (${t("dashboard.shareLabel", { percent: pct })})`,
-                            String(name),
-                          ]
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <PieChart responsive style={{ width: "100%", height: "100%" }}>
+                    <Pie
+                      data={protocolData.items}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius="54%"
+                      outerRadius="84%"
+                      paddingAngle={2}
+                    />
+                    <RechartsTooltip
+                      contentStyle={TOOLTIP_STYLE}
+                      formatter={(val, name) => {
+                        const numVal = Number(val ?? 0)
+                        const pct =
+                          protocolData.sum > 0
+                            ? Math.round((numVal / protocolData.sum) * 1000) / 10
+                            : 0
+                        return [
+                          `${formatBytes(numVal)} (${t("dashboard.shareLabel", { percent: pct })})`,
+                          String(name ?? ""),
+                        ]
+                      }}
+                    />
+                  </PieChart>
                 </div>
                 <div className="max-h-52 space-y-2 overflow-y-auto pr-1 sm:col-span-6">
                   {protocolData.items.map((item, idx) => {
@@ -776,44 +772,45 @@ export function DashboardPage() {
               <ChartEmpty icon={<Cpu className="size-4" />} text={t("dashboard.nodeLoadEmpty")} />
             ) : (
               <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={onlineNodeLoadData}
-                    margin={{ top: 6, right: 8, left: -12, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tickFormatter={(v) => `${v}%`}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={46}
-                    />
-                    <RechartsTooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(val, name, item) => {
-                        if (name === "mem") {
-                          const p = item?.payload
-                          const detail =
-                            p?.memTotal > 0
-                              ? ` (${formatBytes(p.memUsed)} / ${formatBytes(p.memTotal)})`
-                              : ""
-                          return [`${val}%${detail}`, t("dashboard.memLabel")]
-                        }
-                        return [`${val}%`, t("dashboard.cpuLabel")]
-                      }}
-                    />
-                    <Bar dataKey="cpu" fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="mem" fill="var(--chart-2)" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart
+                  responsive
+                  style={{ width: "100%", height: "100%" }}
+                  data={onlineNodeLoadData}
+                  margin={{ top: 6, right: 8, left: -12, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v}%`}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={46}
+                  />
+                  <RechartsTooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(val, name, item) => {
+                      const numVal = Number(val ?? 0)
+                      if (name === "mem") {
+                        const p = item?.payload
+                        const detail =
+                          Number(p?.memTotal ?? 0) > 0
+                            ? ` (${formatBytes(Number(p?.memUsed ?? 0))} / ${formatBytes(Number(p?.memTotal ?? 0))})`
+                            : ""
+                        return [`${numVal}%${detail}`, t("dashboard.memLabel")]
+                      }
+                      return [`${numVal}%`, t("dashboard.cpuLabel")]
+                    }}
+                  />
+                  <Bar dataKey="cpu" fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  <Bar dataKey="mem" fill="var(--chart-2)" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                </BarChart>
               </div>
             )}
           </CardContent>
