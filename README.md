@@ -4,7 +4,38 @@
 
 ## 项目简介
 
-mihob 是一个基于 Mihomo 服务端入站（`listeners`）的多节点、多用户代理部署与订阅管理控制平面，采用单二进制 Hub + Agent 架构运行。
+**mihob** 是一个基于 Mihomo 服务端入站（`listeners`）的多节点、多用户代理部署与订阅管理控制平面，采用单二进制 **Hub + Agent** 反向 WebSocket 隧道架构，内置现代化 React 管理控制台与用户自助订阅页。
+
+### 核心特性
+
+- **15 种 Mihomo 服务端入站协议**：完整支持 `VLESS (Reality / TLS / WS / gRPC / XHTTP)`、`VMess`、`Trojan`、`Hysteria2`、`TUIC v5`、`AnyTLS`、`Shadowsocks (含 2022 EIH)`、`Mieru`、`TrustTunnel`、`ShadowQUIC`、`Snell`、`Sudoku`、`HTTP`、`SOCKS5`、`Mixed`，支持入站级高级 YAML 深度合并与实时预览。
+- **Hub + Agent 零端口暴露同步**：Agent 主动反向连接 Hub，配置下发前自动执行 `mihomo -t` 校验并在失败时回滚；支持一键检测与安全热升级全集群 Mihomo 内核（SHA-256 校验 + 探活回滚）。
+- **双模板引擎（客户端订阅 + 节点服务端配置）**：
+  - 客户端订阅模板动态渲染授权节点与策略组，支持自定义订阅路径与浏览器自助订阅页。
+  - 节点服务端模板支持防滥用审计（BT/SMTP 阻断）、流媒体 / AI 解锁分流与单节点级覆盖（`log-level` / `ipv6` / 附加 YAML）+ 下发前实时预览。
+- **精细化用户授权与配额管控**：支持按地区、标签、协议与正则动态授权，实时统计流量并在到期或超额时自动剔除并踢断活跃连接。
+- **集中证书中心**：支持 ACME（Cloudflare / 阿里云 DNS / DNSPod / HTTP-01）自动签发与续期、自签与手动 PEM 导入，并自动同步至关联节点。
+- **现代控制台体验**：浅色 / 深色模式、内置与自定义 tweakcn 主题、中英文双语切换。
+
+## 界面预览
+
+> 以下预览图均使用模拟演示数据渲染。
+
+### 运行总览（深色 / 浅色）
+
+![Dashboard Dark](./docs/screenshots/dashboard-dark.png)
+
+| 运行总览（浅色模式） | 节点管理与内核升级 |
+| :---: | :---: |
+| ![Dashboard Light](./docs/screenshots/dashboard-light.png) | ![Nodes Management](./docs/screenshots/nodes.png) |
+
+| 用户管理与精细授权 | 配置模板（客户端 / 节点服务端） |
+| :---: | :---: |
+| ![Users Management](./docs/screenshots/users.png) | ![Templates](./docs/screenshots/templates.png) |
+
+### 用户自助订阅页
+
+![Subscription Portal](./docs/screenshots/subscription.png)
 
 ## 开发环境配置
 

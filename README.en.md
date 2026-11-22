@@ -4,7 +4,38 @@
 
 ## Overview
 
-mihob is a Hub + Agent control plane for deploying and managing multi-node, multi-user Mihomo (`listeners`) proxy servers and client subscriptions in a single binary.
+**mihob** is a Hub + Agent control plane for deploying and managing multi-node, multi-user **Mihomo** (`listeners`) proxy servers and client subscriptions in a single binary, complete with an embedded React management console and self-service user subscription portal.
+
+### Key Features
+
+- **15 Mihomo Server Listener Protocols**: Full support for `VLESS (Reality / TLS / WS / gRPC / XHTTP)`, `VMess`, `Trojan`, `Hysteria2`, `TUIC v5`, `AnyTLS`, `Shadowsocks (including 2022 EIH)`, `Mieru`, `TrustTunnel`, `ShadowQUIC`, `Snell`, `Sudoku`, `HTTP`, `SOCKS5`, and `Mixed`, with per-inbound YAML deep-merge overrides and live preview.
+- **Reverse WebSocket Sync & Safe Core Upgrades**: Agents initiate outbound connections to Hub; config pushes run `mihomo -t` pre-flight validation with automatic rollback, and Mihomo core binaries can be safely hot-upgraded fleet-wide with SHA-256 verification and health-check rollback.
+- **Dual Template Engine (Client Subscription + Node Server Config)**:
+  - Dynamic client subscription templates with customizable subscription sub-paths and a browser subscription portal.
+  - Reusable node server config templates (anti-abuse BT/SMTP blocking, streaming/AI unlock split-routing) plus per-node overrides (`log-level`, `ipv6`, extra YAML) and live merged config preview.
+- **Rule-Based Access Control & Traffic Accounting**: Authorize users by node region, tags, protocol, or regex; enforce traffic quotas and expirations with automatic active-connection termination.
+- **Centralized Certificate Center**: ACME auto-issuance and renewal (Cloudflare / Alibaba Cloud DNS / DNSPod / HTTP-01), one-click self-signed certs, and manual PEM imports synced automatically to bound nodes.
+- **Modern Console Experience**: Light/Dark appearance, built-in and custom tweakcn themes, and Chinese/English i18n.
+
+## Screenshots
+
+> All screenshots below were rendered using mock demo data.
+
+### Dashboard (Dark / Light)
+
+![Dashboard Dark](./docs/screenshots/dashboard-dark.png)
+
+| Dashboard (Light) | Nodes & Core Upgrades |
+| :---: | :---: |
+| ![Dashboard Light](./docs/screenshots/dashboard-light.png) | ![Nodes Management](./docs/screenshots/nodes.png) |
+
+| Users & Access Policies | Templates (Client & Node Server) |
+| :---: | :---: |
+| ![Users Management](./docs/screenshots/users.png) | ![Templates](./docs/screenshots/templates.png) |
+
+### User Subscription Portal
+
+![Subscription Portal](./docs/screenshots/subscription.png)
 
 ## Development Setup
 
