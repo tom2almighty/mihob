@@ -12,30 +12,64 @@
 - **Hub + Agent 零端口暴露同步**：Agent 主动反向连接 Hub，配置下发前自动执行 `mihomo -t` 校验并在失败时回滚；支持一键检测与安全热升级全集群 Mihomo 内核（SHA-256 校验 + 探活回滚）。
 - **双模板引擎（客户端订阅 + 节点服务端配置）**：
   - 客户端订阅模板动态渲染授权节点与策略组，支持自定义订阅路径与浏览器自助订阅页。
-  - 节点服务端模板支持防滥用审计（BT/SMTP 阻断）、流媒体 / AI 解锁分流与单节点级覆盖（`log-level` / `ipv6` / 附加 YAML）+ 下发前实时预览。
+  - 节点服务端模板支持防滥用审计（BT/SMTP 阻断）、流媒体 / AI 解锁分流、`type: mihob-node` 动态引用集群节点链式代理（自动注入内部中转凭证与防自环），以及单节点级覆盖（`log-level` / `ipv6` / 附加 YAML）+ 下发前实时预览。
 - **精细化用户授权与配额管控**：支持按地区、标签、协议与正则动态授权，实时统计流量并在到期或超额时自动剔除并踢断活跃连接。
 - **集中证书中心**：支持 ACME（Cloudflare / 阿里云 DNS / DNSPod / HTTP-01）自动签发与续期、自签与手动 PEM 导入，并自动同步至关联节点。
 - **现代控制台体验**：浅色 / 深色模式、内置与自定义 tweakcn 主题、中英文双语切换。
 
 ## 界面预览
 
-> 以下预览图均使用模拟演示数据渲染。
+<details>
+<summary>点击展开管理控制台与用户自助订阅页预览（共 6 张，基于模拟数据渲染）</summary>
 
-### 运行总览（深色 / 浅色）
+<br />
 
-![Dashboard Dark](./docs/screenshots/dashboard-dark.png)
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">运行总览（深色模式）</th>
+      <th width="50%" align="center">运行总览（浅色模式）</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/dashboard-dark.png" alt="Dashboard Dark" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/dashboard-light.png" alt="Dashboard Light" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-| 运行总览（浅色模式） | 节点管理与内核升级 |
-| :---: | :---: |
-| ![Dashboard Light](./docs/screenshots/dashboard-light.png) | ![Nodes Management](./docs/screenshots/nodes.png) |
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">节点管理与内核升级</th>
+      <th width="50%" align="center">用户管理与精细授权</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/nodes.png" alt="Nodes Management" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/users.png" alt="Users Management" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-| 用户管理与精细授权 | 配置模板（客户端 / 节点服务端） |
-| :---: | :---: |
-| ![Users Management](./docs/screenshots/users.png) | ![Templates](./docs/screenshots/templates.png) |
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">配置模板（客户端 / 节点服务端）</th>
+      <th width="50%" align="center">用户自助订阅页</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/templates.png" alt="Templates" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/subscription.png" alt="Subscription Portal" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-### 用户自助订阅页
-
-![Subscription Portal](./docs/screenshots/subscription.png)
+</details>
 
 ## 开发环境配置
 

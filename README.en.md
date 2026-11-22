@@ -12,30 +12,64 @@
 - **Reverse WebSocket Sync & Safe Core Upgrades**: Agents initiate outbound connections to Hub; config pushes run `mihomo -t` pre-flight validation with automatic rollback, and Mihomo core binaries can be safely hot-upgraded fleet-wide with SHA-256 verification and health-check rollback.
 - **Dual Template Engine (Client Subscription + Node Server Config)**:
   - Dynamic client subscription templates with customizable subscription sub-paths and a browser subscription portal.
-  - Reusable node server config templates (anti-abuse BT/SMTP blocking, streaming/AI unlock split-routing) plus per-node overrides (`log-level`, `ipv6`, extra YAML) and live merged config preview.
+  - Reusable node server config templates (anti-abuse BT/SMTP blocking, streaming/AI unlock split-routing, dynamic `type: mihob-node` node chaining with automatic internal relay credentials & loop guard) plus per-node overrides (`log-level`, `ipv6`, extra YAML) and live merged config preview.
 - **Rule-Based Access Control & Traffic Accounting**: Authorize users by node region, tags, protocol, or regex; enforce traffic quotas and expirations with automatic active-connection termination.
 - **Centralized Certificate Center**: ACME auto-issuance and renewal (Cloudflare / Alibaba Cloud DNS / DNSPod / HTTP-01), one-click self-signed certs, and manual PEM imports synced automatically to bound nodes.
 - **Modern Console Experience**: Light/Dark appearance, built-in and custom tweakcn themes, and Chinese/English i18n.
 
 ## Screenshots
 
-> All screenshots below were rendered using mock demo data.
+<details>
+<summary>Click to expand console & user subscription portal previews (6 screenshots rendered with mock data)</summary>
 
-### Dashboard (Dark / Light)
+<br />
 
-![Dashboard Dark](./docs/screenshots/dashboard-dark.png)
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">Dashboard (Dark)</th>
+      <th width="50%" align="center">Dashboard (Light)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/dashboard-dark.png" alt="Dashboard Dark" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/dashboard-light.png" alt="Dashboard Light" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-| Dashboard (Light) | Nodes & Core Upgrades |
-| :---: | :---: |
-| ![Dashboard Light](./docs/screenshots/dashboard-light.png) | ![Nodes Management](./docs/screenshots/nodes.png) |
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">Nodes & Core Upgrades</th>
+      <th width="50%" align="center">Users & Access Policies</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/nodes.png" alt="Nodes Management" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/users.png" alt="Users Management" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-| Users & Access Policies | Templates (Client & Node Server) |
-| :---: | :---: |
-| ![Users Management](./docs/screenshots/users.png) | ![Templates](./docs/screenshots/templates.png) |
+<table width="100%">
+  <thead>
+    <tr>
+      <th width="50%" align="center">Templates (Client & Node Server)</th>
+      <th width="50%" align="center">User Subscription Portal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="50%" align="center"><img src="./docs/screenshots/templates.png" alt="Templates" width="100%" /></td>
+      <td width="50%" align="center"><img src="./docs/screenshots/subscription.png" alt="Subscription Portal" width="100%" /></td>
+    </tr>
+  </tbody>
+</table>
 
-### User Subscription Portal
-
-![Subscription Portal](./docs/screenshots/subscription.png)
+</details>
 
 ## Development Setup
 
