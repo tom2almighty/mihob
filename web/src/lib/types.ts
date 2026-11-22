@@ -405,3 +405,94 @@ export interface PublicSubInfo {
   nodes: PublicSubNode[]
   yaml?: string
 }
+
+export type NotificationProvider = "telegram" | "bark" | "discord" | "generic" | "smtp" | "custom"
+
+export type NotificationEventType =
+  | "node_offline"
+  | "node_online"
+  | "node_config_error"
+  | "node_upgrade"
+  | "node_traffic"
+  | "node_expiring"
+  | "hub_started"
+  | "cert_renew"
+  | "cert_expiring"
+  | "user_exhausted"
+  | "admin_login_failed"
+  | "scheduled_report"
+  | "test"
+
+export interface NotificationChannel {
+  id: number
+  name: string
+  provider: NotificationProvider | string
+  url?: string
+  masked_url?: string
+  enabled: boolean
+  events: string[]
+  remark: string
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationRules {
+  enabled: boolean
+  node_offline: boolean
+  node_offline_delay_sec: number
+  node_online: boolean
+  node_config_error: boolean
+  node_upgrade: boolean
+  node_traffic_alert: boolean
+  node_traffic_thresholds: number[]
+  node_expiring: boolean
+  node_expiring_days: number
+  hub_started: boolean
+  cert_renew: boolean
+  cert_expiring: boolean
+  cert_expiring_days: number
+  user_exhausted: boolean
+  admin_login_failed: boolean
+}
+
+export interface NotificationSchedule {
+  id: number
+  name: string
+  enabled: boolean
+  frequency: "daily" | "weekly" | "monthly"
+  time_of_day: string
+  weekday: number
+  day_of_month: number
+  timezone: string
+  traffic_display_mode: "used" | "remaining"
+  include_summary: boolean
+  include_node_traffic: boolean
+  node_limit: number
+  include_expiring: boolean
+  include_top_users: boolean
+  channel_ids: number[]
+  last_run_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationLog {
+  id: number
+  event_type: NotificationEventType | string
+  channel_id: number | null
+  channel_name: string
+  title: string
+  message: string
+  status: "success" | "failed"
+  error: string
+  created_at: string
+}
+
+export interface ScheduleRunResult {
+  title: string
+  message: string
+  total_channels: number
+  success_count: number
+  failed_count: number
+  failed_channels?: string[]
+}

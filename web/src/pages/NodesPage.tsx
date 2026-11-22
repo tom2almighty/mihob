@@ -26,8 +26,16 @@ import {
   ErrorState,
   PageHeader,
   TablePagination,
+  TrafficModeToggle,
   TrafficProgress,
 } from "@/components/common/CommonUI"
+import {
+  canUpgradeNode,
+  isVersionOlder,
+  NodeIdentity,
+  NodeMetaSummary,
+  NodeStatusCell,
+} from "@/components/common/NodeDisplay"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +46,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -59,7 +66,8 @@ import {
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
-import { daysUntil, formatDateShort, formatRate } from "@/lib/format"
+import { formatRate } from "@/lib/format"
+import { useNodeTrafficDisplayMode } from "@/lib/trafficDisplay"
 import type { Node } from "@/lib/types"
 import { useDragReorder } from "@/lib/useDragReorder"
 import { cn } from "@/lib/utils"
@@ -67,35 +75,10 @@ import { InboundManagerSheet } from "./nodes/InboundManagerSheet"
 import { InstallCommandDialog } from "./nodes/InstallCommandDialog"
 import { NodeFormDialog } from "./nodes/NodeFormDialog"
 
-function parseSemver(raw?: string): [number, number, number] | null {
-  if (!raw) return null
-  const m = raw.match(/v?(\d+)\.(\d+)\.(\d+)/)
-  if (!m) return null
-  return [Number(m[1]), Number(m[2]), Number(m[3])]
-}
-
-function isVersionOlder(current?: string, latest?: string): boolean {
-  const c = parseSemver(current)
-  const l = parseSemver(latest)
-  if (!c || !l) return false
-  for (let i = 0; i < 3; i++) {
-    if (c[i] !== l[i]) return c[i] < l[i]
-  }
-  return false
-}
-
-function canUpgradeNode(n: Node): boolean {
-  return (
-    n.online &&
-    n.upgrade_status !== "upgrading" &&
-    (!n.os || n.os === "linux") &&
-    (n.arch === "amd64" || n.arch === "arm64")
-  )
-}
-
 export function NodesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [trafficMode, setTrafficMode] = useNodeTrafficDisplayMode()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
   const [page, setPage] = useState(1)
@@ -370,29 +353,32 @@ export function NodesPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-          {(
-            [
-              { key: "all", label: t("nodes.filterAll"), count: allNodes.length },
-              { key: "online", label: t("nodes.online"), count: onlineCount },
-              { key: "offline", label: t("nodes.offline"), count: offlineCount },
-            ] as const
-          ).map((item) => (
-            <Button
-              key={item.key}
-              type="button"
-              variant={statusFilter === item.key ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => {
-                setStatusFilter(item.key)
-                setPage(1)
-              }}
-            >
-              <span>{item.label}</span>
-              <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <TrafficModeToggle value={trafficMode} onChange={setTrafficMode} />
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+            {(
+              [
+                { key: "all", label: t("nodes.filterAll"), count: allNodes.length },
+                { key: "online", label: t("nodes.online"), count: onlineCount },
+                { key: "offline", label: t("nodes.offline"), count: offlineCount },
+              ] as const
+            ).map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                variant={statusFilter === item.key ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs"
+                onClick={() => {
+                  setStatusFilter(item.key)
+                  setPage(1)
+                }}
+              >
+                <span>{item.label}</span>
+                <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -471,132 +457,15 @@ export function NodesPage() {
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <div className="space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={`size-2 shrink-0 rounded-full ${
-                            n.online ? "bg-success" : "bg-muted-foreground/40"
-                          }`}
-                        />
-                        <span className="font-medium text-foreground">{n.name}</span>
-                        {n.region && (
-                          <Badge variant="secondary" className="text-xs font-normal">
-                            {n.region}
-                          </Badge>
-                        )}
-                        {(n.tags ?? []).slice(0, 3).map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="outline"
-                            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
-                        {(n.tags ?? []).length > 3 && (
-                          <Badge
-                            variant="outline"
-                            className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground tabular-nums"
-                          >
-                            +{(n.tags ?? []).length - 3}
-                          </Badge>
-                        )}
-                        {!n.enabled && (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                            {t("common.disabled")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="font-mono text-xs text-muted-foreground">{n.host}</div>
-                    </div>
+                    <NodeIdentity node={n} showTags />
                   </TableCell>
 
                   <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <Badge
-                          variant={n.online ? "secondary" : "outline"}
-                          className={
-                            n.online
-                              ? "bg-success/15 text-success hover:bg-success/20"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {n.online ? t("nodes.online") : t("nodes.offline")}
-                        </Badge>
-                        {n.config_status === "error" ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <Badge variant="destructive" className="cursor-help text-xs">
-                                  {t("nodes.configError")}
-                                </Badge>
-                              }
-                            />
-                            <TooltipContent className="max-w-xs wrap-break-word">
-                              {n.config_error || t("nodes.configErrorFallback")}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : n.config_status === "synced" ? (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                            {t("nodes.synced")}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-warning/40 text-xs text-warning">
-                            {t("nodes.pending")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                        {n.agent_version || n.mihomo_version ? (
-                          <>
-                            {n.agent_version && <span>Agent {n.agent_version}</span>}
-                            {n.agent_version && n.mihomo_version && (
-                              <span className="opacity-40">·</span>
-                            )}
-                            {n.mihomo_version && <span>{n.mihomo_version}</span>}
-                            {n.upgrade_status === "upgrading" ? (
-                              <Badge
-                                variant="secondary"
-                                className="gap-1 px-1.5 py-0 font-sans text-[10px] font-normal"
-                              >
-                                <Loader2 className="size-2.5 animate-spin" />
-                                {t("nodes.mihomo.upgradingBadge")}
-                              </Badge>
-                            ) : n.upgrade_status === "error" ? (
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Badge
-                                      variant="destructive"
-                                      className="cursor-help px-1.5 py-0 font-sans text-[10px] font-normal"
-                                    >
-                                      {t("nodes.mihomo.upgradeFailedBadge")}
-                                    </Badge>
-                                  }
-                                />
-                                <TooltipContent className="max-w-xs wrap-break-word font-sans">
-                                  {n.upgrade_error || t("nodes.mihomo.upgradeFailedFallback")}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : latestVersion &&
-                              canUpgradeNode(n) &&
-                              isVersionOlder(n.mihomo_version, latestVersion) ? (
-                              <button
-                                type="button"
-                                onClick={() => setUpgradeTarget({ mode: "single", node: n })}
-                                className="inline-flex items-center gap-0.5 rounded-full border border-primary/35 bg-primary/10 px-1.5 py-0 font-sans text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
-                              >
-                                <ArrowUpCircle className="size-2.5" />
-                                {t("nodes.mihomo.updateAvailable")}
-                              </button>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="font-sans text-xs">{t("nodes.waitingAgent")}</span>
-                        )}
-                      </div>
-                    </div>
+                    <NodeStatusCell
+                      node={n}
+                      latestVersion={latestVersion}
+                      onUpgrade={(target) => setUpgradeTarget({ mode: "single", node: target })}
+                    />
                   </TableCell>
 
                   <TableCell className="text-xs tabular-nums">
@@ -609,40 +478,15 @@ export function NodesPage() {
                   </TableCell>
 
                   <TableCell>
-                    <TrafficProgress used={n.traffic_used} limit={n.traffic_limit} />
+                    <TrafficProgress
+                      used={n.traffic_used}
+                      limit={n.traffic_limit}
+                      mode={trafficMode}
+                    />
                   </TableCell>
 
-                  <TableCell className="text-xs tabular-nums">
-                    <div className="flex flex-wrap items-center gap-1.5 text-foreground">
-                      <span>{t("nodes.multiplierText", { value: n.traffic_multiplier })}</span>
-                      {n.billing_cycle && (
-                        <Badge variant="outline" className="px-1.5 py-0 text-[11px] font-normal">
-                          {t(`nodes.billingCycles.${n.billing_cycle}` as "nodes.billingCycles.monthly")}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-muted-foreground">
-                      {t("nodes.protocolResetText", {
-                        count: n.inbound_count,
-                        day: n.reset_day,
-                      })}
-                    </div>
-                    {n.expire_at && (() => {
-                      const days = daysUntil(n.expire_at)
-                      const tone =
-                        days !== null && days <= 0
-                          ? "text-destructive font-medium"
-                          : days !== null && days <= 14
-                            ? "text-warning font-medium"
-                            : "text-muted-foreground"
-                      return (
-                        <div className={tone}>
-                          {days !== null && days <= 0
-                            ? t("nodes.expired")
-                            : `${formatDateShort(n.expire_at)} (${t("nodes.daysLeft", { days: days ?? 0 })})`}
-                        </div>
-                      )
-                    })()}
+                  <TableCell>
+                    <NodeMetaSummary node={n} />
                   </TableCell>
 
                   <TableCell className="text-right">

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { NavLink, useLocation, useMatch, useNavigate } from "react-router-dom"
 import {
+  Bell,
   Check,
   ChevronsUpDown,
   FileCode2,
@@ -46,6 +47,7 @@ const NAV_ITEMS = [
   { to: "/certificates", labelKey: "nav.certificates" as const, icon: ShieldCheck },
   { to: "/users", labelKey: "nav.users" as const, icon: Users },
   { to: "/templates", labelKey: "nav.templates" as const, icon: FileCode2 },
+  { to: "/notifications", labelKey: "nav.notifications" as const, icon: Bell },
   { to: "/settings", labelKey: "nav.settings" as const, icon: Settings },
 ]
 

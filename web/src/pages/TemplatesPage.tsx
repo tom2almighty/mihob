@@ -131,16 +131,10 @@ export function TemplatesPage() {
           <TabsTrigger value="client" className="gap-1.5">
             <Smartphone className="size-3.5" />
             <span>{t("templates.tabClient")}</span>
-            <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
-              ({clientTemplates.length})
-            </span>
           </TabsTrigger>
           <TabsTrigger value="server" className="gap-1.5">
             <Server className="size-3.5" />
             <span>{t("templates.tabServer")}</span>
-            <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
-              ({serverTemplates.length})
-            </span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

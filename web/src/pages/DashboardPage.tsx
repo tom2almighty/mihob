@@ -25,7 +25,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { EmptyState, ErrorState, PageHeader, TrafficProgress } from "@/components/common/CommonUI"
+import {
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  TrafficModeToggle,
+  TrafficProgress,
+} from "@/components/common/CommonUI"
+import { NodeStatusPreviewRow } from "@/components/common/NodeDisplay"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatBytes, formatBytesCompact, formatRate } from "@/lib/format"
+import { useNodeTrafficDisplayMode } from "@/lib/trafficDisplay"
 import { PROTOCOL_LABELS, type DashboardRange, type Protocol } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -106,6 +114,7 @@ function metricStrokeColor(metric: TrafficMetric) {
 
 export function DashboardPage() {
   const { t } = useTranslation()
+  const [trafficMode, setTrafficMode] = useNodeTrafficDisplayMode()
   const [range, setRange] = useState<DashboardRange>("24h")
   const [trendMetric, setTrendMetric] = useState<TrafficMetric>("total")
   const [nodeMetric, setNodeMetric] = useState<TrafficMetric>("total")
@@ -820,22 +829,25 @@ export function DashboardPage() {
       {/* Row 5: Node Status (Top 3) + Top Traffic Users (Top 3) */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className={CARD_BASE}>
-          <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between")}>
-            <div className="space-y-0.5">
+          <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between gap-2")}>
+            <div className="min-w-0 space-y-0.5">
               <CardTitle className="text-sm font-semibold">
                 {t("dashboard.nodeStatusTitle")}
               </CardTitle>
               <CardDescription className="text-xs">{t("dashboard.nodeStatusDesc")}</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              render={<Link to="/nodes" />}
-              nativeButton={false}
-            >
-              {t("dashboard.viewAll")}
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <TrafficModeToggle value={trafficMode} onChange={setTrafficMode} size="xs" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                render={<Link to="/nodes" />}
+                nativeButton={false}
+              >
+                {t("dashboard.viewAll")}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className={cn(CARD_CONTENT, "space-y-2.5")}>
             {query.isLoading ? (
@@ -853,37 +865,7 @@ export function DashboardPage() {
               />
             ) : (
               topNodes.map((n) => (
-                <div
-                  key={n.id}
-                  className="flex flex-col gap-1.5 rounded-md border border-border px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "size-2 shrink-0 rounded-full",
-                          n.online ? "bg-success" : "bg-muted-foreground/40"
-                        )}
-                      />
-                      <span className="truncate text-sm font-medium">{n.name}</span>
-                      {n.region && (
-                        <Badge variant="secondary" className="px-1.5 py-0 text-[11px] font-normal">
-                          {n.region}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground tabular-nums">
-                      {t("dashboard.nodeMeta", {
-                        host: n.host,
-                        inbounds: n.inbound_count,
-                        connections: n.active_connections,
-                      })}
-                    </p>
-                  </div>
-                  <div className="w-full shrink-0 sm:w-40">
-                    <TrafficProgress used={n.traffic_used} limit={n.traffic_limit} />
-                  </div>
-                </div>
+                <NodeStatusPreviewRow key={n.id} node={n} trafficMode={trafficMode} />
               ))
             )}
           </CardContent>

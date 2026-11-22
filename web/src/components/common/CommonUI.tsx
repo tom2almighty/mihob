@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatBytes } from "@/lib/format"
+import type { TrafficDisplayMode } from "@/lib/trafficDisplay"
 import { cn } from "@/lib/utils"
 
 export function PageHeader({
@@ -159,42 +160,113 @@ export function CopyButton({
   )
 }
 
+export function TrafficModeToggle({
+  value,
+  onChange,
+  size = "sm",
+  className,
+}: {
+  value: TrafficDisplayMode
+  onChange: (next: TrafficDisplayMode) => void
+  size?: "sm" | "xs"
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const btnClass = size === "xs" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-xs"
+
+  return (
+    <div
+      role="group"
+      aria-label={t("common.trafficModeAria")}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5",
+        className
+      )}
+    >
+      <Button
+        type="button"
+        variant={value === "used" ? "secondary" : "ghost"}
+        size="sm"
+        aria-pressed={value === "used"}
+        className={btnClass}
+        onClick={() => onChange("used")}
+      >
+        {t("common.trafficUsed")}
+      </Button>
+      <Button
+        type="button"
+        variant={value === "remaining" ? "secondary" : "ghost"}
+        size="sm"
+        aria-pressed={value === "remaining"}
+        className={btnClass}
+        onClick={() => onChange("remaining")}
+      >
+        {t("common.trafficRemaining")}
+      </Button>
+    </div>
+  )
+}
+
 export function TrafficProgress({
   used,
   limit,
+  mode = "used",
   className,
 }: {
   used: number
   limit: number
+  mode?: TrafficDisplayMode
   className?: string
 }) {
   const { t } = useTranslation()
   const unlimited = !limit || limit <= 0
-  const ratio = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100))
+  const usedRatio = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100))
+  const remaining = unlimited ? 0 : Math.max(0, limit - used)
+  const remainingRatio = unlimited ? 0 : Math.max(0, 100 - usedRatio)
+  const displayRatio = mode === "remaining" ? remainingRatio : usedRatio
   const barColor =
-    ratio >= 90
+    usedRatio >= 90
       ? "bg-destructive"
-      : ratio >= 70
+      : usedRatio >= 70
         ? "bg-warning"
         : "bg-success"
 
-  return (
+  const content = (
     <div className={cn("space-y-1.5", className)}>
       <div className="flex items-center justify-between gap-2 text-xs tabular-nums">
-        <span className="font-medium text-foreground">{formatBytes(used)}</span>
-        <span className="text-muted-foreground">
-          {unlimited ? t("common.unlimited") : `/ ${formatBytes(limit)} (${ratio}%)`}
+        <span className="truncate font-medium text-foreground">
+          {!unlimited && mode === "remaining"
+            ? t("common.trafficRemainingShort", { value: formatBytes(remaining) })
+            : formatBytes(used)}
+        </span>
+        <span className="shrink-0 text-muted-foreground">
+          {unlimited ? t("common.unlimited") : `/ ${formatBytes(limit)} (${displayRatio}%)`}
         </span>
       </div>
       {!unlimited && (
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={cn("h-full rounded-full transition-all duration-200", barColor)}
-            style={{ width: `${ratio}%` }}
+            style={{ width: `${displayRatio}%` }}
           />
         </div>
       )}
     </div>
+  )
+
+  if (unlimited) return content
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={content} />
+      <TooltipContent className="tabular-nums">
+        {t("common.trafficTooltip", {
+          used: formatBytes(used),
+          remaining: formatBytes(remaining),
+          limit: formatBytes(limit),
+        })}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 

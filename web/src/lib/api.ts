@@ -9,8 +9,13 @@ import type {
   InstallCommands,
   MihomoReleaseInfo,
   Node,
+  NotificationChannel,
+  NotificationLog,
+  NotificationRules,
+  NotificationSchedule,
   PublicSubInfo,
   PublicThemeResponse,
+  ScheduleRunResult,
   SystemSettings,
   Template,
   ThemeConfig,
@@ -91,6 +96,10 @@ export const queryKeys = {
   themes: ["themes"] as const,
   publicTheme: ["public", "theme"] as const,
   publicSub: (path: string) => ["public", "sub", path] as const,
+  notificationChannels: ["notifications", "channels"] as const,
+  notificationRules: ["notifications", "rules"] as const,
+  notificationSchedules: ["notifications", "schedules"] as const,
+  notificationLogs: ["notifications", "logs"] as const,
 }
 
 export const api = {
@@ -269,4 +278,51 @@ export const api = {
     request<PublicSubInfo>(`/api/public/sub?path=${encodeURIComponent(path)}`, undefined, {
       public: true,
     }),
+
+  // Notifications
+  listNotificationChannels: () => request<NotificationChannel[]>("/api/notifications/channels"),
+  createNotificationChannel: (body: Record<string, unknown>) =>
+    request<NotificationChannel>("/api/notifications/channels", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateNotificationChannel: (id: number, body: Record<string, unknown>) =>
+    request<NotificationChannel>(`/api/notifications/channels/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteNotificationChannel: (id: number) =>
+    request<{ status: string }>(`/api/notifications/channels/${id}`, { method: "DELETE" }),
+  testNotificationChannel: (id: number) =>
+    request<{ status: string }>(`/api/notifications/channels/${id}/test`, { method: "POST" }),
+  testNotificationUrl: (url: string) =>
+    request<{ status: string }>("/api/notifications/test-url", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+  getNotificationRules: () => request<NotificationRules>("/api/notifications/rules"),
+  updateNotificationRules: (body: NotificationRules) =>
+    request<NotificationRules>("/api/notifications/rules", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  listNotificationSchedules: () =>
+    request<NotificationSchedule[]>("/api/notifications/schedules"),
+  createNotificationSchedule: (body: Record<string, unknown>) =>
+    request<NotificationSchedule>("/api/notifications/schedules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateNotificationSchedule: (id: number, body: Record<string, unknown>) =>
+    request<NotificationSchedule>(`/api/notifications/schedules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteNotificationSchedule: (id: number) =>
+    request<{ status: string }>(`/api/notifications/schedules/${id}`, { method: "DELETE" }),
+  runNotificationSchedule: (id: number) =>
+    request<ScheduleRunResult>(`/api/notifications/schedules/${id}/run`, { method: "POST" }),
+  listNotificationLogs: () => request<NotificationLog[]>("/api/notifications/logs"),
+  clearNotificationLogs: () =>
+    request<{ status: string }>("/api/notifications/logs", { method: "DELETE" }),
 }

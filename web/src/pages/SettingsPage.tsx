@@ -62,6 +62,7 @@ const RESERVED_SUB_SEGMENTS = new Set([
   "certificates",
   "users",
   "templates",
+  "notifications",
   "settings",
   ".well-known",
 ])

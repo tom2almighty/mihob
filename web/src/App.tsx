@@ -20,6 +20,9 @@ const UsersPage = lazy(() => import("@/pages/UsersPage").then((m) => ({ default:
 const TemplatesPage = lazy(() =>
   import("@/pages/TemplatesPage").then((m) => ({ default: m.TemplatesPage }))
 )
+const NotificationsPage = lazy(() =>
+  import("@/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage }))
+)
 const SettingsPage = lazy(() =>
   import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
 )
@@ -73,6 +76,7 @@ const PROTECTED_ROUTES: { path: string; element: ReactNode }[] = [
   { path: "/certificates", element: <CertificatesPage /> },
   { path: "/users", element: <UsersPage /> },
   { path: "/templates", element: <TemplatesPage /> },
+  { path: "/notifications", element: <NotificationsPage /> },
   { path: "/settings", element: <SettingsPage /> },
 ]
 
