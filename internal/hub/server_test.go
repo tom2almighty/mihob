@@ -452,4 +452,59 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	if afterDeleteNode.ServerTemplateID != nil {
 		t.Fatalf("expected node.server_template_id reset to nil after template deletion, got %v", *afterDeleteNode.ServerTemplateID)
 	}
+
+	// 13. Verify dynamic server-side node chaining (`type: mihob-node`) via preview API
+	resp, raw = doJSON(http.MethodPost, "/api/nodes", tok, map[string]any{
+		"name":               "US-Unlock",
+		"host":               "us-unlock.example.com",
+		"region":             "US",
+		"traffic_multiplier": 1.0,
+		"reset_day":          1,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create second node failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var usNode model.Node
+	_ = json.Unmarshal(raw, &usNode)
+
+	resp, raw = doJSON(http.MethodPost, fmt.Sprintf("/api/nodes/%d/inbounds", usNode.ID), tok, map[string]any{
+		"name":     "us-vless",
+		"tag":      "Reality",
+		"protocol": "vless",
+		"port":     443,
+		"settings": map[string]any{
+			"security":     "reality",
+			"network":      "tcp",
+			"flow":         "xtls-rprx-vision",
+			"reality_dest": "www.microsoft.com:443",
+		},
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create us inbound failed: %d %s", resp.StatusCode, string(raw))
+	}
+
+	chainYAML := "mode: rule\nproxies:\n  - name: UNLOCK-US\n    type: mihob-node\n    node: US-Unlock\n    inbound: us-vless\nrules:\n  - DOMAIN-SUFFIX,openai.com,UNLOCK-US\n  - MATCH,DIRECT\n"
+	resp, raw = doJSON(http.MethodPost, "/api/templates/preview-server", tok, map[string]any{
+		"node_id": node.ID,
+		"content": chainYAML,
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("preview chained server config failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var chainPreview struct {
+		YAML string `json:"yaml"`
+	}
+	_ = json.Unmarshal(raw, &chainPreview)
+	var chainParsed map[string]any
+	if err := yaml.Unmarshal([]byte(chainPreview.YAML), &chainParsed); err != nil {
+		t.Fatalf("unmarshal chain preview: %v\n%s", err, chainPreview.YAML)
+	}
+	chainProxies, ok := chainParsed["proxies"].([]any)
+	if !ok || len(chainProxies) != 1 {
+		t.Fatalf("expected 1 expanded proxy in chain preview, got %+v", chainParsed["proxies"])
+	}
+	cp0 := chainProxies[0].(map[string]any)
+	if cp0["name"] != "UNLOCK-US" || cp0["type"] != "vless" || cp0["server"] != "us-unlock.example.com" {
+		t.Fatalf("unexpected expanded chain proxy: %+v", cp0)
+	}
 }

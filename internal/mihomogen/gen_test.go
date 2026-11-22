@@ -144,7 +144,7 @@ func TestGenerateAllFifteenProtocols(t *testing.T) {
 		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true, ExpireAt: &expiredTime,
 	}
 
-	bundle, err := GenerateServerConfig(node, inbounds, []model.User{activeUser, expiredUser}, certs, "", time.Now())
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{activeUser, expiredUser}, certs, "", nil, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig failed: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestPerInboundUserAccessFiltering(t *testing.T) {
 		},
 	}
 
-	bundle, err := GenerateServerConfig(node, inbounds, []model.User{userVLESS, userSS}, map[int64]*model.Certificate{}, "", time.Now())
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{userVLESS, userSS}, map[int64]*model.Certificate{}, "", nil, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig failed: %v", err)
 	}
@@ -412,7 +412,7 @@ func TestProtocolRefinementsAndExtraYAMLOverride(t *testing.T) {
 		},
 	}
 
-	bundle, err := GenerateServerConfig(node, []model.Inbound{tt, sdk, anytls}, []model.User{user}, certs, "", time.Now())
+	bundle, err := GenerateServerConfig(node, []model.Inbound{tt, sdk, anytls}, []model.User{user}, certs, "", nil, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig: %v", err)
 	}
@@ -517,7 +517,7 @@ rules:
   - MATCH,DIRECT
 `
 
-	bundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, serverTmpl, time.Now())
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, serverTmpl, nil, time.Now())
 	if err != nil {
 		t.Fatalf("GenerateServerConfig failed: %v", err)
 	}
@@ -561,5 +561,148 @@ rules:
 	}
 	if ls[0].(map[string]any)["name"] != "mixed-in" {
 		t.Fatalf("expected real listener mixed-in, got %+v", ls[0])
+	}
+}
+
+func TestServerNodeChainingAndRelayInjection(t *testing.T) {
+	priv, pub, err := crypto.GenerateRealityKeyPair()
+	if err != nil {
+		t.Fatalf("reality keypair: %v", err)
+	}
+	cPEM, kPEM, nb, na, err := crypto.GenerateSelfSignedCert("us01.example.com", nil, 365)
+	if err != nil {
+		t.Fatalf("cert: %v", err)
+	}
+	certID := int64(1)
+	certs := map[int64]*model.Certificate{
+		1: {ID: 1, Name: "us-cert", Domain: "us01.example.com", Source: "self_signed", CertPEM: cPEM, KeyPEM: kPEM, NotBefore: &nb, NotAfter: &na},
+	}
+
+	relayUser := &model.User{
+		Username: model.RelayUsername,
+		UUID:     crypto.NewUUID(),
+		Password: "relay-secret-password",
+		SSKey16:  crypto.RandomBase64(16),
+		SSKey32:  crypto.RandomBase64(32),
+		Enabled:  true,
+	}
+
+	entryNode := model.Node{ID: 1, Name: "JP-Entry", Host: "jp01.example.com", Enabled: true}
+	hopNode := model.Node{ID: 2, Name: "SG-Hop", Host: "sg01.example.com", Enabled: true}
+	landingNode := model.Node{ID: 3, Name: "US-Landing", Host: "us01.example.com", Enabled: true}
+
+	allInbounds := []model.Inbound{
+		{
+			ID: 101, NodeID: 1, Name: "entry-mixed", Protocol: model.ProtoMixed,
+			Port: 1080, Enabled: true, Settings: model.InboundSettings{Security: "none"},
+		},
+		{
+			ID: 201, NodeID: 2, Name: "sg-vless", Tag: "Reality", Protocol: model.ProtoVLESS,
+			Port: 443, Enabled: true,
+			Settings: model.InboundSettings{
+				Security: "reality", Network: "tcp", Flow: "xtls-rprx-vision",
+				RealityDest: "www.microsoft.com:443", RealityPrivateKey: priv, RealityPublicKey: pub,
+				RealityShortIDs: []string{"1234abcd"},
+			},
+		},
+		{
+			ID: 301, NodeID: 3, Name: "us-hy2", Tag: "HY2", Protocol: model.ProtoHysteria2,
+			Port: 8443, CertID: &certID, Enabled: true,
+			Settings: model.InboundSettings{UpMbps: 100, DownMbps: 500},
+		},
+	}
+
+	chainTemplate := `
+mode: rule
+log-level: info
+ipv6: true
+proxies:
+  - name: HOP-SG
+    type: mihob-node
+    node: SG-Hop
+    protocol: vless
+  - name: UNLOCK-US
+    type: mihob-node
+    node: US-Landing
+    inbound: us-hy2
+    dialer-proxy: HOP-SG
+rules:
+  - DOMAIN-SUFFIX,openai.com,UNLOCK-US
+  - MATCH,DIRECT
+`
+
+	allNodes := []model.Node{entryNode, hopNode, landingNode}
+	graph := BuildClusterRelayGraph(allNodes, allInbounds, func(n *model.Node) string {
+		if n.ID == entryNode.ID || n.ID == landingNode.ID {
+			return chainTemplate
+		}
+		return ""
+	})
+
+	if !graph.RelayInboundIDs[201] || !graph.RelayInboundIDs[301] {
+		t.Fatalf("expected relay targets 201 and 301, got %+v", graph.RelayInboundIDs)
+	}
+	if len(graph.ReferrersByNode[3]) != 1 || graph.ReferrersByNode[3][0] != 1 {
+		t.Fatalf("expected node 1 referencing node 3 (self-ref ignored), got %+v", graph.ReferrersByNode[3])
+	}
+
+	opts := &ServerGenOptions{
+		AllNodes:        allNodes,
+		AllInbounds:     allInbounds,
+		RelayUser:       relayUser,
+		RelayInboundIDs: graph.RelayInboundIDs,
+	}
+
+	// 1. Entry node expands both mihob-node proxies with relayUser credentials and preserves dialer-proxy
+	alice := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32),
+		Enabled: true, AccessPolicy: model.DefaultAccessPolicy(),
+	}
+	entryBundle, err := GenerateServerConfig(&entryNode, []model.Inbound{allInbounds[0]}, []model.User{alice}, certs, chainTemplate, opts, time.Now())
+	if err != nil {
+		t.Fatalf("entry GenerateServerConfig: %v", err)
+	}
+	var entryCfg map[string]any
+	if err := yaml.Unmarshal([]byte(entryBundle.ConfigYAML), &entryCfg); err != nil {
+		t.Fatalf("unmarshal entry cfg: %v", err)
+	}
+	proxies := entryCfg["proxies"].([]any)
+	if len(proxies) != 2 {
+		t.Fatalf("expected 2 expanded proxies, got %d", len(proxies))
+	}
+	pHop := proxies[0].(map[string]any)
+	if pHop["name"] != "HOP-SG" || pHop["type"] != "vless" || pHop["server"] != "sg01.example.com" || pHop["uuid"] != relayUser.UUID {
+		t.Fatalf("unexpected expanded HOP-SG proxy: %+v", pHop)
+	}
+	pUnlock := proxies[1].(map[string]any)
+	if pUnlock["name"] != "UNLOCK-US" || pUnlock["type"] != "hysteria2" || pUnlock["server"] != "us01.example.com" || pUnlock["password"] != relayUser.Password || pUnlock["dialer-proxy"] != "HOP-SG" {
+		t.Fatalf("unexpected expanded UNLOCK-US proxy: %+v", pUnlock)
+	}
+	if _, leaked := pUnlock["node"]; leaked {
+		t.Fatalf("directive key 'node' must not leak into final proxy: %+v", pUnlock)
+	}
+
+	// 2. Pure landing node with 0 regular users still emits listener with _mihob_relay AND self-ref becomes `direct`
+	landingBundle, err := GenerateServerConfig(&landingNode, []model.Inbound{allInbounds[2]}, nil, certs, chainTemplate, opts, time.Now())
+	if err != nil {
+		t.Fatalf("landing GenerateServerConfig: %v", err)
+	}
+	var landingCfg map[string]any
+	if err := yaml.Unmarshal([]byte(landingBundle.ConfigYAML), &landingCfg); err != nil {
+		t.Fatalf("unmarshal landing cfg: %v", err)
+	}
+	landingListeners := landingCfg["listeners"].([]any)
+	if len(landingListeners) != 1 {
+		t.Fatalf("expected landing node with 0 regular users to emit 1 relay listener, got %d", len(landingListeners))
+	}
+	lUsers := landingListeners[0].(map[string]any)["users"].(map[string]any)
+	if lUsers[model.RelayUsername] != relayUser.Password {
+		t.Fatalf("expected %s in landing listener users, got %+v", model.RelayUsername, lUsers)
+	}
+	landingProxies := landingCfg["proxies"].([]any)
+	selfProxy := landingProxies[1].(map[string]any)
+	if selfProxy["name"] != "UNLOCK-US" || selfProxy["type"] != "direct" {
+		t.Fatalf("expected self-referenced proxy to resolve to direct, got %+v", selfProxy)
 	}
 }

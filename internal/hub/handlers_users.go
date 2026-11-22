@@ -291,9 +291,19 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if kind == model.TemplateKindServer {
-		if err := mihomogen.ValidateExtraYAML(req.Content); err != nil {
+		if err := mihomogen.ValidateServerTemplateDirectives(req.Content); err != nil {
 			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
 			return
+		}
+	}
+	var prevTargets []int64
+	if kind == model.TemplateKindServer && req.IsDefault {
+		if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+			if prevAffected, err := s.store.ListNodeIDsByServerTemplate(0, true); err == nil {
+				for _, nid := range prevAffected {
+					prevTargets = append(prevTargets, g.TargetsByNode[nid]...)
+				}
+			}
 		}
 	}
 	t := &model.Template{
@@ -309,7 +319,7 @@ func (s *Server) handleCreateTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if t.Kind == model.TemplateKindServer && t.IsDefault {
 		if nodeIDs, err := s.store.ListNodeIDsByServerTemplate(t.ID, true); err == nil {
-			s.ws.PushConfigToNodes(nodeIDs)
+			s.ws.PushConfigToNodes(append(nodeIDs, prevTargets...))
 		}
 	}
 	writeJSON(w, http.StatusCreated, t)
@@ -345,9 +355,19 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 		existing.Content = req.Content
 	}
 	if existing.Kind == model.TemplateKindServer {
-		if err := mihomogen.ValidateExtraYAML(existing.Content); err != nil {
+		if err := mihomogen.ValidateServerTemplateDirectives(existing.Content); err != nil {
 			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
 			return
+		}
+	}
+	var prevTargets []int64
+	if existing.Kind == model.TemplateKindServer {
+		if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+			if prevAffected, err := s.store.ListNodeIDsByServerTemplate(existing.ID, wasDefault || req.IsDefault); err == nil {
+				for _, nid := range prevAffected {
+					prevTargets = append(prevTargets, g.TargetsByNode[nid]...)
+				}
+			}
 		}
 	}
 	existing.IsDefault = req.IsDefault
@@ -357,7 +377,7 @@ func (s *Server) handleUpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if existing.Kind == model.TemplateKindServer {
 		if nodeIDs, err := s.store.ListNodeIDsByServerTemplate(existing.ID, wasDefault || existing.IsDefault); err == nil {
-			s.ws.PushConfigToNodes(nodeIDs)
+			s.ws.PushConfigToNodes(append(nodeIDs, prevTargets...))
 		}
 	}
 	writeJSON(w, http.StatusOK, existing)
@@ -381,6 +401,11 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	var affectedNodes []int64
 	if existing.Kind == model.TemplateKindServer {
 		affectedNodes, _ = s.store.ListNodeIDsByServerTemplate(id, false)
+		if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+			for _, nid := range affectedNodes {
+				affectedNodes = append(affectedNodes, g.TargetsByNode[nid]...)
+			}
+		}
 	}
 	if err := s.store.DeleteTemplate(id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -486,7 +511,7 @@ func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Reques
 		node.ServerIPv6 = &v
 	}
 	if req.ExtraServerYAML != nil {
-		if err := mihomogen.ValidateExtraYAML(*req.ExtraServerYAML); err != nil {
+		if err := mihomogen.ValidateServerTemplateDirectives(*req.ExtraServerYAML); err != nil {
 			writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
 			return
 		}
@@ -496,7 +521,7 @@ func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Reques
 	// Resolve server template YAML
 	var serverTmplYAML string
 	if strings.TrimSpace(req.Content) != "" {
-		if err := mihomogen.ValidateExtraYAML(req.Content); err != nil {
+		if err := mihomogen.ValidateServerTemplateDirectives(req.Content); err != nil {
 			writeError(w, http.StatusBadRequest, "服务端模板 YAML 无效: "+err.Error())
 			return
 		}
@@ -533,7 +558,13 @@ func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Reques
 		certsMap[certsList[i].ID] = &certsList[i]
 	}
 
-	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTmplYAML, time.Now().UTC())
+	opts, _, err := s.ws.BuildServerGenOptions()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTmplYAML, opts, time.Now().UTC())
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

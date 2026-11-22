@@ -330,6 +330,51 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 	}
 }
 
+func (m *WSManager) BuildServerGenOptions() (*mihomogen.ServerGenOptions, *mihomogen.ClusterRelayGraph, error) {
+	allNodes, err := m.store.ListNodes()
+	if err != nil {
+		return nil, nil, err
+	}
+	allInbounds, err := m.store.ListAllInbounds()
+	if err != nil {
+		return nil, nil, err
+	}
+	relayUser, err := m.store.GetOrCreateRelayUser()
+	if err != nil {
+		return nil, nil, err
+	}
+	serverTemplates, _ := m.store.ListTemplatesByKind(model.TemplateKindServer)
+	tmplByID := make(map[int64]string, len(serverTemplates))
+	defaultServerYAML := db.DefaultServerMihomoTemplate
+	for i := range serverTemplates {
+		tmplByID[serverTemplates[i].ID] = serverTemplates[i].Content
+		if serverTemplates[i].IsDefault {
+			defaultServerYAML = serverTemplates[i].Content
+		}
+	}
+	if len(serverTemplates) > 0 && defaultServerYAML == db.DefaultServerMihomoTemplate {
+		defaultServerYAML = serverTemplates[0].Content
+	}
+
+	resolveTmpl := func(n *model.Node) string {
+		if n.ServerTemplateID != nil {
+			if c, ok := tmplByID[*n.ServerTemplateID]; ok {
+				return c
+			}
+		}
+		return defaultServerYAML
+	}
+
+	graph := mihomogen.BuildClusterRelayGraph(allNodes, allInbounds, resolveTmpl)
+	opts := &mihomogen.ServerGenOptions{
+		AllNodes:        allNodes,
+		AllInbounds:     allInbounds,
+		RelayUser:       relayUser,
+		RelayInboundIDs: graph.RelayInboundIDs,
+	}
+	return opts, graph, nil
+}
+
 func resolveServerTemplateYAML(store *db.Store, templateID *int64) string {
 	if templateID != nil {
 		if t, err := store.GetTemplate(*templateID); err == nil && t.Kind == model.TemplateKindServer {
@@ -364,8 +409,12 @@ func (m *WSManager) PushConfigToNode(nodeID int64) error {
 		certsMap[certsList[i].ID] = &certsList[i]
 	}
 
+	opts, _, err := m.BuildServerGenOptions()
+	if err != nil {
+		return err
+	}
 	serverTemplateYAML := resolveServerTemplateYAML(m.store, node.ServerTemplateID)
-	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTemplateYAML, time.Now().UTC())
+	bundle, err := mihomogen.GenerateServerConfig(node, inbounds, users, certsMap, serverTemplateYAML, opts, time.Now().UTC())
 	if err != nil {
 		_ = m.store.UpdateNodeConfigStatus(nodeID, "", "error", err.Error())
 		return err
@@ -394,8 +443,20 @@ func (m *WSManager) PushConfigToNode(nodeID int64) error {
 }
 
 func (m *WSManager) PushConfigToNodes(nodeIDs []int64) {
+	if len(nodeIDs) == 0 {
+		return
+	}
+	expanded := make([]int64, 0, len(nodeIDs)*2)
+	expanded = append(expanded, nodeIDs...)
+	if _, graph, err := m.BuildServerGenOptions(); err == nil && graph != nil {
+		for _, nid := range nodeIDs {
+			expanded = append(expanded, graph.ReferrersByNode[nid]...)
+			expanded = append(expanded, graph.TargetsByNode[nid]...)
+		}
+	}
+
 	seen := map[int64]struct{}{}
-	for _, nid := range nodeIDs {
+	for _, nid := range expanded {
 		if _, ok := seen[nid]; ok {
 			continue
 		}

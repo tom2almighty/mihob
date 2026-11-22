@@ -98,7 +98,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := mihomogen.ValidateExtraYAML(req.ExtraServerYAML); err != nil {
+	if err := mihomogen.ValidateServerTemplateDirectives(req.ExtraServerYAML); err != nil {
 		writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
 		return
 	}
@@ -127,6 +127,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.ws.PushConfigToNodes([]int64{node.ID})
 	writeJSON(w, http.StatusCreated, node)
 }
 
@@ -175,9 +176,14 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := mihomogen.ValidateExtraYAML(req.ExtraServerYAML); err != nil {
+	if err := mihomogen.ValidateServerTemplateDirectives(req.ExtraServerYAML); err != nil {
 		writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
 		return
+	}
+	var prevTargets []int64
+	if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+		prevTargets = append(prevTargets, g.TargetsByNode[existing.ID]...)
+		prevTargets = append(prevTargets, g.ReferrersByNode[existing.ID]...)
 	}
 	if strings.TrimSpace(req.Name) != "" {
 		existing.Name = strings.TrimSpace(req.Name)
@@ -220,7 +226,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		existing.UploadUsed = 0
 		existing.DownloadUsed = val
 	}
-	s.ws.PushConfigToNodes([]int64{existing.ID})
+	s.ws.PushConfigToNodes(append([]int64{existing.ID}, prevTargets...))
 	s.ws.EnrichNode(existing)
 	writeJSON(w, http.StatusOK, existing)
 }
@@ -231,9 +237,17 @@ func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
+	var affected []int64
+	if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+		affected = append(affected, g.TargetsByNode[id]...)
+		affected = append(affected, g.ReferrersByNode[id]...)
+	}
 	if err := s.store.DeleteNode(id); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if len(affected) > 0 {
+		s.ws.PushConfigToNodes(affected)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

@@ -23,7 +23,8 @@ type ServerBundle struct {
 //  2. Server template YAML (if provided)
 //  3. Node-level extra_server_yaml override (deep-merged)
 //  4. Node-level quick overrides (server_log_level, server_ipv6)
-//  5. Control-plane managed fields (listeners always generated; external-controller* / secret stripped for Agent injection)
+//  5. Dynamic `type: mihob-node` proxy references expanded via cluster relay context (opts)
+//  6. Control-plane managed fields (listeners always generated; external-controller* / secret stripped for Agent injection)
 //
 // Note: external-controller / external-controller-unix are injected by the Agent
 // right before writing so Hub remains OS-agnostic (Linux Unix socket vs Windows loopback).
@@ -33,6 +34,7 @@ func GenerateServerConfig(
 	users []model.User,
 	certs map[int64]*model.Certificate,
 	serverTemplateYAML string,
+	opts *ServerGenOptions,
 	now time.Time,
 ) (*ServerBundle, error) {
 	activeUsers := make([]model.User, 0, len(users))
@@ -45,16 +47,19 @@ func GenerateServerConfig(
 	listeners := make([]map[string]any, 0, len(inbounds))
 	usedCerts := map[int64]*model.Certificate{}
 
-	if node.Enabled && !node.IsQuotaExceeded() && len(activeUsers) > 0 {
+	if node.Enabled && !node.IsQuotaExceeded() {
 		for _, in := range inbounds {
 			if !in.Enabled {
 				continue
 			}
-			inboundUsers := make([]model.User, 0, len(activeUsers))
+			inboundUsers := make([]model.User, 0, len(activeUsers)+1)
 			for _, u := range activeUsers {
 				if u.AccessPolicy.Allows(node, &in) {
 					inboundUsers = append(inboundUsers, u)
 				}
+			}
+			if opts != nil && opts.RelayUser != nil && opts.RelayInboundIDs[in.ID] {
+				inboundUsers = append(inboundUsers, *opts.RelayUser)
 			}
 			if len(inboundUsers) == 0 {
 				continue
@@ -93,6 +98,9 @@ func GenerateServerConfig(
 	}
 	if node.ServerIPv6 != nil {
 		cfg["ipv6"] = *node.ServerIPv6
+	}
+	if err := ExpandServerProxyRefs(node, cfg, certs, opts); err != nil {
+		return nil, err
 	}
 	for k := range serverTopProtectedKeys {
 		delete(cfg, k)

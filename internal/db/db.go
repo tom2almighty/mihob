@@ -354,6 +354,9 @@ func (s *Store) seedDefaults() error {
 	if _, err := s.GetSetting("sub_path"); errors.Is(err, sql.ErrNoRows) {
 		_ = s.SetSetting("sub_path", "sub")
 	}
+	if _, err := s.GetOrCreateRelayUser(); err != nil {
+		return err
+	}
 
 	// Seed default client template if none exists
 	var clientTmplCount int
@@ -570,6 +573,32 @@ func (s *Store) SaveThemeConfig(cfg *model.ThemeConfig) error {
 		return err
 	}
 	return s.SetSetting("theme_config", string(b))
+}
+
+func (s *Store) GetOrCreateRelayUser() (*model.User, error) {
+	if raw, err := s.GetSetting("relay_credential"); err == nil && raw != "" {
+		var u model.User
+		if json.Unmarshal([]byte(raw), &u) == nil && u.Username != "" && u.UUID != "" && u.Password != "" {
+			u.Enabled = true
+			return &u, nil
+		}
+	}
+	u := model.User{
+		Username: model.RelayUsername,
+		UUID:     crypto.NewUUID(),
+		Password: crypto.RandomToken(32),
+		SSKey16:  crypto.RandomBase64(16),
+		SSKey32:  crypto.RandomBase64(32),
+		Enabled:  true,
+	}
+	b, err := json.Marshal(&u)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.SetSetting("relay_credential", string(b)); err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func boolToInt(b bool) int {

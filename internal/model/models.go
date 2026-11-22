@@ -50,6 +50,7 @@ func IsValidProtocol(p string) bool {
 const (
 	TemplateKindClient = "client"
 	TemplateKindServer = "server"
+	RelayUsername      = "_mihob_relay"
 )
 
 func NormalizeTemplateKind(kind string) string {
