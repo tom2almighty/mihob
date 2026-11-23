@@ -89,7 +89,11 @@ Hub environment variables:
 | `MIHOB_PORT` | HTTP listen port | `8080` |
 | `MIHOB_DATA_DIR` | Data directory for SQLite and ACME state | `./data` |
 | `MIHOB_ADMIN_USER` | Initial admin username | `admin` |
-| `MIHOB_ADMIN_PASS` | Initial admin password (auto-generated on first boot if empty) | Empty |
+| `MIHOB_ADMIN_PASS` | Initial admin password (randomly generated and logged on first boot if empty) | Empty |
+| `MIHOB_TRAFFIC_RETENTION_DAYS` | Retention days for hourly traffic history (`0` disables pruning) | `365` |
+| `MIHOB_TRUST_PROXY` | Trust `X-Forwarded-For` / `X-Real-IP` from non-private proxies (loopback/private proxies are trusted by default) | `false` |
+| `MIHOB_CORS_ORIGINS` | Extra allowed CORS origins (comma-separated; same-origin & `hub_public_url` are allowed by default) | Empty |
+| `MIHOB_ALLOW_PRIVATE_WEBHOOK` | Allow notification webhooks targeting private/LAN addresses (blocked by default for SSRF protection) | `false` |
 
 Agent environment variables:
 
@@ -172,7 +176,7 @@ services:
       MIHOB_PORT: "8080"
       MIHOB_DATA_DIR: "/data"
       MIHOB_ADMIN_USER: "admin"
-      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-mihob123456}"
+      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-}"
       TZ: "Asia/Shanghai"
     volumes:
       - ./hub-data:/data

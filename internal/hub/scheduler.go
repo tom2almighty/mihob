@@ -4,12 +4,17 @@ import (
 	"context"
 	"log"
 	"math"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mihob/mihob/internal/acme"
 	"github.com/mihob/mihob/internal/db"
 	"github.com/mihob/mihob/internal/notify"
 )
+
+const defaultTrafficRetentionDays = 365
 
 type Scheduler struct {
 	store  *db.Store
@@ -34,10 +39,13 @@ func NewScheduler(store *db.Store, ws *WSManager, acmeMgr *acme.Manager, notifyS
 func (s *Scheduler) Start(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	acmeTicker := time.NewTicker(6 * time.Hour)
+	pruneTicker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	defer acmeTicker.Stop()
+	defer pruneTicker.Stop()
 
 	s.tickExpirationAndResets()
+	s.tickTrafficPrune()
 
 	for {
 		select {
@@ -47,7 +55,34 @@ func (s *Scheduler) Start(ctx context.Context) {
 			s.tickExpirationAndResets()
 		case <-acmeTicker.C:
 			s.tickACMERenew()
+		case <-pruneTicker.C:
+			s.tickTrafficPrune()
 		}
+	}
+}
+
+func trafficRetentionDays() int {
+	raw := strings.TrimSpace(os.Getenv("MIHOB_TRAFFIC_RETENTION_DAYS"))
+	if raw == "" {
+		return defaultTrafficRetentionDays
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultTrafficRetentionDays
+	}
+	if n <= 0 {
+		return 0
+	}
+	return n
+}
+
+func (s *Scheduler) tickTrafficPrune() {
+	keepDays := trafficRetentionDays()
+	if keepDays <= 0 {
+		return
+	}
+	if err := s.store.PruneOldTrafficHourly(keepDays); err != nil {
+		log.Printf("[scheduler] prune hourly traffic failed: %v", err)
 	}
 }
 

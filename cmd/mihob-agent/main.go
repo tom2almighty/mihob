@@ -12,7 +12,7 @@ import (
 	"github.com/mihob/mihob/internal/agent"
 )
 
-var Version = "0.1.0"
+var Version = "dev"
 
 func main() {
 	args := os.Args[1:]

@@ -246,6 +246,7 @@ func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.ws.DisconnectNode(id)
 	if len(affected) > 0 {
 		s.ws.PushConfigToNodes(affected)
 	}
@@ -277,6 +278,7 @@ func (s *Server) handleRegenerateNodeToken(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.ws.DisconnectNode(id)
 	writeJSON(w, http.StatusOK, map[string]string{"token": tok})
 }
 
@@ -907,6 +909,16 @@ if [[ ! -x /usr/local/bin/mihob-agent ]]; then
   download_agent_bin
 fi
 
+(
+  umask 077
+  cat >"${INSTALL_DIR}/agent.env" <<EOF
+MIHOB_HUB_URL=${HUB_URL}
+MIHOB_NODE_TOKEN=${NODE_TOKEN}
+MIHOB_DATA_DIR=${INSTALL_DIR}/data
+EOF
+)
+chmod 0600 "${INSTALL_DIR}/agent.env"
+
 cat >/etc/systemd/system/mihob-agent.service <<EOF
 [Unit]
 Description=Mihob Node Agent
@@ -916,9 +928,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
-Environment=MIHOB_HUB_URL=${HUB_URL}
-Environment=MIHOB_NODE_TOKEN=${NODE_TOKEN}
-Environment=MIHOB_DATA_DIR=${INSTALL_DIR}/data
+EnvironmentFile=${INSTALL_DIR}/agent.env
 ExecStart=/usr/local/bin/mihob-agent
 Restart=always
 RestartSec=3

@@ -362,6 +362,9 @@ export interface SystemSettings {
   agent_image: string
   sub_path: string
   github_token?: string
+  github_token_masked?: string
+  has_github_token?: boolean
+  clear_github_token?: boolean
 }
 
 export interface MihomoReleaseInfo {

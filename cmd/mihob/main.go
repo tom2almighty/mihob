@@ -19,7 +19,7 @@ import (
 	"github.com/mihob/mihob/web"
 )
 
-var Version = "0.1.0"
+var Version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,6 +32,8 @@ func main() {
 		runHub(os.Args[2:])
 	case "agent":
 		runAgent(os.Args[2:])
+	case "healthcheck":
+		runHealthcheck(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Printf("mihob %s\n", Version)
 	default:
@@ -44,9 +46,33 @@ func printUsage() {
 	fmt.Println(`mihob — Multi-node & multi-user Mihomo deployment control plane
 
 Usage:
-  mihob hub    [flags]   Start the central Hub management server
-  mihob agent  [flags]   Start the Node Agent supervising mihomo
-  mihob version          Show version`)
+  mihob hub          [flags]   Start the central Hub management server
+  mihob agent        [flags]   Start the Node Agent supervising mihomo
+  mihob healthcheck  [flags]   Check Hub /healthz endpoint (for container health checks)
+  mihob version                Show version`)
+}
+
+func runHealthcheck(args []string) {
+	fs := flag.NewFlagSet("healthcheck", flag.ExitOnError)
+	port := fs.String("port", envOr("MIHOB_PORT", "8080"), "Hub HTTP port")
+	urlArg := fs.String("url", "", "Override healthcheck URL")
+	_ = fs.Parse(args)
+
+	target := *urlArg
+	if target == "" {
+		target = fmt.Sprintf("http://127.0.0.1:%s/healthz", *port)
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck failed: %v\n", err)
+		os.Exit(1)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "healthcheck returned HTTP %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
 }
 
 func envOr(key, fallback string) string {
@@ -115,6 +141,7 @@ func runHub(args []string) {
 
 	<-ctx.Done()
 	log.Printf("[hub] shutting down...")
+	srv.Shutdown()
 	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutCtx)

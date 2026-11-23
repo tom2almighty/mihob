@@ -381,11 +381,14 @@ type ProtocolTrafficStat struct {
 }
 
 type SystemSettings struct {
-	HubPublicURL string `json:"hub_public_url"`
-	ACMEEmail    string `json:"acme_email"`
-	AgentImage   string `json:"agent_image"`
-	SubPath      string `json:"sub_path"`
-	GitHubToken  string `json:"github_token"`
+	HubPublicURL      string `json:"hub_public_url"`
+	ACMEEmail         string `json:"acme_email"`
+	AgentImage        string `json:"agent_image"`
+	SubPath           string `json:"sub_path"`
+	GitHubToken       string `json:"github_token,omitempty"`
+	GitHubTokenMasked string `json:"github_token_masked,omitempty"`
+	HasGitHubToken    bool   `json:"has_github_token,omitempty"`
+	ClearGitHubToken  bool   `json:"clear_github_token,omitempty"`
 }
 
 type MihomoReleaseInfo struct {

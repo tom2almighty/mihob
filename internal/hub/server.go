@@ -90,6 +90,12 @@ func (s *Server) StartBackground(ctx context.Context) {
 	s.notify.NotifyHubStarted(s.version)
 }
 
+func (s *Server) Shutdown() {
+	if s.ws != nil {
+		s.ws.CloseAll()
+	}
+}
+
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(trustedRealIPMiddleware)
@@ -181,6 +187,7 @@ func (s *Server) Router() http.Handler {
 			// Settings
 			pr.Get("/settings", s.handleGetSettings)
 			pr.Put("/settings", s.handleUpdateSettings)
+			pr.Get("/settings/backup", s.handleBackupDatabase)
 
 			// Themes
 			pr.Get("/themes", s.handleGetThemes)

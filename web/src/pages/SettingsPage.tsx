@@ -8,6 +8,8 @@ import { z } from "zod"
 import {
   BookOpen,
   Container,
+  Database,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -17,6 +19,7 @@ import {
   Palette,
   RotateCcw,
   ShieldCheck,
+  X,
 } from "lucide-react"
 import { siGithub } from "simple-icons"
 import { toast } from "sonner"
@@ -160,6 +163,7 @@ export function SettingsPage() {
   const [showNewPw, setShowNewPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [showGithubToken, setShowGithubToken] = useState(false)
+  const [clearGithubToken, setClearGithubToken] = useState(false)
 
   const systemSchema = useMemo(
     () =>
@@ -223,8 +227,9 @@ export function SettingsPage() {
         sub_path: query.data.sub_path || "sub",
         acme_email: query.data.acme_email || "",
         agent_image: query.data.agent_image || DEFAULT_AGENT_IMAGE,
-        github_token: query.data.github_token || "",
+        github_token: "",
       })
+      setClearGithubToken(false)
     }
   }, [query.data, sysForm])
 
@@ -235,13 +240,31 @@ export function SettingsPage() {
         sub_path: v.sub_path.trim().replace(/^\/+|\/+$/g, "") || "sub",
         acme_email: v.acme_email || "",
         agent_image: v.agent_image,
-        github_token: v.github_token?.trim() || "",
+        github_token: clearGithubToken ? "" : v.github_token?.trim() || "",
+        clear_github_token: clearGithubToken,
       }),
     onSuccess: (updated) => {
+      setClearGithubToken(false)
       qc.setQueryData(queryKeys.settings, updated)
       qc.invalidateQueries({ queryKey: queryKeys.settings })
       qc.invalidateQueries({ queryKey: queryKeys.mihomoLatest })
       toast.success(t("settings.toastSaved"))
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const backupMutation = useMutation({
+    mutationFn: () => api.downloadDatabaseBackup(),
+    onSuccess: ({ blob, filename }) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success(t("settings.toastBackupSuccess"))
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -276,7 +299,8 @@ export function SettingsPage() {
   const previewSubPath = watchedSubPath?.trim().replace(/^\/+|\/+$/g, "") || "sub"
   const subUrlPreview = `${previewBase}/${previewSubPath}/{token}`
 
-  const isSysDirty = sysForm.formState.isDirty
+  const isSysDirty = sysForm.formState.isDirty || clearGithubToken
+  const hasSavedGithubToken = Boolean(query.data?.has_github_token) && !clearGithubToken
 
   return (
     <div className="space-y-6">
@@ -412,7 +436,10 @@ export function SettingsPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => sysForm.reset()}
+                        onClick={() => {
+                          sysForm.reset()
+                          setClearGithubToken(false)
+                        }}
                         disabled={saveSysMutation.isPending}
                       >
                         <RotateCcw className="mr-1.5 size-3.5" />
@@ -510,15 +537,56 @@ export function SettingsPage() {
                         name="github_token"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("settings.githubToken")}</FormLabel>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <FormLabel>{t("settings.githubToken")}</FormLabel>
+                                {hasSavedGithubToken && (
+                                  <Badge variant="secondary" className="font-mono text-[11px] font-normal">
+                                    {t("settings.githubTokenSavedBadge", {
+                                      masked: query.data?.github_token_masked || "****",
+                                    })}
+                                  </Badge>
+                                )}
+                                {clearGithubToken && (
+                                  <Badge variant="outline" className="text-[11px] font-normal text-destructive">
+                                    {t("settings.githubTokenClearPending")}
+                                  </Badge>
+                                )}
+                              </div>
+                              {hasSavedGithubToken && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                  onClick={() => {
+                                    setClearGithubToken(true)
+                                    sysForm.setValue("github_token", "")
+                                  }}
+                                >
+                                  <X className="mr-1 size-3" />
+                                  {t("settings.githubTokenClear")}
+                                </Button>
+                              )}
+                            </div>
                             <FormControl>
                               <div className="relative">
                                 <Input
                                   type={showGithubToken ? "text" : "password"}
                                   autoComplete="off"
-                                  placeholder={t("settings.githubTokenPlaceholder")}
+                                  placeholder={
+                                    hasSavedGithubToken
+                                      ? t("settings.githubTokenKeepPlaceholder")
+                                      : t("settings.githubTokenPlaceholder")
+                                  }
                                   className="pr-9 font-mono text-xs sm:text-sm"
                                   {...field}
+                                  onChange={(e) => {
+                                    if (clearGithubToken && e.target.value) {
+                                      setClearGithubToken(false)
+                                    }
+                                    field.onChange(e)
+                                  }}
                                 />
                                 <Button
                                   type="button"
@@ -555,7 +623,10 @@ export function SettingsPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => sysForm.reset()}
+                        onClick={() => {
+                          sysForm.reset()
+                          setClearGithubToken(false)
+                        }}
                         disabled={saveSysMutation.isPending}
                       >
                         <RotateCcw className="mr-1.5 size-3.5" />
@@ -581,7 +652,7 @@ export function SettingsPage() {
         </TabsContent>
 
         {/* Security & Password Tab */}
-        <TabsContent value="security" className="mt-0">
+        <TabsContent value="security" className="mt-0 space-y-5">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t("settings.pwCardTitle")}</CardTitle>
@@ -770,6 +841,41 @@ export function SettingsPage() {
                 {t("settings.updatePassword")}
               </Button>
             </CardFooter>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Database className="size-4 text-muted-foreground" />
+                    {t("settings.backupCardTitle")}
+                  </CardTitle>
+                  <CardDescription>{t("settings.backupCardDesc")}</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/35 p-3.5">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t("settings.backupHint")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => backupMutation.mutate()}
+                  disabled={backupMutation.isPending}
+                >
+                  {backupMutation.isPending ? (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <Download className="mr-1.5 size-3.5" />
+                  )}
+                  {t("settings.backupDownloadBtn")}
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
 

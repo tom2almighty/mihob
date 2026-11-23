@@ -63,9 +63,13 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 
 		log.Printf("[agent] connecting to hub %s ...", wsURL)
+		startedAt := time.Now()
 		err := a.connectAndServe(ctx, wsURL)
 		if ctx.Err() != nil {
 			return nil
+		}
+		if time.Since(startedAt) >= 30*time.Second {
+			backoff = time.Second
 		}
 		log.Printf("[agent] disconnected: %v; reconnecting in %s", err, backoff)
 		select {
@@ -162,6 +166,7 @@ func (a *Agent) connectAndServe(ctx context.Context, wsURL string) error {
 			case <-trTicker.C:
 				if rep := a.collector.DrainReport(); rep != nil {
 					if err := sendEnv(protocol.MsgTrafficReport, "", rep); err != nil {
+						a.collector.RestoreReport(rep)
 						cancel()
 						return
 					}

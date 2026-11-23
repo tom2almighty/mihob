@@ -203,3 +203,21 @@ func (t *TrafficCollector) DrainReport() *protocol.TrafficReportPayload {
 	t.pendingUsers = make(map[userKey][2]int64)
 	return rep
 }
+
+// RestoreReport puts an unsent traffic report back into pending counters so transient disconnects don't drop data.
+func (t *TrafficCollector) RestoreReport(rep *protocol.TrafficReportPayload) {
+	if rep == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.pendingNodeUp += rep.NodeUpload
+	t.pendingNodeDown += rep.NodeDownload
+	for _, u := range rep.Users {
+		k := userKey{inboundName: u.InboundName, inboundUser: u.InboundUser}
+		cur := t.pendingUsers[k]
+		cur[0] += u.Upload
+		cur[1] += u.Download
+		t.pendingUsers[k] = cur
+	}
+}

@@ -63,6 +63,26 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
+      - name: Verify i18n locale key parity
+        working-directory: web
+        run: |
+          node -e '
+            const fs = require("fs");
+            const flatten = (o, p = "") => Object.entries(o).flatMap(([k, v]) =>
+              v && typeof v === "object" && !Array.isArray(v) ? flatten(v, p ? `${p}.${k}` : k) : [p ? `${p}.${k}` : k]
+            );
+            const zh = new Set(flatten(JSON.parse(fs.readFileSync("src/locales/zh-CN.json", "utf8"))));
+            const en = new Set(flatten(JSON.parse(fs.readFileSync("src/locales/en-US.json", "utf8"))));
+            const missingInEn = [...zh].filter((k) => !en.has(k));
+            const missingInZh = [...en].filter((k) => !zh.has(k));
+            if (missingInEn.length || missingInZh.length) {
+              console.error("Missing in en-US:", missingInEn);
+              console.error("Missing in zh-CN:", missingInZh);
+              process.exit(1);
+            }
+            console.log(`i18n parity OK (${zh.size} keys)`);
+          '
+
       - name: Typecheck & build frontend
         working-directory: web
         run: pnpm build

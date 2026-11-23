@@ -89,7 +89,11 @@ Hub 常用环境变量：
 | `MIHOB_PORT` | HTTP 监听端口 | `8080` |
 | `MIHOB_DATA_DIR` | SQLite 数据库与 ACME 证书存储目录 | `./data` |
 | `MIHOB_ADMIN_USER` | 初始管理员用户名 | `admin` |
-| `MIHOB_ADMIN_PASS` | 初始管理员密码（留空时首次启动随机生成） | 空 |
+| `MIHOB_ADMIN_PASS` | 初始管理员密码（留空时首次启动随机生成并打印至日志） | 空 |
+| `MIHOB_TRAFFIC_RETENTION_DAYS` | 小时级流量历史保留天数（`0` 表示永久保留） | `365` |
+| `MIHOB_TRUST_PROXY` | 强制信任反代 `X-Forwarded-For` / `X-Real-IP`（环回与内网反代默认已信任） | `false` |
+| `MIHOB_CORS_ORIGINS` | 额外允许的跨域 `Origin` 列表（逗号分隔；默认允许同源及 `hub_public_url`） | 空 |
+| `MIHOB_ALLOW_PRIVATE_WEBHOOK` | 允许通知渠道推送至内网/局域网 Webhook 地址（默认拦截私有网段以防 SSRF） | `false` |
 
 Agent 常用环境变量：
 
@@ -172,7 +176,7 @@ services:
       MIHOB_PORT: "8080"
       MIHOB_DATA_DIR: "/data"
       MIHOB_ADMIN_USER: "admin"
-      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-mihob123456}"
+      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-}"
       TZ: "Asia/Shanghai"
     volumes:
       - ./hub-data:/data

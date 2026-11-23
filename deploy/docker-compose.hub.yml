@@ -10,7 +10,7 @@ services:
       MIHOB_PORT: "8080"
       MIHOB_DATA_DIR: "/data"
       MIHOB_ADMIN_USER: "admin"
-      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-mihob123456}"
+      MIHOB_ADMIN_PASS: "${MIHOB_ADMIN_PASS:-}"
       TZ: "Asia/Shanghai"
     volumes:
       - ./hub-data:/data

@@ -3,7 +3,10 @@ package hub
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -778,8 +781,24 @@ func (s *Server) serveSubscriptionYAML(w http.ResponseWriter, r *http.Request, t
 	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 	w.Header().Set("Subscription-Userinfo", userinfo)
 	w.Header().Set("Profile-Update-Interval", "12")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="mihob-%s.yaml"`, u.Username))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="mihob-%s.yaml"`, sanitizeDownloadFilename(u.Username)))
 	_, _ = w.Write([]byte(rendered))
+}
+
+func sanitizeDownloadFilename(raw string) string {
+	var b strings.Builder
+	for _, r := range raw {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	res := strings.Trim(b.String(), "._-")
+	if res == "" {
+		return "user"
+	}
+	return res
 }
 
 func (s *Server) resolveUserTemplate(u *model.User) (*model.Template, error) {
@@ -834,13 +853,38 @@ func (s *Server) renderSubscriptionForUser(u *model.User, templateYAML string) (
 
 // --- Settings ---
 
+func maskSecretToken(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if len(raw) <= 6 {
+		return "****"
+	}
+	return raw[:4] + "****" + raw[len(raw)-4:]
+}
+
+func maskSettingsForAPI(st *model.SystemSettings) *model.SystemSettings {
+	if st == nil {
+		return nil
+	}
+	out := *st
+	if strings.TrimSpace(out.GitHubToken) != "" {
+		out.HasGitHubToken = true
+		out.GitHubTokenMasked = maskSecretToken(out.GitHubToken)
+	}
+	out.GitHubToken = ""
+	out.ClearGitHubToken = false
+	return &out
+}
+
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	st, err := s.store.GetSystemSettings()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, st)
+	writeJSON(w, http.StatusOK, maskSettingsForAPI(st))
 }
 
 func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
@@ -854,6 +898,15 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	req.AgentImage = strings.TrimSpace(req.AgentImage)
 	req.GitHubToken = strings.TrimSpace(req.GitHubToken)
 
+	if req.ClearGitHubToken {
+		req.GitHubToken = ""
+	} else if req.GitHubToken == "" {
+		// Preserve existing GitHub token when omitted in update payload
+		if existing, err := s.store.GetSystemSettings(); err == nil {
+			req.GitHubToken = existing.GitHubToken
+		}
+	}
+
 	normSubPath, err := normalizeSubPath(req.SubPath)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -865,5 +918,36 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, req)
+	writeJSON(w, http.StatusOK, maskSettingsForAPI(&req))
+}
+
+func (s *Server) handleBackupDatabase(w http.ResponseWriter, r *http.Request) {
+	tmpDir, err := os.MkdirTemp("", "mihob-backup-*")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to prepare backup directory")
+		return
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	dstPath := filepath.Join(tmpDir, "mihob-backup.db")
+	if err := s.store.BackupTo(dstPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create database backup: "+err.Error())
+		return
+	}
+
+	f, err := os.Open(dstPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to open backup snapshot")
+		return
+	}
+	defer f.Close()
+
+	filename := fmt.Sprintf("mihob-backup-%s.db", time.Now().UTC().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/x-sqlite3")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Cache-Control", "no-store")
+	if info, err := f.Stat(); err == nil {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+	}
+	_, _ = io.Copy(w, f)
 }

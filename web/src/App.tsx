@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
+import { ErrorBoundary } from "@/components/common/ErrorBoundary"
 import { AppShell } from "@/components/layout/AppShell"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -82,30 +83,32 @@ const PROTECTED_ROUTES: { path: string; element: ReactNode }[] = [
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <TooltipProvider delay={200}>
-          <AuthProvider>
-            <BrowserRouter>
-              <Suspense fallback={<FullScreenLoader />}>
-                <Routes>
-                  <Route path="/login" element={<LoginPage />} />
-                  {PROTECTED_ROUTES.map((r) => (
-                    <Route
-                      key={r.path}
-                      path={r.path}
-                      element={<ProtectedPage>{r.element}</ProtectedPage>}
-                    />
-                  ))}
-                  {/* Dynamic subscription paths (e.g. /sub/{token} or /{custom_sub_path}/{token}) */}
-                  <Route path="*" element={<SubscriptionPage />} />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-            <Toaster position="top-right" richColors closeButton />
-          </AuthProvider>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider delay={200}>
+            <AuthProvider>
+              <BrowserRouter>
+                <Suspense fallback={<FullScreenLoader />}>
+                  <Routes>
+                    <Route path="/login" element={<LoginPage />} />
+                    {PROTECTED_ROUTES.map((r) => (
+                      <Route
+                        key={r.path}
+                        path={r.path}
+                        element={<ProtectedPage>{r.element}</ProtectedPage>}
+                      />
+                    ))}
+                    {/* Dynamic subscription paths (e.g. /sub/{token} or /{custom_sub_path}/{token}) */}
+                    <Route path="*" element={<SubscriptionPage />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+              <Toaster position="top-right" richColors closeButton />
+            </AuthProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

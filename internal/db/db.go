@@ -45,6 +45,16 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// BackupTo writes a consistent single-file SQLite snapshot (WAL-safe) to dstPath.
+func (s *Store) BackupTo(dstPath string) error {
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+		return err
+	}
+	_ = os.Remove(dstPath)
+	_, err := s.db.Exec(`VACUUM INTO ?`, dstPath)
+	return err
+}
+
 func (s *Store) migrate() error {
 	schema := `
 CREATE TABLE IF NOT EXISTS admins (
@@ -456,7 +466,7 @@ func (s *Store) EnsureAdmin(username, envPassword string) (bool, string, error) 
 	}
 	pw := envPassword
 	if pw == "" {
-		pw = "mihob123456"
+		pw = crypto.RandomToken(12)
 	}
 	hash, err := crypto.HashPassword(pw)
 	if err != nil {

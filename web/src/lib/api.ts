@@ -272,6 +272,33 @@ export const api = {
   getSettings: () => request<SystemSettings>("/api/settings"),
   updateSettings: (body: SystemSettings) =>
     request<SystemSettings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
+  downloadDatabaseBackup: async (): Promise<{ blob: Blob; filename: string }> => {
+    const headers = new Headers()
+    const token = getStoredToken()
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`)
+    }
+    const res = await fetch("/api/settings/backup", { headers })
+    if (res.status === 401) {
+      setStoredToken(null)
+      window.dispatchEvent(new Event("mihob:unauthorized"))
+    }
+    if (!res.ok) {
+      let msg = i18n.t("common.requestFailed", { status: res.status })
+      try {
+        const errBody = (await res.json()) as { error?: string }
+        if (errBody?.error) msg = errBody.error
+      } catch {
+        // ignore non-json error body
+      }
+      throw new ApiError(res.status, msg)
+    }
+    const disp = res.headers.get("Content-Disposition") || ""
+    const match = disp.match(/filename="?([^"]+)"?/i)
+    const filename = match?.[1] || `mihob-backup-${new Date().toISOString().slice(0, 10)}.db`
+    const blob = await res.blob()
+    return { blob, filename }
+  },
 
   // Themes
   getPublicTheme: () =>

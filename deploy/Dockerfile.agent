@@ -5,7 +5,7 @@ FROM metacubex/mihomo:latest AS mihomo-src
 FROM --platform=$BUILDPLATFORM golang:alpine AS go-builder
 ARG TARGETOS
 ARG TARGETARCH
-ARG VERSION=0.1.0
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

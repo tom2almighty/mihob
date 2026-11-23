@@ -163,9 +163,12 @@ func (m *Manager) Issue(req IssueRequest) (*IssueResult, error) {
 		return nil, fmt.Errorf("unsupported ACME provider: %s", req.Provider)
 	}
 
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	reg, err := client.Registration.ResolveAccountByKey()
 	if err != nil {
-		return nil, fmt.Errorf("acme register: %w", err)
+		reg, err = client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+		if err != nil {
+			return nil, fmt.Errorf("acme register: %w", err)
+		}
 	}
 	user.Registration = reg
 

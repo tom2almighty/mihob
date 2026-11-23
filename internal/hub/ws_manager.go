@@ -106,6 +106,33 @@ func (m *WSManager) EnrichNode(n *model.Node) {
 	}
 }
 
+const agentReadTimeout = 30 * time.Second
+
+func (m *WSManager) DisconnectNode(nodeID int64) {
+	m.mu.Lock()
+	ac, ok := m.conns[nodeID]
+	if ok {
+		delete(m.conns, nodeID)
+	}
+	m.mu.Unlock()
+	if ok && ac != nil {
+		_ = ac.Conn.Close()
+	}
+}
+
+func (m *WSManager) CloseAll() {
+	m.mu.Lock()
+	conns := make([]*AgentConn, 0, len(m.conns))
+	for id, ac := range m.conns {
+		conns = append(conns, ac)
+		delete(m.conns, id)
+	}
+	m.mu.Unlock()
+	for _, ac := range conns {
+		_ = ac.Conn.Close()
+	}
+}
+
 func (m *WSManager) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimSpace(r.Header.Get("X-Node-Token"))
 	if token == "" {
@@ -173,7 +200,12 @@ func (m *WSManager) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(agentReadTimeout))
+	})
+
 	for {
+		_ = conn.SetReadDeadline(time.Now().Add(agentReadTimeout))
 		var env protocol.Envelope
 		if err := conn.ReadJSON(&env); err != nil {
 			return
