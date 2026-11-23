@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
+	"net/netip"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -125,10 +128,91 @@ func (s *Service) executeTask(parentCtx context.Context, task dispatchTask) {
 	}
 }
 
+var disallowedWebhookPrefixes = func() []netip.Prefix {
+	cidrs := []string{
+		"0.0.0.0/8",
+		"100.64.0.0/10",
+		"192.0.0.0/24",
+		"198.18.0.0/15",
+		"240.0.0.0/4",
+		"64:ff9b::/96",
+	}
+	out := make([]netip.Prefix, 0, len(cidrs))
+	for _, c := range cidrs {
+		if p, err := netip.ParsePrefix(c); err == nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}()
+
+func allowPrivateWebhook() bool {
+	v := strings.TrimSpace(os.Getenv("MIHOB_ALLOW_PRIVATE_WEBHOOK"))
+	return strings.EqualFold(v, "true") || v == "1"
+}
+
+func isDisallowedWebhookIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+	addr = addr.Unmap()
+	if !addr.IsValid() ||
+		addr.IsLoopback() ||
+		addr.IsPrivate() ||
+		addr.IsLinkLocalUnicast() ||
+		addr.IsLinkLocalMulticast() ||
+		addr.IsMulticast() ||
+		addr.IsUnspecified() {
+		return true
+	}
+	for _, p := range disallowedWebhookPrefixes {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateWebhookHost guards network-host Shoutrrr URLs against SSRF to loopback,
+// cloud metadata, or private networks unless MIHOB_ALLOW_PRIVATE_WEBHOOK=true.
+func validateWebhookHost(rawURL string) error {
+	if allowPrivateWebhook() {
+		return nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil
+	}
+	scheme := strings.ToLower(u.Scheme)
+	// Skip schemes whose host segment is a virtual token/identifier rather than a network host
+	switch scheme {
+	case "telegram", "discord", "slack", "pushover", "pushbullet", "teams", "hangouts", "googlechat", "ifttt", "join", "opsgenie":
+		return nil
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	if host == "" {
+		return nil
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+		return errors.New("local or internal webhook hostnames are not allowed (set MIHOB_ALLOW_PRIVATE_WEBHOOK=true to allow)")
+	}
+	if ip := net.ParseIP(host); ip != nil && isDisallowedWebhookIP(ip) {
+		return errors.New("private, loopback, or metadata IP addresses are not allowed in notification URL (set MIHOB_ALLOW_PRIVATE_WEBHOOK=true to allow)")
+	}
+	return nil
+}
+
 func ValidateURL(rawURL string) error {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
 		return errors.New("notification URL is required")
+	}
+	if err := validateWebhookHost(trimmed); err != nil {
+		return err
 	}
 	sender, err := shoutrrr.CreateSender(trimmed)
 	if err != nil {

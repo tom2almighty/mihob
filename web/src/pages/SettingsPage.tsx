@@ -45,7 +45,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { api, queryKeys } from "@/lib/api"
+import { api, queryKeys, setStoredToken } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
@@ -249,7 +249,10 @@ export function SettingsPage() {
   const pwMutation = useMutation({
     mutationFn: (v: PasswordFormValues) =>
       api.changePassword({ old_password: v.old_password, new_password: v.new_password }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res.token) {
+        setStoredToken(res.token)
+      }
       pwForm.reset()
       toast.success(t("settings.toastPwUpdated"))
     },

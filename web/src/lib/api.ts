@@ -113,7 +113,7 @@ export const api = {
     }),
   me: () => request<Admin>("/api/auth/me"),
   changePassword: (body: { old_password: string; new_password: string }) =>
-    request<{ status: string }>("/api/auth/password", {
+    request<{ status: string; token?: string }>("/api/auth/password", {
       method: "POST",
       body: JSON.stringify(body),
     }),

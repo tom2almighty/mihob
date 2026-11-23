@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -106,9 +107,11 @@ func (m *WSManager) EnrichNode(n *model.Node) {
 }
 
 func (m *WSManager) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
-	token := r.Header.Get("X-Node-Token")
+	token := strings.TrimSpace(r.Header.Get("X-Node-Token"))
 	if token == "" {
-		token = r.URL.Query().Get("token")
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			token = strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		}
 	}
 	if token == "" {
 		http.Error(w, "missing node token", http.StatusUnauthorized)

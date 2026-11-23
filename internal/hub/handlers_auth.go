@@ -13,6 +13,15 @@ import (
 )
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	ip := clientIPKey(r)
+	now := time.Now()
+	if s.loginLimiter != nil {
+		if allowed, retrySec := s.loginLimiter.Allow(ip, now); !allowed {
+			writeRateLimited(w, retrySec)
+			return
+		}
+	}
+
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -23,13 +32,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	admin, err := s.store.GetAdminByUsername(req.Username)
 	if err != nil || !crypto.CheckPassword(admin.PasswordHash, req.Password) {
+		if s.loginLimiter != nil {
+			s.loginLimiter.RecordFailure(ip, now)
+		}
 		if s.notify != nil {
 			s.notify.NotifyAdminLoginFailed(req.Username, r.RemoteAddr)
 		}
 		writeError(w, http.StatusUnauthorized, "用户名或密码错误")
 		return
 	}
-	tok, err := crypto.SignAdminJWT(s.jwtSecret, admin.ID, admin.Username, 7*24*time.Hour)
+	if s.loginLimiter != nil {
+		s.loginLimiter.RecordSuccess(ip)
+	}
+	tok, err := crypto.SignAdminJWT(s.getJWTSecret(), admin.ID, admin.Username, 7*24*time.Hour)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to sign token")
 		return
@@ -73,7 +88,21 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "更新密码失败")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	// Rotate JWT signing secret so all previously issued sessions are invalidated immediately
+	newSecret, err := s.rotateJWTSecret()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "重置会话密钥失败")
+		return
+	}
+	newToken, err := crypto.SignAdminJWT(newSecret, admin.ID, admin.Username, 7*24*time.Hour)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "签发新会话失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+		"token":  newToken,
+	})
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {

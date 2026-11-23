@@ -6,8 +6,11 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -19,15 +22,17 @@ import (
 )
 
 type Server struct {
-	store     *db.Store
-	ws        *WSManager
-	acme      *acme.Manager
-	mihomo    *MihomoReleaseManager
-	notify    *notify.Service
-	scheduler *Scheduler
-	jwtSecret string
-	webFS     fs.FS
-	version   string
+	store        *db.Store
+	ws           *WSManager
+	acme         *acme.Manager
+	mihomo       *MihomoReleaseManager
+	notify       *notify.Service
+	scheduler    *Scheduler
+	loginLimiter *loginRateLimiter
+	jwtMu        sync.RWMutex
+	jwtSecret    string
+	webFS        fs.FS
+	version      string
 }
 
 type Config struct {
@@ -49,16 +54,34 @@ func NewServer(cfg Config) (*Server, error) {
 	sched := NewScheduler(cfg.Store, wsMgr, acmeMgr, notifySvc)
 
 	return &Server{
-		store:     cfg.Store,
-		ws:        wsMgr,
-		acme:      acmeMgr,
-		mihomo:    mihomoMgr,
-		notify:    notifySvc,
-		scheduler: sched,
-		jwtSecret: jwtSecret,
-		webFS:     cfg.WebFS,
-		version:   cfg.Version,
+		store:        cfg.Store,
+		ws:           wsMgr,
+		acme:         acmeMgr,
+		mihomo:       mihomoMgr,
+		notify:       notifySvc,
+		scheduler:    sched,
+		loginLimiter: newLoginRateLimiter(),
+		jwtSecret:    jwtSecret,
+		webFS:        cfg.WebFS,
+		version:      cfg.Version,
 	}, nil
+}
+
+func (s *Server) getJWTSecret() string {
+	s.jwtMu.RLock()
+	defer s.jwtMu.RUnlock()
+	return s.jwtSecret
+}
+
+func (s *Server) rotateJWTSecret() (string, error) {
+	next := crypto.RandomToken(32)
+	if err := s.store.SetSetting("jwt_secret", next); err != nil {
+		return "", err
+	}
+	s.jwtMu.Lock()
+	s.jwtSecret = next
+	s.jwtMu.Unlock()
+	return next, nil
 }
 
 func (s *Server) StartBackground(ctx context.Context) {
@@ -69,9 +92,10 @@ func (s *Server) StartBackground(ctx context.Context) {
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
+	r.Use(trustedRealIPMiddleware)
 	r.Use(middleware.Recoverer)
-	r.Use(corsMiddleware)
+	r.Use(securityHeadersMiddleware)
+	r.Use(s.corsMiddleware)
 
 	// ACME HTTP-01 challenge endpoint
 	r.Get("/.well-known/acme-challenge/*", s.acme.ServeHTTPChallenge)
@@ -85,6 +109,7 @@ func (s *Server) Router() http.Handler {
 
 	// API routes
 	r.Route("/api", func(api chi.Router) {
+		api.Use(maxBodyBytesMiddleware(maxAPIRequestBodyBytes))
 		api.Post("/auth/login", s.handleLogin)
 		// Public subscription info endpoint for the browser subscription page
 		api.Get("/public/sub", s.handlePublicSubInfo)
@@ -252,7 +277,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		tok := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := crypto.VerifyAdminJWT(s.jwtSecret, tok)
+		claims, err := crypto.VerifyAdminJWT(s.getJWTSecret(), tok)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
@@ -271,11 +296,47 @@ func getAdminClaims(r *http.Request) *crypto.AdminClaims {
 	return nil
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func (s *Server) isAllowedCORSOrigin(origin string, r *http.Request) bool {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	if origin == "" {
+		return false
+	}
+	// Check explicit env allowlist first (supports "*" if explicitly opted in)
+	if rawEnv := strings.TrimSpace(os.Getenv("MIHOB_CORS_ORIGINS")); rawEnv != "" {
+		for _, item := range strings.Split(rawEnv, ",") {
+			trimmed := strings.TrimRight(strings.TrimSpace(item), "/")
+			if trimmed == "*" || strings.EqualFold(trimmed, origin) {
+				return true
+			}
+		}
+	}
+	// Allow same-origin requests matching request Host
+	if u, err := url.Parse(origin); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		if strings.EqualFold(u.Host, r.Host) {
+			return true
+		}
+	}
+	// Allow configured hub_public_url origin
+	if st, err := s.store.GetSystemSettings(); err == nil && strings.TrimSpace(st.HubPublicURL) != "" {
+		if pub, err := url.Parse(strings.TrimSpace(st.HubPublicURL)); err == nil && pub.Host != "" {
+			pubOrigin := strings.ToLower(pub.Scheme + "://" + pub.Host)
+			if strings.EqualFold(pubOrigin, origin) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Node-Token")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		origin := r.Header.Get("Origin")
+		if origin != "" && s.isAllowedCORSOrigin(origin, r) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Node-Token")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

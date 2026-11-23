@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -252,16 +253,49 @@ func (s *Server) handleUpdateThemes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, clean)
 }
 
-func isDisallowedRemoteIP(ip net.IP) bool {
-	if ip == nil {
-		return true
+var cssVarDeclPattern = regexp.MustCompile(`--([a-zA-Z0-9-]+)\s*:\s*([^;{}]+)`)
+
+// looksLikeThemePayload verifies the fetched content is actually a shadcn/tweakcn
+// JSON registry or CSS variable stylesheet before echoing it back to the client.
+func looksLikeThemePayload(body []byte) bool {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
+		return false
 	}
-	return ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() ||
-		ip.IsMulticast() ||
-		ip.IsUnspecified()
+	// 1. JSON registry or { light, dark } object
+	if strings.HasPrefix(trimmed, "{") {
+		var obj map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &obj); err != nil {
+			return false
+		}
+		target := obj
+		if nested, ok := obj["cssVars"].(map[string]any); ok {
+			target = nested
+		}
+		for _, section := range []string{"light", "dark", "theme"} {
+			if vars, ok := target[section].(map[string]any); ok {
+				for rawKey, rawVal := range vars {
+					valStr, ok := rawVal.(string)
+					if !ok {
+						continue
+					}
+					k := strings.TrimPrefix(strings.TrimSpace(rawKey), "--")
+					if allowedThemeVarKeys[k] && isSafeCSSVarValue(strings.TrimSpace(valStr)) {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+	// 2. CSS file containing at least one whitelisted custom property declaration
+	matches := cssVarDeclPattern.FindAllStringSubmatch(trimmed, 100)
+	for _, m := range matches {
+		if len(m) >= 3 && allowedThemeVarKeys[m[1]] && isSafeCSSVarValue(strings.TrimSpace(m[2])) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateThemeFetchURL(rawURL string) (*url.URL, error) {
@@ -366,6 +400,10 @@ func (s *Server) handleFetchThemeURL(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(body) > maxThemeFetchBytes {
 		writeError(w, http.StatusBadRequest, "remote theme file exceeds 512 KB limit")
+		return
+	}
+	if !looksLikeThemePayload(body) {
+		writeError(w, http.StatusBadRequest, "remote response is not a valid shadcn/tweakcn theme file")
 		return
 	}
 
