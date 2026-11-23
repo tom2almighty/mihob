@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import {
-  Activity,
   ArrowDownUp,
   BarChart3,
   CalendarClock,
@@ -14,8 +13,6 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -43,6 +40,7 @@ import { daysUntil, formatBytes, formatBytesCompact, formatRate } from "@/lib/fo
 import { useNodeTrafficDisplayMode } from "@/lib/trafficDisplay"
 import { PROTOCOL_LABELS, type DashboardRange, type Protocol } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { ClusterTrafficTrendCard } from "./dashboard/ClusterTrafficTrendCard"
 
 type TrafficMetric = "total" | "download" | "upload"
 
@@ -76,16 +74,10 @@ function MetricTabs({
   const { t } = useTranslation()
   return (
     <Tabs value={value} onValueChange={(v) => onChange(v as TrafficMetric)}>
-      <TabsList className="h-7 min-h-7 p-0.5">
-        <TabsTrigger value="total" className="min-h-6 px-2 py-0.5 text-xs">
-          {t("dashboard.metricTotal")}
-        </TabsTrigger>
-        <TabsTrigger value="download" className="min-h-6 px-2 py-0.5 text-xs">
-          {t("dashboard.metricDownload")}
-        </TabsTrigger>
-        <TabsTrigger value="upload" className="min-h-6 px-2 py-0.5 text-xs">
-          {t("dashboard.metricUpload")}
-        </TabsTrigger>
+      <TabsList size="xs">
+        <TabsTrigger value="total">{t("dashboard.metricTotal")}</TabsTrigger>
+        <TabsTrigger value="download">{t("dashboard.metricDownload")}</TabsTrigger>
+        <TabsTrigger value="upload">{t("dashboard.metricUpload")}</TabsTrigger>
       </TabsList>
     </Tabs>
   )
@@ -116,7 +108,6 @@ export function DashboardPage() {
   const { t } = useTranslation()
   const [trafficMode, setTrafficMode] = useNodeTrafficDisplayMode()
   const [range, setRange] = useState<DashboardRange>("24h")
-  const [trendMetric, setTrendMetric] = useState<TrafficMetric>("total")
   const [nodeMetric, setNodeMetric] = useState<TrafficMetric>("total")
   const [userMetric, setUserMetric] = useState<TrafficMetric>("total")
   const [protoMetric, setProtoMetric] = useState<TrafficMetric>("total")
@@ -130,26 +121,6 @@ export function DashboardPage() {
 
   const data = query.data
   const s = data?.summary
-
-  const trendData = useMemo(() => {
-    const series = data?.traffic_series ?? []
-    const spansMultiYear =
-      range === "all" &&
-      series.length > 1 &&
-      series[0].bucket.slice(0, 4) !== series[series.length - 1].bucket.slice(0, 4)
-    return series.map((pt) => ({
-      label:
-        range === "24h"
-          ? pt.bucket.slice(11, 16)
-          : spansMultiYear
-            ? pt.bucket.slice(0, 10)
-            : pt.bucket.slice(5, 10),
-      bucket: pt.bucket,
-      upload: pt.upload,
-      download: pt.download,
-      total: pt.upload + pt.download,
-    }))
-  }, [data?.traffic_series, range])
 
   const nodeTrafficData = useMemo(
     () =>
@@ -283,19 +254,11 @@ export function DashboardPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Tabs value={range} onValueChange={(v) => setRange(v as DashboardRange)}>
-              <TabsList className="h-8 min-h-8 p-0.5">
-                <TabsTrigger value="24h" className="min-h-7 px-2.5 text-xs">
-                  {t("dashboard.range24h")}
-                </TabsTrigger>
-                <TabsTrigger value="7d" className="min-h-7 px-2.5 text-xs">
-                  {t("dashboard.range7d")}
-                </TabsTrigger>
-                <TabsTrigger value="30d" className="min-h-7 px-2.5 text-xs">
-                  {t("dashboard.range30d")}
-                </TabsTrigger>
-                <TabsTrigger value="all" className="min-h-7 px-2.5 text-xs">
-                  {t("dashboard.rangeAll")}
-                </TabsTrigger>
+              <TabsList size="sm">
+                <TabsTrigger value="24h">{t("dashboard.range24h")}</TabsTrigger>
+                <TabsTrigger value="7d">{t("dashboard.range7d")}</TabsTrigger>
+                <TabsTrigger value="30d">{t("dashboard.range30d")}</TabsTrigger>
+                <TabsTrigger value="all">{t("dashboard.rangeAll")}</TabsTrigger>
               </TabsList>
             </Tabs>
             <Button size="sm" render={<Link to="/nodes" />} nativeButton={false}>
@@ -364,104 +327,17 @@ export function DashboardPage() {
 
       {/* Row 2: Cluster Traffic Trend + Node Renewal Countdown */}
       <div className="grid gap-4 lg:grid-cols-12">
-        <Card className={cn(CARD_BASE, "lg:col-span-8")}>
-          <CardHeader className={CARD_HEADER}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Activity className="size-3.5 text-muted-foreground" />
-                  {t("dashboard.chartTitle")}
-                </CardTitle>
-                <CardDescription className="text-xs">{t("dashboard.chartDescription")}</CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {trendMetric === "total" && (
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-chart-1" />
-                      {t("dashboard.download")}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-chart-2" />
-                      {t("dashboard.upload")}
-                    </span>
-                  </div>
-                )}
-                <MetricTabs value={trendMetric} onChange={setTrendMetric} />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className={CARD_CONTENT}>
-            {query.isLoading ? (
-              <Skeleton className="h-56 w-full" />
-            ) : (
-              <div className="h-56 w-full">
-                <AreaChart
-                  responsive
-                  style={{ width: "100%", height: "100%" }}
-                  data={trendData}
-                  margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="fillDown" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.28} />
-                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="fillUp" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tickFormatter={(v) => formatBytesCompact(Number(v))}
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={72}
-                  />
-                  <RechartsTooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    formatter={(val, name) => [
-                      formatBytes(Number(val ?? 0)),
-                      name === "download"
-                        ? t("dashboard.download")
-                        : name === "upload"
-                          ? t("dashboard.upload")
-                          : t("dashboard.total"),
-                    ]}
-                  />
-                  {(trendMetric === "total" || trendMetric === "download") && (
-                    <Area
-                      key="download"
-                      type="monotone"
-                      dataKey="download"
-                      stroke="var(--chart-1)"
-                      strokeWidth={2}
-                      fill="url(#fillDown)"
-                    />
-                  )}
-                  {(trendMetric === "total" || trendMetric === "upload") && (
-                    <Area
-                      key="upload"
-                      type="monotone"
-                      dataKey="upload"
-                      stroke="var(--chart-2)"
-                      strokeWidth={2}
-                      fill="url(#fillUp)"
-                    />
-                  )}
-                </AreaChart>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ClusterTrafficTrendCard
+          range={range}
+          loading={query.isLoading}
+          trafficSeries={data?.traffic_series ?? []}
+          nodeTrafficSeries={data?.node_traffic_series ?? []}
+          userTrafficSeries={data?.user_traffic_series ?? []}
+          nodes={data?.nodes ?? []}
+          nodeTraffic={data?.node_traffic ?? []}
+          userTraffic={data?.user_traffic ?? []}
+          className="lg:col-span-8"
+        />
 
         <Card className={cn(CARD_BASE, "lg:col-span-4")}>
           <CardHeader className={CARD_HEADER}>

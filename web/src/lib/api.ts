@@ -5,6 +5,7 @@ import type {
   Certificate,
   DashboardData,
   DashboardRange,
+  DashboardTrafficSeriesResponse,
   Inbound,
   InstallCommands,
   MihomoReleaseInfo,
@@ -84,6 +85,8 @@ export const queryKeys = {
   me: ["auth", "me"] as const,
   dashboard: ["dashboard"] as const,
   dashboardRange: (range: DashboardRange) => ["dashboard", range] as const,
+  dashboardTrafficSeries: (range: DashboardRange, dimension: "node" | "user", idsKey: string) =>
+    ["dashboard", "traffic-series", range, dimension, idsKey] as const,
   nodes: ["nodes"] as const,
   mihomoLatest: ["mihomo", "latest"] as const,
   nodeInstall: (id: number) => ["nodes", id, "install"] as const,
@@ -117,6 +120,15 @@ export const api = {
 
   dashboard: (range: DashboardRange = "24h") =>
     request<DashboardData>(`/api/dashboard?range=${encodeURIComponent(range)}`),
+  dashboardTrafficSeries: (range: DashboardRange, dimension: "node" | "user", ids: number[]) => {
+    const params = new URLSearchParams({ range, dimension })
+    if (ids.length > 0) {
+      params.set("ids", ids.join(","))
+    }
+    return request<DashboardTrafficSeriesResponse>(
+      `/api/dashboard/traffic-series?${params.toString()}`
+    )
+  },
 
   // Nodes
   listNodes: () => request<Node[]>("/api/nodes"),

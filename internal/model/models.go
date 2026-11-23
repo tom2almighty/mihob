@@ -347,6 +347,15 @@ type TrafficPoint struct {
 	Download int64  `json:"download"`
 }
 
+type EntityTrafficSeries struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	Total      int64          `json:"total"`
+	IsOther    bool           `json:"is_other,omitempty"`
+	OtherCount int            `json:"other_count,omitempty"`
+	Points     []TrafficPoint `json:"points"`
+}
+
 type NodeTrafficStat struct {
 	NodeID   int64  `json:"node_id"`
 	NodeName string `json:"node_name"`

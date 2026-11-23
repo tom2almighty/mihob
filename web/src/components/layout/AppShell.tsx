@@ -127,10 +127,12 @@ export function LanguageSwitcher({
   side = "bottom",
   align = "end",
   tooltipSide = "top",
+  triggerClassName,
 }: {
   side?: "top" | "bottom" | "left" | "right"
   align?: "start" | "center" | "end"
   tooltipSide?: "top" | "bottom" | "left" | "right"
+  triggerClassName?: string
 } = {}) {
   const { t, i18n } = useTranslation()
   const current = normalizeLanguage(i18n.resolvedLanguage || i18n.language)
@@ -146,7 +148,12 @@ export function LanguageSwitcher({
           render={
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon" aria-label={t("nav.languageAria")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={triggerClassName}
+                  aria-label={t("nav.languageAria")}
+                >
                   <Languages className="size-4" />
                 </Button>
               }
@@ -174,11 +181,13 @@ export function ThemeSwitcher({
   align = "end",
   tooltipSide = "top",
   onOpenThemeSettings,
+  triggerClassName,
 }: {
   side?: "top" | "bottom" | "left" | "right"
   align?: "start" | "center" | "end"
   tooltipSide?: "top" | "bottom" | "left" | "right"
   onOpenThemeSettings?: () => void
+  triggerClassName?: string
 } = {}) {
   const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
@@ -190,7 +199,12 @@ export function ThemeSwitcher({
           render={
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon" aria-label={t("nav.themeAria")}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={triggerClassName}
+                  aria-label={t("nav.themeAria")}
+                >
                   {theme === "dark" ? (
                     <Moon className="size-4" />
                   ) : theme === "light" ? (
@@ -273,7 +287,7 @@ function SidebarFooter({
   )
 
   return (
-    <div className="border-t border-sidebar-border p-3">
+    <div className="border-t border-sidebar-border/60 p-3 dark:border-sidebar-border/45">
       <div
         className={cn(
           "flex gap-1.5 transition-all duration-200",
@@ -299,11 +313,13 @@ function SidebarFooter({
               side={collapsed ? "right" : "top"}
               align={collapsed ? "end" : "start"}
               tooltipSide={collapsed ? "right" : "top"}
+              triggerClassName="text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             />
             <ThemeSwitcher
               side={collapsed ? "right" : "top"}
               align={collapsed ? "end" : "start"}
               tooltipSide={collapsed ? "right" : "top"}
+              triggerClassName="text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               onOpenThemeSettings={() => {
                 onNavigate?.()
                 navigate("/settings?tab=appearance")
@@ -391,7 +407,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop Collapsible Sidebar */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out lg:flex",
+          "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border/80 bg-sidebar transition-[width] duration-200 ease-in-out dark:border-sidebar-border/55 lg:flex",
           collapsed ? "w-16" : "w-60"
         )}
       >
@@ -445,7 +461,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0">
+        <SheetContent
+          side="left"
+          className="flex w-64 flex-col border-sidebar-border/80 bg-sidebar p-0 dark:border-sidebar-border/55"
+        >
           <SheetHeader className="flex h-14 flex-row items-center gap-2.5 px-5">
             <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <Network className="size-4" />
@@ -459,7 +478,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-sm lg:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/80 bg-background/95 px-4 backdrop-blur-sm dark:border-border/60 lg:px-6">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

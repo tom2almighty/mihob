@@ -64,6 +64,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { formatRate } from "@/lib/format"
@@ -355,30 +356,28 @@ export function NodesPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           <TrafficModeToggle value={trafficMode} onChange={setTrafficMode} />
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-            {(
-              [
-                { key: "all", label: t("nodes.filterAll"), count: allNodes.length },
-                { key: "online", label: t("nodes.online"), count: onlineCount },
-                { key: "offline", label: t("nodes.offline"), count: offlineCount },
-              ] as const
-            ).map((item) => (
-              <Button
-                key={item.key}
-                type="button"
-                variant={statusFilter === item.key ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-xs"
-                onClick={() => {
-                  setStatusFilter(item.key)
-                  setPage(1)
-                }}
-              >
-                <span>{item.label}</span>
-                <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
-              </Button>
-            ))}
-          </div>
+          <Tabs
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter((v as "all" | "online" | "offline") || "all")
+              setPage(1)
+            }}
+          >
+            <TabsList size="sm">
+              {(
+                [
+                  { key: "all", label: t("nodes.filterAll"), count: allNodes.length },
+                  { key: "online", label: t("nodes.online"), count: onlineCount },
+                  { key: "offline", label: t("nodes.offline"), count: offlineCount },
+                ] as const
+              ).map((item) => (
+                <TabsTrigger key={item.key} value={item.key} className="gap-1.5">
+                  <span>{item.label}</span>
+                  <span className="font-mono text-[11px] opacity-70 tabular-nums">{item.count}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       </div>
 

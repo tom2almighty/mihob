@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Loader2 } from "lucide-react"
+import { CalendarClock, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { TimePickerWithPresets } from "@/components/common/TimePickerWithPresets"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -138,6 +139,24 @@ export function ScheduleFormDialog({
     setChannelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  const cadencePreview =
+    frequency === "weekly"
+      ? t("notifications.schedules.cadenceWeekly", {
+          weekday: t(`notifications.weekdays.${weekday}` as "notifications.weekdays.1"),
+          time: timeOfDay,
+          tz: timezone,
+        })
+      : frequency === "monthly"
+        ? t("notifications.schedules.cadenceMonthly", {
+            day: dayOfMonth,
+            time: timeOfDay,
+            tz: timezone,
+          })
+        : t("notifications.schedules.cadenceDaily", {
+            time: timeOfDay,
+            tz: timezone,
+          })
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
@@ -161,86 +180,95 @@ export function ScheduleFormDialog({
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>{t("notifications.schedules.frequency")}</Label>
-              <Select
-                value={frequency}
-                onValueChange={(v) => setFrequency((v as "daily" | "weekly" | "monthly") || "daily")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">{t("notifications.schedules.freqDaily")}</SelectItem>
-                  <SelectItem value="weekly">{t("notifications.schedules.freqWeekly")}</SelectItem>
-                  <SelectItem value="monthly">{t("notifications.schedules.freqMonthly")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="sc-time">{t("notifications.schedules.timeOfDay")}</Label>
-              <Input
-                id="sc-time"
-                type="time"
-                value={timeOfDay}
-                onChange={(e) => setTimeOfDay(e.target.value)}
-                className="tabular-nums"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {frequency === "weekly" && (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>{t("notifications.schedules.weekday")}</Label>
-                <Select value={String(weekday)} onValueChange={(v) => setWeekday(Number(v ?? 1))}>
-                  <SelectTrigger>
+                <Label>{t("notifications.schedules.frequency")}</Label>
+                <Select
+                  value={frequency}
+                  onValueChange={(v) =>
+                    setFrequency((v as "daily" | "weekly" | "monthly") || "daily")
+                  }
+                >
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-                      <SelectItem key={d} value={String(d)}>
-                        {t(`notifications.weekdays.${d}` as "notifications.weekdays.1")}
+                    <SelectItem value="daily">{t("notifications.schedules.freqDaily")}</SelectItem>
+                    <SelectItem value="weekly">{t("notifications.schedules.freqWeekly")}</SelectItem>
+                    <SelectItem value="monthly">
+                      {t("notifications.schedules.freqMonthly")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sc-time">{t("notifications.schedules.timeOfDay")}</Label>
+                <TimePickerWithPresets id="sc-time" value={timeOfDay} onChange={setTimeOfDay} />
+              </div>
+            </div>
+
+            <div className={frequency === "daily" ? "space-y-1.5" : "grid gap-3 sm:grid-cols-2"}>
+              {frequency === "weekly" && (
+                <div className="space-y-1.5">
+                  <Label>{t("notifications.schedules.weekday")}</Label>
+                  <Select value={String(weekday)} onValueChange={(v) => setWeekday(Number(v ?? 1))}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {t(`notifications.weekdays.${d}` as "notifications.weekdays.1")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {frequency === "monthly" && (
+                <div className="space-y-1.5">
+                  <Label>{t("notifications.schedules.dayOfMonth")}</Label>
+                  <Select
+                    value={String(dayOfMonth)}
+                    onValueChange={(v) => setDayOfMonth(Number(v ?? 1))}
+                  >
+                    <SelectTrigger className="w-full tabular-nums">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={String(day)} className="tabular-nums">
+                          {t("notifications.schedules.dayOfMonthOption", { day })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>{t("notifications.schedules.timezone")}</Label>
+                <Select value={timezone} onValueChange={(v) => setTimezone(v || "Asia/Shanghai")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONE_OPTIONS.map((tz) => (
+                      <SelectItem key={tz} value={tz}>
+                        {tz}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
+            </div>
 
-            {frequency === "monthly" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="sc-dom">{t("notifications.schedules.dayOfMonth")}</Label>
-                <Input
-                  id="sc-dom"
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={dayOfMonth}
-                  onChange={(e) =>
-                    setDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value) || 1)))
-                  }
-                  className="tabular-nums"
-                />
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label>{t("notifications.schedules.timezone")}</Label>
-              <Select value={timezone} onValueChange={(v) => setTimezone(v || "Asia/Shanghai")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIMEZONE_OPTIONS.map((tz) => (
-                    <SelectItem key={tz} value={tz}>
-                      {tz}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-1.5 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
+              <CalendarClock className="size-3.5 shrink-0 text-primary" />
+              <span className="truncate">{cadencePreview}</span>
             </div>
           </div>
 
@@ -272,7 +300,7 @@ export function ScheduleFormDialog({
                         setTrafficMode((v as "used" | "remaining") || "used")
                       }
                     >
-                      <SelectTrigger size="sm">
+                      <SelectTrigger size="sm" className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

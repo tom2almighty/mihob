@@ -281,6 +281,21 @@ export interface TrafficPoint {
   download: number
 }
 
+export interface EntityTrafficSeries {
+  id: number
+  name: string
+  total: number
+  is_other?: boolean
+  other_count?: number
+  points: TrafficPoint[]
+}
+
+export interface DashboardTrafficSeriesResponse {
+  range: DashboardRange
+  dimension: "node" | "user"
+  series: EntityTrafficSeries[]
+}
+
 export interface NodeTrafficStat {
   node_id: number
   node_name: string
@@ -324,6 +339,8 @@ export interface DashboardData {
   nodes: Node[]
   top_users: User[]
   traffic_series: TrafficPoint[]
+  node_traffic_series: EntityTrafficSeries[]
+  user_traffic_series: EntityTrafficSeries[]
   node_traffic: NodeTrafficStat[]
   user_traffic: UserTrafficStat[]
   protocol_traffic: ProtocolTrafficStat[]

@@ -127,13 +127,13 @@ export function TemplatesPage() {
       />
 
       <Tabs value={activeKind} onValueChange={(v) => setActiveKind(v as TemplateKind)}>
-        <TabsList>
-          <TabsTrigger value="client" className="gap-1.5">
-            <Smartphone className="size-3.5" />
+        <TabsList className="h-auto max-w-full flex-wrap">
+          <TabsTrigger value="client">
+            <Smartphone className="size-3.5 shrink-0" />
             <span>{t("templates.tabClient")}</span>
           </TabsTrigger>
-          <TabsTrigger value="server" className="gap-1.5">
-            <Server className="size-3.5" />
+          <TabsTrigger value="server">
+            <Server className="size-3.5 shrink-0" />
             <span>{t("templates.tabServer")}</span>
           </TabsTrigger>
         </TabsList>

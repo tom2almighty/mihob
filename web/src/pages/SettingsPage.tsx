@@ -284,24 +284,24 @@ export function SettingsPage() {
         onValueChange={(v) => handleTabChange(v as SettingsTab)}
         className="max-w-4xl space-y-5"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
-          <TabsTrigger value="general" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+        <TabsList className="h-auto max-w-full flex-wrap">
+          <TabsTrigger value="general">
             <Globe className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.general")}</span>
           </TabsTrigger>
-          <TabsTrigger value="deployment" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+          <TabsTrigger value="deployment">
             <Container className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.deployment")}</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+          <TabsTrigger value="appearance">
             <Palette className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.appearance")}</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+          <TabsTrigger value="security">
             <ShieldCheck className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.security")}</span>
           </TabsTrigger>
-          <TabsTrigger value="projects" className="min-h-8 gap-1.5 py-1.5 text-xs sm:min-h-7 sm:py-1 sm:text-sm">
+          <TabsTrigger value="projects">
             <FolderGit2 className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.projects")}</span>
           </TabsTrigger>

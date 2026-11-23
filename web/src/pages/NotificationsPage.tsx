@@ -50,21 +50,21 @@ export function NotificationsPage() {
         onValueChange={(v) => handleTabChange((v as NotificationTab) || "channels")}
         className="space-y-5"
       >
-        <TabsList>
-          <TabsTrigger value="channels" className="gap-1.5">
-            <BellRing className="size-3.5" />
+        <TabsList className="h-auto max-w-full flex-wrap">
+          <TabsTrigger value="channels">
+            <BellRing className="size-3.5 shrink-0" />
             <span>{t("notifications.tabChannels")}</span>
           </TabsTrigger>
-          <TabsTrigger value="rules" className="gap-1.5">
-            <SlidersHorizontal className="size-3.5" />
+          <TabsTrigger value="rules">
+            <SlidersHorizontal className="size-3.5 shrink-0" />
             <span>{t("notifications.tabRules")}</span>
           </TabsTrigger>
-          <TabsTrigger value="schedules" className="gap-1.5">
-            <CalendarClock className="size-3.5" />
+          <TabsTrigger value="schedules">
+            <CalendarClock className="size-3.5 shrink-0" />
             <span>{t("notifications.tabSchedules")}</span>
           </TabsTrigger>
-          <TabsTrigger value="logs" className="gap-1.5">
-            <History className="size-3.5" />
+          <TabsTrigger value="logs">
+            <History className="size-3.5 shrink-0" />
             <span>{t("notifications.tabLogs")}</span>
           </TabsTrigger>
         </TabsList>

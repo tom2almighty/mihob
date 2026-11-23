@@ -14,7 +14,7 @@
             (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.classList.add(isDark ? "dark" : "light");
 
-          var css = localStorage.getItem("mihob_theme_css_cache_v2");
+          var css = localStorage.getItem("mihob_theme_css_cache_v3");
           if (css) {
             var style = document.createElement("style");
             style.id = "mihob-custom-theme";

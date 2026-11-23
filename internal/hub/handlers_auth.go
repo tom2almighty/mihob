@@ -3,6 +3,8 @@ package hub
 import (
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mihob/mihob/internal/crypto"
@@ -96,6 +98,20 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	buckets := make([]string, len(series))
+	for i, pt := range series {
+		buckets[i] = pt.Bucket
+	}
+	nodeTrafficSeries, err := s.store.QueryNodeTrafficSeries(rangeKey, buckets, nil, 5)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	userTrafficSeries, err := s.store.QueryUserTrafficSeries(rangeKey, buckets, nil, 5)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	nodeTraffic, err := s.store.QueryNodeTrafficByRange(rangeKey, 10)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -172,12 +188,56 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			"down_rate":           totalDownRate,
 			"total_traffic":       totalNodeTraffic,
 		},
-		"range":            rangeKey,
-		"nodes":            nodes,
-		"top_users":        topUsers,
-		"traffic_series":   series,
-		"node_traffic":     nodeTraffic,
-		"user_traffic":     userTraffic,
-		"protocol_traffic": protocolTraffic,
+		"range":               rangeKey,
+		"nodes":               nodes,
+		"top_users":           topUsers,
+		"traffic_series":      series,
+		"node_traffic_series": nodeTrafficSeries,
+		"user_traffic_series": userTrafficSeries,
+		"node_traffic":        nodeTraffic,
+		"user_traffic":        userTraffic,
+		"protocol_traffic":    protocolTraffic,
+	})
+}
+
+func (s *Server) handleDashboardTrafficSeries(w http.ResponseWriter, r *http.Request) {
+	rangeKey := db.NormalizeDashboardRange(r.URL.Query().Get("range"))
+	dimension := strings.TrimSpace(r.URL.Query().Get("dimension"))
+	if dimension != "node" && dimension != "user" {
+		writeError(w, http.StatusBadRequest, "invalid dimension")
+		return
+	}
+	var ids []int64
+	if rawIDs := strings.TrimSpace(r.URL.Query().Get("ids")); rawIDs != "" {
+		for _, part := range strings.Split(rawIDs, ",") {
+			if id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil && id > 0 {
+				ids = append(ids, id)
+			}
+		}
+	}
+	baseSeries, err := s.store.QueryTrafficSeries(rangeKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	buckets := make([]string, len(baseSeries))
+	for i, pt := range baseSeries {
+		buckets[i] = pt.Bucket
+	}
+
+	var entitySeries []model.EntityTrafficSeries
+	if dimension == "user" {
+		entitySeries, err = s.store.QueryUserTrafficSeries(rangeKey, buckets, ids, 5)
+	} else {
+		entitySeries, err = s.store.QueryNodeTrafficSeries(rangeKey, buckets, ids, 5)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"range":     rangeKey,
+		"dimension": dimension,
+		"series":    entitySeries,
 	})
 }

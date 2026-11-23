@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatBytes } from "@/lib/format"
 import type { TrafficDisplayMode } from "@/lib/trafficDisplay"
@@ -172,38 +173,18 @@ export function TrafficModeToggle({
   className?: string
 }) {
   const { t } = useTranslation()
-  const btnClass = size === "xs" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-xs"
 
   return (
-    <div
-      role="group"
-      aria-label={t("common.trafficModeAria")}
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5",
-        className
-      )}
+    <Tabs
+      value={value}
+      onValueChange={(v) => onChange((v as TrafficDisplayMode) || "used")}
+      className={cn("inline-flex", className)}
     >
-      <Button
-        type="button"
-        variant={value === "used" ? "secondary" : "ghost"}
-        size="sm"
-        aria-pressed={value === "used"}
-        className={btnClass}
-        onClick={() => onChange("used")}
-      >
-        {t("common.trafficUsed")}
-      </Button>
-      <Button
-        type="button"
-        variant={value === "remaining" ? "secondary" : "ghost"}
-        size="sm"
-        aria-pressed={value === "remaining"}
-        className={btnClass}
-        onClick={() => onChange("remaining")}
-      >
-        {t("common.trafficRemaining")}
-      </Button>
-    </div>
+      <TabsList size={size === "xs" ? "xs" : "sm"} aria-label={t("common.trafficModeAria")}>
+        <TabsTrigger value="used">{t("common.trafficUsed")}</TabsTrigger>
+        <TabsTrigger value="remaining">{t("common.trafficRemaining")}</TabsTrigger>
+      </TabsList>
+    </Tabs>
   )
 }
 

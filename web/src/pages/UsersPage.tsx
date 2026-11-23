@@ -42,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { daysUntil, formatDateShort } from "@/lib/format"
@@ -204,31 +205,29 @@ export function UsersPage() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-          {(
-            [
-              { key: "all", label: t("users.filterAll"), count: allUsers.length },
-              { key: "active", label: t("users.statusActive"), count: activeCount },
-              { key: "expiring", label: t("users.statusExpiring"), count: expiringCount },
-              { key: "inactive", label: t("users.filterInactive"), count: inactiveCount },
-            ] as const
-          ).map((item) => (
-            <Button
-              key={item.key}
-              type="button"
-              variant={statusFilter === item.key ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs"
-              onClick={() => {
-                setStatusFilter(item.key)
-                setPage(1)
-              }}
-            >
-              <span>{item.label}</span>
-              <span className="font-mono text-muted-foreground tabular-nums">{item.count}</span>
-            </Button>
-          ))}
-        </div>
+        <Tabs
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter((v as "all" | "active" | "expiring" | "inactive") || "all")
+            setPage(1)
+          }}
+        >
+          <TabsList size="sm" className="h-auto flex-wrap">
+            {(
+              [
+                { key: "all", label: t("users.filterAll"), count: allUsers.length },
+                { key: "active", label: t("users.statusActive"), count: activeCount },
+                { key: "expiring", label: t("users.statusExpiring"), count: expiringCount },
+                { key: "inactive", label: t("users.filterInactive"), count: inactiveCount },
+              ] as const
+            ).map((item) => (
+              <TabsTrigger key={item.key} value={item.key} className="gap-1.5">
+                <span>{item.label}</span>
+                <span className="font-mono text-[11px] opacity-70 tabular-nums">{item.count}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       {query.isError ? (

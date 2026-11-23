@@ -101,6 +101,7 @@ func (s *Server) Router() http.Handler {
 			pr.Post("/auth/password", s.handleChangePassword)
 
 			pr.Get("/dashboard", s.handleDashboard)
+			pr.Get("/dashboard/traffic-series", s.handleDashboardTrafficSeries)
 
 			// Nodes
 			pr.Get("/nodes", s.handleListNodes)

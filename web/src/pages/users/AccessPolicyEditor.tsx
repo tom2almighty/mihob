@@ -22,6 +22,7 @@ import {
   type Node,
   type Protocol,
 } from "@/lib/types"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
 const ALL_PROTOCOLS = Object.keys(PROTOCOL_LABELS) as Protocol[]
@@ -68,32 +69,16 @@ function MatchModeToggle({
   labelAny: string
 }) {
   return (
-    <div className="inline-flex items-center rounded-md border border-border bg-muted/40 p-0.5 text-[11px]">
-      <button
-        type="button"
-        onClick={() => onChange("all")}
-        className={cn(
-          "rounded px-2 py-0.5 font-medium transition-colors",
-          value === "all"
-            ? "bg-background text-foreground shadow-xs"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        {labelAll}
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("any")}
-        className={cn(
-          "rounded px-2 py-0.5 font-medium transition-colors",
-          value === "any"
-            ? "bg-background text-foreground shadow-xs"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        {labelAny}
-      </button>
-    </div>
+    <Tabs value={value} onValueChange={(v) => onChange((v as MatchMode) || "all")}>
+      <TabsList size="xs">
+        <TabsTrigger value="all" className="text-[11px]">
+          {labelAll}
+        </TabsTrigger>
+        <TabsTrigger value="any" className="text-[11px]">
+          {labelAny}
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
   )
 }
 

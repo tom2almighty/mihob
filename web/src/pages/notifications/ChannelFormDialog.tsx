@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Loader2, Send } from "lucide-react"
 import { toast } from "sonner"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -209,8 +208,8 @@ export function ChannelFormDialog({
         </DialogHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <div className="grid gap-4 sm:grid-cols-12">
+            <div className="space-y-1.5 sm:col-span-5">
               <Label htmlFor="ch-name">{t("notifications.channels.name")}</Label>
               <Input
                 id="ch-name"
@@ -220,13 +219,13 @@ export function ChannelFormDialog({
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 sm:col-span-4">
               <Label>{t("notifications.channels.provider")}</Label>
               <Select
                 value={provider}
                 onValueChange={(v) => setProvider((v as NotificationProvider) || "telegram")}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,6 +236,27 @@ export function ChannelFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-3">
+              <Label htmlFor="ch-enabled">{t("notifications.channels.enabledLabel")}</Label>
+              <div className="flex h-8 items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 dark:bg-input/30">
+                <span
+                  className={
+                    enabled
+                      ? "truncate text-xs font-medium text-success"
+                      : "truncate text-xs text-muted-foreground"
+                  }
+                >
+                  {enabled ? t("common.enabled") : t("common.disabled")}
+                </span>
+                <Switch
+                  id="ch-enabled"
+                  size="sm"
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                />
+              </div>
             </div>
           </div>
 
@@ -282,7 +302,7 @@ export function ChannelFormDialog({
                       value={tg.parseMode}
                       onValueChange={(v) => setTg((s) => ({ ...s, parseMode: v || "None" }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -410,7 +430,7 @@ export function ChannelFormDialog({
                         setGeneric((s) => ({ ...s, template: (v as "json" | "empty") || "json" }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -427,7 +447,7 @@ export function ChannelFormDialog({
                         setGeneric((s) => ({ ...s, method: (v as "POST" | "PUT") || "POST" }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -536,7 +556,7 @@ export function ChannelFormDialog({
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -611,33 +631,14 @@ export function ChannelFormDialog({
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="ch-remark">{t("notifications.channels.remark")}</Label>
-              <Input
-                id="ch-remark"
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={t("common.optional")}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <div className="space-y-0.5">
-                <div className="text-xs font-medium">{t("notifications.channels.enabledLabel")}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {enabled ? (
-                    <Badge variant="secondary" className="bg-success/15 px-1.5 py-0 text-[10px] text-success">
-                      {t("common.enabled")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] text-muted-foreground">
-                      {t("common.disabled")}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ch-remark">{t("notifications.channels.remark")}</Label>
+            <Input
+              id="ch-remark"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              placeholder={t("common.optional")}
+            />
           </div>
         </div>
 

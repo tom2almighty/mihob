@@ -1,6 +1,6 @@
 import type { CustomTheme } from "./types"
 
-export const THEME_CSS_CACHE_KEY = "mihob_theme_css_cache_v2"
+export const THEME_CSS_CACHE_KEY = "mihob_theme_css_cache_v3"
 export const THEME_FONT_URL_CACHE_KEY = "mihob_theme_font_url_cache"
 const STYLE_EL_ID = "mihob-custom-theme"
 const FONT_LINK_ID = "mihob-theme-fonts"
@@ -368,16 +368,63 @@ function mapVarEntriesToDeclarations(vars: Record<string, string>): string[] {
   return lines
 }
 
+function isOverlyBrightOpaqueColor(val?: string): boolean {
+  if (!val) return false
+  const s = val.trim().toLowerCase()
+  // Ignore colors with explicit low alpha (e.g. oklch(1 0 0 / 10%) or rgba(..., 0.12))
+  const alphaSlash = s.match(/\/\s*([\d.]+)(%?)\s*\)$/)
+  if (alphaSlash) {
+    const num = Number(alphaSlash[1])
+    const alpha = alphaSlash[2] === "%" ? num / 100 : num
+    if (!Number.isNaN(alpha) && alpha <= 0.45) return false
+  }
+  const oklch = s.match(/^oklch\(\s*([\d.]+)(%?)/)
+  if (oklch) {
+    const rawL = Number(oklch[1])
+    const L = oklch[2] === "%" ? rawL / 100 : rawL
+    return !Number.isNaN(L) && L > 0.68
+  }
+  const hsl = s.match(/^hsla?\(\s*[\d.]+\s*[\s,]\s*[\d.]+%?\s*[\s,]\s*([\d.]+)%/)
+  if (hsl) {
+    const L = Number(hsl[1])
+    return !Number.isNaN(L) && L > 68
+  }
+  const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/)
+  if (hex) {
+    const raw = hex[1]
+    const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw
+    const r = parseInt(full.slice(0, 2), 16)
+    const g = parseInt(full.slice(2, 4), 16)
+    const b = parseInt(full.slice(4, 6), 16)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return lum > 0.68
+  }
+  return false
+}
+
+function normalizeDarkSurfaceVars(darkVars: Record<string, string>): Record<string, string> {
+  const out = { ...darkVars }
+  // Guard against tweakcn dark themes that accidentally ship a light-mode sidebar-border (e.g. oklch(0.94 0 0))
+  if (out["sidebar-border"] && isOverlyBrightOpaqueColor(out["sidebar-border"])) {
+    if (out.border && !isOverlyBrightOpaqueColor(out.border)) {
+      out["sidebar-border"] = out.border
+    } else {
+      out["sidebar-border"] = "oklch(1 0 0 / 12%)"
+    }
+  }
+  return out
+}
+
 export function buildThemeStyleCSS(theme: CustomTheme | null): string {
   if (!theme) return ""
   const lightMerged: Record<string, string> = {
     ...(theme.theme ?? {}),
     ...(theme.light ?? {}),
   }
-  const darkMerged: Record<string, string> = {
+  const darkMerged: Record<string, string> = normalizeDarkSurfaceVars({
     ...(theme.theme ?? {}),
     ...(theme.dark ?? {}),
-  }
+  })
 
   const rootLines = mapVarEntriesToDeclarations(lightMerged)
   const darkLines = mapVarEntriesToDeclarations(darkMerged)
