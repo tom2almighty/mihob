@@ -8,7 +8,7 @@
 
 ### 核心特性
 
-- **15 种 Mihomo 服务端入站协议**：完整支持 `VLESS (Reality / TLS / WS / gRPC / XHTTP)`、`VMess`、`Trojan`、`Hysteria2`、`TUIC v5`、`AnyTLS`、`Shadowsocks (含 2022 EIH)`、`Mieru`、`TrustTunnel`、`ShadowQUIC`、`Snell`、`Sudoku`、`HTTP`、`SOCKS5`、`Mixed`，支持入站级高级 YAML 深度合并与实时预览。
+- **15 种 Mihomo 服务端入站协议**：完整支持 Mihomo 入站及 YAML 深度合并与实时预览。
 - **Hub + Agent 零端口暴露同步**：Agent 主动反向连接 Hub，配置下发前自动执行 `mihomo -t` 校验并在失败时回滚；支持一键检测与安全热升级全集群 Mihomo 内核（SHA-256 校验 + 探活回滚）。
 - **双模板引擎（客户端订阅 + 节点服务端配置）**：
   - 客户端订阅模板动态渲染授权节点与策略组，支持自定义订阅路径与浏览器自助订阅页。
@@ -20,7 +20,7 @@
 ## 界面预览
 
 <details>
-<summary>点击展开管理控制台与用户自助订阅页预览（共 6 张，基于模拟数据渲染）</summary>
+<summary>点击展开预览</summary>
 
 <br />
 
@@ -42,8 +42,8 @@
 <table width="100%">
   <thead>
     <tr>
-      <th width="50%" align="center">节点管理与内核升级</th>
-      <th width="50%" align="center">用户管理与精细授权</th>
+      <th width="50%" align="center">节点管理</th>
+      <th width="50%" align="center">用户管理</th>
     </tr>
   </thead>
   <tbody>
@@ -57,8 +57,8 @@
 <table width="100%">
   <thead>
     <tr>
-      <th width="50%" align="center">配置模板（客户端 / 节点服务端）</th>
-      <th width="50%" align="center">用户自助订阅页</th>
+      <th width="50%" align="center">配置模板</th>
+      <th width="50%" align="center">用户订阅</th>
     </tr>
   </thead>
   <tbody>

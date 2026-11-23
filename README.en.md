@@ -8,7 +8,7 @@
 
 ### Key Features
 
-- **15 Mihomo Server Listener Protocols**: Full support for `VLESS (Reality / TLS / WS / gRPC / XHTTP)`, `VMess`, `Trojan`, `Hysteria2`, `TUIC v5`, `AnyTLS`, `Shadowsocks (including 2022 EIH)`, `Mieru`, `TrustTunnel`, `ShadowQUIC`, `Snell`, `Sudoku`, `HTTP`, `SOCKS5`, and `Mixed`, with per-inbound YAML deep-merge overrides and live preview.
+- **15 Mihomo Server Listener Protocols**: Full support for Mihomo listeners with YAML deep-merge overrides and live preview.
 - **Reverse WebSocket Sync & Safe Core Upgrades**: Agents initiate outbound connections to Hub; config pushes run `mihomo -t` pre-flight validation with automatic rollback, and Mihomo core binaries can be safely hot-upgraded fleet-wide with SHA-256 verification and health-check rollback.
 - **Dual Template Engine (Client Subscription + Node Server Config)**:
   - Dynamic client subscription templates with customizable subscription sub-paths and a browser subscription portal.
@@ -20,7 +20,7 @@
 ## Screenshots
 
 <details>
-<summary>Click to expand console & user subscription portal previews (6 screenshots rendered with mock data)</summary>
+<summary>Click to expand previews</summary>
 
 <br />
 
@@ -42,8 +42,8 @@
 <table width="100%">
   <thead>
     <tr>
-      <th width="50%" align="center">Nodes & Core Upgrades</th>
-      <th width="50%" align="center">Users & Access Policies</th>
+      <th width="50%" align="center">Nodes</th>
+      <th width="50%" align="center">Users</th>
     </tr>
   </thead>
   <tbody>
@@ -57,8 +57,8 @@
 <table width="100%">
   <thead>
     <tr>
-      <th width="50%" align="center">Templates (Client & Node Server)</th>
-      <th width="50%" align="center">User Subscription Portal</th>
+      <th width="50%" align="center">Templates</th>
+      <th width="50%" align="center">Subscription</th>
     </tr>
   </thead>
   <tbody>
