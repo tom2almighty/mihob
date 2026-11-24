@@ -121,7 +121,9 @@ export function LogsTab() {
                 <TableHead>{t("notifications.logs.colChannel")}</TableHead>
                 <TableHead>{t("notifications.logs.colTitle")}</TableHead>
                 <TableHead className="w-24">{t("notifications.logs.colStatus")}</TableHead>
-                <TableHead className="w-16 text-right">{t("notifications.logs.colDetail")}</TableHead>
+                <TableHead className="w-16 text-right">
+                  {t("notifications.logs.colDetail")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

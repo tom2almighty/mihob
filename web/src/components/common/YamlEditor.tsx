@@ -144,13 +144,7 @@ export function highlightYaml(code: string): ReactNode[] {
   return code.split("\n").map((line, i) => highlightYamlLine(line, i))
 }
 
-export function YamlCodeBlock({
-  value,
-  className,
-}: {
-  value: string
-  className?: string
-}) {
+export function YamlCodeBlock({ value, className }: { value: string; className?: string }) {
   const highlighted = useMemo(() => highlightYaml(value), [value])
 
   return (

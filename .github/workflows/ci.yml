@@ -83,6 +83,10 @@ jobs:
             console.log(`i18n parity OK (${zh.size} keys)`);
           '
 
+      - name: Lint & format check (Biome)
+        working-directory: web
+        run: pnpm check
+
       - name: Typecheck & build frontend
         working-directory: web
         run: pnpm build

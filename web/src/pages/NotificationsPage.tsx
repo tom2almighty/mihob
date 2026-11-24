@@ -40,10 +40,7 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t("notifications.title")}
-        description={t("notifications.description")}
-      />
+      <PageHeader title={t("notifications.title")} description={t("notifications.description")} />
 
       <Tabs
         value={activeTab}

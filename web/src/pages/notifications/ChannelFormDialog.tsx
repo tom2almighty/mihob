@@ -130,7 +130,6 @@ export function ChannelFormDialog({
         return buildGenericUrl(generic)
       case "smtp":
         return buildSmtpUrl(smtp)
-      case "custom":
       default:
         return rawUrl.trim()
     }
@@ -250,12 +249,7 @@ export function ChannelFormDialog({
                 >
                   {enabled ? t("common.enabled") : t("common.disabled")}
                 </span>
-                <Switch
-                  id="ch-enabled"
-                  size="sm"
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                />
+                <Switch id="ch-enabled" size="sm" checked={enabled} onCheckedChange={setEnabled} />
               </div>
             </div>
           </div>
@@ -460,7 +454,9 @@ export function ChannelFormDialog({
                 {generic.template === "json" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="gen-title-key">{t("notifications.wizard.genericTitleKey")}</Label>
+                      <Label htmlFor="gen-title-key">
+                        {t("notifications.wizard.genericTitleKey")}
+                      </Label>
                       <Input
                         id="gen-title-key"
                         value={generic.titleKey}

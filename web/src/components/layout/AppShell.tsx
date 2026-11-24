@@ -331,9 +331,7 @@ function SidebarFooter({
         <DropdownMenu>
           {collapsed ? (
             <Tooltip>
-              <TooltipTrigger
-                render={<DropdownMenuTrigger render={accountButton} />}
-              />
+              <TooltipTrigger render={<DropdownMenuTrigger render={accountButton} />} />
               <TooltipContent side="right" sideOffset={8}>
                 {username}
               </TooltipContent>
@@ -399,8 +397,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const activeItem =
-    NAV_ITEMS.find((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to))) ??
-    NAV_ITEMS[0]
+    NAV_ITEMS.find((i) =>
+      i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)
+    ) ?? NAV_ITEMS[0]
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -493,7 +492,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4 lg:px-6 lg:py-4">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4 lg:px-6 lg:py-4">
+          {children}
+        </main>
       </div>
     </div>
   )

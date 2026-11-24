@@ -113,13 +113,7 @@ const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   "projects",
 ])
 
-function SimpleIconSvg({
-  path,
-  className = "size-4",
-}: {
-  path: string
-  className?: string
-}) {
+function SimpleIconSvg({ path, className = "size-4" }: { path: string; className?: string }) {
   return (
     <svg
       role="img"
@@ -169,10 +163,7 @@ export function SettingsPage() {
     () =>
       z.object({
         hub_public_url: z.string().trim().optional(),
-        sub_path: z
-          .string()
-          .trim()
-          .refine(isValidSubPath, t("settings.validation.subPathInvalid")),
+        sub_path: z.string().trim().refine(isValidSubPath, t("settings.validation.subPathInvalid")),
         acme_email: z.string().trim().optional(),
         agent_image: z.string().trim().min(1, t("settings.validation.agentImageRequired")),
         github_token: z.string().trim().optional(),
@@ -409,7 +400,11 @@ export function SettingsPage() {
                           <FormItem>
                             <FormLabel>{t("settings.subPath")}</FormLabel>
                             <FormControl>
-                              <Input placeholder="sub" className="font-mono text-xs sm:text-sm" {...field} />
+                              <Input
+                                placeholder="sub"
+                                className="font-mono text-xs sm:text-sm"
+                                {...field}
+                              />
                             </FormControl>
                             <FormDescription>{t("settings.subPathDesc")}</FormDescription>
                             <FormMessage />
@@ -424,7 +419,9 @@ export function SettingsPage() {
                           </span>
                           <CopyButton value={subUrlPreview} size="icon-sm" />
                         </div>
-                        <p className="break-all font-mono text-xs text-foreground">{subUrlPreview}</p>
+                        <p className="break-all font-mono text-xs text-foreground">
+                          {subUrlPreview}
+                        </p>
                       </div>
                     </>
                   )}
@@ -541,14 +538,20 @@ export function SettingsPage() {
                               <div className="flex items-center gap-2">
                                 <FormLabel>{t("settings.githubToken")}</FormLabel>
                                 {hasSavedGithubToken && (
-                                  <Badge variant="secondary" className="font-mono text-[11px] font-normal">
+                                  <Badge
+                                    variant="secondary"
+                                    className="font-mono text-[11px] font-normal"
+                                  >
                                     {t("settings.githubTokenSavedBadge", {
                                       masked: query.data?.github_token_masked || "****",
                                     })}
                                   </Badge>
                                 )}
                                 {clearGithubToken && (
-                                  <Badge variant="outline" className="text-[11px] font-normal text-destructive">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[11px] font-normal text-destructive"
+                                  >
                                     {t("settings.githubTokenClearPending")}
                                   </Badge>
                                 )}
@@ -977,11 +980,7 @@ export function SettingsPage() {
                     variant="ghost"
                     size="sm"
                     render={
-                      <a
-                        href="https://wiki.metacubex.one/"
-                        target="_blank"
-                        rel="noreferrer"
-                      />
+                      <a href="https://wiki.metacubex.one/" target="_blank" rel="noreferrer" />
                     }
                     nativeButton={false}
                   >

@@ -6,32 +6,32 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>mihob</title>
     <script>
-      (function () {
+      (() => {
         try {
-          var mode = localStorage.getItem("mihob_theme") || "system";
-          var isDark =
+          const mode = localStorage.getItem("mihob_theme") || "system"
+          const isDark =
             mode === "dark" ||
-            (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-          document.documentElement.classList.add(isDark ? "dark" : "light");
+            (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          document.documentElement.classList.add(isDark ? "dark" : "light")
 
-          var css = localStorage.getItem("mihob_theme_css_cache_v3");
+          const css = localStorage.getItem("mihob_theme_css_cache_v3")
           if (css) {
-            var style = document.createElement("style");
-            style.id = "mihob-custom-theme";
-            style.textContent = css;
-            document.head.appendChild(style);
+            const style = document.createElement("style")
+            style.id = "mihob-custom-theme"
+            style.textContent = css
+            document.head.appendChild(style)
           }
 
-          var fontUrl = localStorage.getItem("mihob_theme_font_url_cache");
+          const fontUrl = localStorage.getItem("mihob_theme_font_url_cache")
           if (fontUrl && fontUrl.indexOf("https://fonts.googleapis.com/") === 0) {
-            var link = document.createElement("link");
-            link.id = "mihob-theme-fonts";
-            link.rel = "stylesheet";
-            link.href = fontUrl;
-            document.head.appendChild(link);
+            const link = document.createElement("link")
+            link.id = "mihob-theme-fonts"
+            link.rel = "stylesheet"
+            link.href = fontUrl
+            document.head.appendChild(link)
           }
-        } catch (e) {}
-      })();
+        } catch {}
+      })()
     </script>
   </head>
   <body class="bg-background text-foreground antialiased">

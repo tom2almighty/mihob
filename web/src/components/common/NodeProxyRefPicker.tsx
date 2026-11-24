@@ -13,9 +13,7 @@ import {
 import type { Inbound, Node } from "@/lib/types"
 
 function buildProxyAlias(nodeName: string): string {
-  const cleaned = nodeName
-    .replace(/[^\p{L}\p{N}_-]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
+  const cleaned = nodeName.replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "")
   return cleaned ? `NODE-${cleaned}` : "NODE-RELAY"
 }
 

@@ -145,7 +145,9 @@ export function CertificatesPage() {
                     {...getRowDragProps(c.id)}
                     className={cn(
                       draggingId === c.id && "opacity-40",
-                      overId === c.id && draggingId !== c.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                      overId === c.id &&
+                        draggingId !== c.id &&
+                        "bg-accent/50 ring-1 ring-inset ring-primary/40"
                     )}
                   >
                     <TableCell className="w-8 px-2">
@@ -153,6 +155,7 @@ export function CertificatesPage() {
                         <TooltipTrigger
                           render={
                             <span
+                              role="img"
                               className={cn(
                                 "inline-flex items-center justify-center text-muted-foreground/60",
                                 canDrag
@@ -175,9 +178,7 @@ export function CertificatesPage() {
                           {c.domain}
                           {c.sans?.length > 1 ? ` (+${c.sans.length - 1})` : ""}
                         </div>
-                        {c.last_error && (
-                          <p className="text-xs text-destructive">{c.last_error}</p>
-                        )}
+                        {c.last_error && <p className="text-xs text-destructive">{c.last_error}</p>}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -197,7 +198,9 @@ export function CertificatesPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{c.issuer || "-"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {c.issuer || "-"}
+                    </TableCell>
                     <TableCell className="text-xs tabular-nums">
                       <div className="flex items-center gap-2">
                         <span>{formatDateShort(c.not_after, i18n.language)}</span>

@@ -83,7 +83,7 @@ export function DatePickerWithPresets({
         <span className="truncate">
           {selectedDate
             ? format(selectedDate, "yyyy-MM-dd")
-            : placeholder ?? t("common.datePresets.permanentPlaceholder")}
+            : (placeholder ?? t("common.datePresets.permanentPlaceholder"))}
         </span>
       </PopoverTrigger>
       <PopoverContent className="flex w-auto flex-col gap-2 p-2.5" align="start">

@@ -85,21 +85,13 @@ export function EmptyState({
   )
 }
 
-export function ErrorState({
-  message,
-  onRetry,
-}: {
-  message?: string
-  onRetry?: () => void
-}) {
+export function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-10 text-center">
       <AlertTriangle className="mb-2 size-6 text-destructive" />
       <p className="text-sm font-medium text-foreground">{t("common.loadFailed")}</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {message || t("common.loadFailedDesc")}
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{message || t("common.loadFailedDesc")}</p>
       {onRetry && (
         <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
           <RefreshCw className="mr-1.5 size-3.5" />
@@ -206,11 +198,7 @@ export function TrafficProgress({
   const remainingRatio = unlimited ? 0 : Math.max(0, 100 - usedRatio)
   const displayRatio = mode === "remaining" ? remainingRatio : usedRatio
   const barColor =
-    usedRatio >= 90
-      ? "bg-destructive"
-      : usedRatio >= 70
-        ? "bg-warning"
-        : "bg-success"
+    usedRatio >= 90 ? "bg-destructive" : usedRatio >= 70 ? "bg-warning" : "bg-success"
 
   const content = (
     <div className={cn("space-y-1.5", className)}>
@@ -304,11 +292,7 @@ export function ConfirmDeleteDialog({
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{t("common.cancel")}</AlertDialogCancel>
-          <Button
-            variant="destructive"
-            disabled={!canSubmit || loading}
-            onClick={onConfirm}
-          >
+          <Button variant="destructive" disabled={!canSubmit || loading} onClick={onConfirm}>
             {loading && <Loader2 className="mr-1.5 size-4 animate-spin" />}
             {confirmLabel ?? t("common.confirmDelete")}
           </Button>
@@ -343,9 +327,7 @@ export function TablePagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
-      <div className="tabular-nums">
-        {t("common.pagination.summary", { start, end, total })}
-      </div>
+      <div className="tabular-nums">{t("common.pagination.summary", { start, end, total })}</div>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
           <span>{t("common.pagination.perPage")}</span>

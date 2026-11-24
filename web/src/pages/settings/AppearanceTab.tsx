@@ -1,16 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  Palette,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from "lucide-react"
+import { Check, Copy, ExternalLink, Palette, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { ErrorState } from "@/components/common/CommonUI"
 import {
@@ -25,13 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -72,11 +57,7 @@ function ThemePresetCard({
         : { ...themeItem.previewLight, radius: themeItem.theme?.radius || "0.625rem" }
       : getThemePreviewColors(themeItem, resolvedMode)
 
-  const fontLabel = (
-    themeItem.light["font-sans"] ||
-    themeItem.theme?.["font-sans"] ||
-    ""
-  )
+  const fontLabel = (themeItem.light["font-sans"] || themeItem.theme?.["font-sans"] || "")
     .split(",")[0]
     ?.replace(/["']/g, "")
     .trim()
@@ -360,11 +341,7 @@ export function AppearanceTab() {
                 variant="outline"
                 size="sm"
                 render={
-                  <a
-                    href="https://tweakcn.com/editor/theme"
-                    target="_blank"
-                    rel="noreferrer"
-                  />
+                  <a href="https://tweakcn.com/editor/theme" target="_blank" rel="noreferrer" />
                 }
                 nativeButton={false}
               >

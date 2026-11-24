@@ -267,7 +267,9 @@ export function TemplatesPage() {
           className="flex h-[min(760px,90vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
         >
           <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
-            <DialogTitle>{t("templates.previewTitle", { name: previewTmpl?.name ?? "" })}</DialogTitle>
+            <DialogTitle>
+              {t("templates.previewTitle", { name: previewTmpl?.name ?? "" })}
+            </DialogTitle>
             <DialogDescription>
               {isPreviewServer ? t("templates.previewServerDesc") : t("templates.previewDesc")}
             </DialogDescription>

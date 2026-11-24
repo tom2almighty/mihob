@@ -207,8 +207,7 @@ export interface ParsedThemeResult {
 function parseCSSDeclarations(blockBody: string): Record<string, string> {
   const out: Record<string, string> = {}
   const declRe = /--([a-zA-Z0-9-]+)\s*:\s*([^;{}]+?)\s*(?:;|$)/g
-  let m: RegExpExecArray | null
-  while ((m = declRe.exec(blockBody)) !== null) {
+  for (const m of blockBody.matchAll(declRe)) {
     const key = m[1].trim()
     const rawVal = m[2].trim()
     if (!ALLOWED_THEME_VAR_KEYS.has(key)) continue
@@ -223,8 +222,8 @@ function parseCSSDeclarations(blockBody: string): Record<string, string> {
 
 function extractMatchingBlocks(css: string, selectorRe: RegExp): string[] {
   const blocks: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = selectorRe.exec(css)) !== null) {
+  let m = selectorRe.exec(css)
+  while (m !== null) {
     let idx = selectorRe.lastIndex
     let depth = 1
     const start = idx
@@ -237,6 +236,7 @@ function extractMatchingBlocks(css: string, selectorRe: RegExp): string[] {
     if (depth === 0) {
       blocks.push(css.slice(start, idx - 1))
     }
+    m = selectorRe.exec(css)
   }
   return blocks
 }
@@ -295,7 +295,10 @@ export function parseThemeInput(raw: string): ParsedThemeResult {
   const noComments = cleaned.replace(/\/\*[\s\S]*?\*\//g, "")
 
   const rootBlocks = extractMatchingBlocks(noComments, /(?:^|[\s{;])(:root)\s*\{/g)
-  const darkBlocks = extractMatchingBlocks(noComments, /(?:^|[\s{;])(\.dark(?:\s*,\s*\[data-theme=["']dark["']\])?)\s*\{/g)
+  const darkBlocks = extractMatchingBlocks(
+    noComments,
+    /(?:^|[\s{;])(\.dark(?:\s*,\s*\[data-theme=["']dark["']\])?)\s*\{/g
+  )
   const themeBlocks = extractMatchingBlocks(noComments, /@theme(?:\s+inline)?\s*\{/g)
 
   const themeVars: Record<string, string> = {}
@@ -392,7 +395,13 @@ function isOverlyBrightOpaqueColor(val?: string): boolean {
   const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/)
   if (hex) {
     const raw = hex[1]
-    const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw
+    const full =
+      raw.length === 3
+        ? raw
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : raw
     const r = parseInt(full.slice(0, 2), 16)
     const g = parseInt(full.slice(2, 4), 16)
     const b = parseInt(full.slice(4, 6), 16)
@@ -454,7 +463,10 @@ export function extractExternalFontFamilies(theme: CustomTheme | null): string[]
   const seen = new Set<string>()
   for (const stack of fontValues) {
     for (const part of stack.split(",")) {
-      const clean = part.trim().replace(/^["']|["']$/g, "").trim()
+      const clean = part
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .trim()
       if (!clean) continue
       const lower = clean.toLowerCase()
       if (NON_GOOGLE_FONTS.has(lower) || seen.has(lower)) continue
@@ -533,14 +545,10 @@ export function exportThemeAsCSS(theme: CustomTheme): string {
 
   const blocks: string[] = []
   if (lightEntries.length > 0) {
-    blocks.push(
-      `:root {\n${lightEntries.map(([k, v]) => `  --${k}: ${v};`).join("\n")}\n}`
-    )
+    blocks.push(`:root {\n${lightEntries.map(([k, v]) => `  --${k}: ${v};`).join("\n")}\n}`)
   }
   if (darkEntries.length > 0) {
-    blocks.push(
-      `.dark {\n${darkEntries.map(([k, v]) => `  --${k}: ${v};`).join("\n")}\n}`
-    )
+    blocks.push(`.dark {\n${darkEntries.map(([k, v]) => `  --${k}: ${v};`).join("\n")}\n}`)
   }
   return blocks.join("\n\n")
 }

@@ -36,11 +36,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  DEFAULT_ACCESS_POLICY,
-  normalizeAccessPolicy,
-  validateRegex,
-} from "@/lib/accessPolicy"
+import { DEFAULT_ACCESS_POLICY, normalizeAccessPolicy, validateRegex } from "@/lib/accessPolicy"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
 import type { AccessPolicy, User } from "@/lib/types"
@@ -277,7 +273,13 @@ export function UserFormDialog({
                         <FormItem>
                           <FormLabel>{t("users.form.trafficLimit")}</FormLabel>
                           <FormControl>
-                            <Input type="number" min="0" step="1" className="tabular-nums" {...field} />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              className="tabular-nums"
+                              {...field}
+                            />
                           </FormControl>
                           <FormDescription>{t("users.form.trafficLimitDesc")}</FormDescription>
                           <FormMessage />
@@ -300,7 +302,9 @@ export function UserFormDialog({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="default">{t("users.form.templateDefault")}</SelectItem>
+                              <SelectItem value="default">
+                                {t("users.form.templateDefault")}
+                              </SelectItem>
                               {(templatesQuery.data ?? [])
                                 .filter((tmpl) => tmpl.kind !== "server")
                                 .map((tmpl) => (
@@ -377,7 +381,11 @@ export function UserFormDialog({
         </Form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
             {t("common.cancel")}
           </Button>
           <Button type="submit" form="user-form" disabled={mutation.isPending}>

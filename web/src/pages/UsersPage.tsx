@@ -73,7 +73,9 @@ export function UsersPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "inactive">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expiring" | "inactive">(
+    "all"
+  )
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
@@ -280,7 +282,9 @@ export function UsersPage() {
                     {...getRowDragProps(u.id)}
                     className={cn(
                       draggingId === u.id && "opacity-40",
-                      overId === u.id && draggingId !== u.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                      overId === u.id &&
+                        draggingId !== u.id &&
+                        "bg-accent/50 ring-1 ring-inset ring-primary/40"
                     )}
                   >
                     <TableCell className="w-8 px-2">
@@ -288,6 +292,7 @@ export function UsersPage() {
                         <TooltipTrigger
                           render={
                             <span
+                              role="img"
                               className={cn(
                                 "inline-flex items-center justify-center text-muted-foreground/60",
                                 canDrag
@@ -379,10 +384,7 @@ export function UsersPage() {
                               {t("users.resetTraffic")}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => setDeleting(u)}
-                            >
+                            <DropdownMenuItem variant="destructive" onClick={() => setDeleting(u)}>
                               <Trash2 className="mr-2 size-4" />
                               {t("users.deleteUser")}
                             </DropdownMenuItem>

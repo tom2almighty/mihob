@@ -99,7 +99,12 @@ export function SubscriptionPage() {
               title={t("subPage.notFoundTitle")}
               description={t("subPage.notFoundDesc")}
               action={
-                <Button variant="outline" size="sm" render={<Link to="/login" />} nativeButton={false}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<Link to="/login" />}
+                  nativeButton={false}
+                >
                   {t("subPage.backToLogin")}
                 </Button>
               }
@@ -142,7 +147,9 @@ export function SubscriptionPage() {
 
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">{t("subPage.subUrlLabel")}</Label>
+                  <Label className="text-xs text-muted-foreground">
+                    {t("subPage.subUrlLabel")}
+                  </Label>
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
                       readOnly
@@ -163,7 +170,11 @@ export function SubscriptionPage() {
                     size="sm"
                     render={<a href={clashImportURL} />}
                     nativeButton={false}
-                    disabled={info.status === "disabled" || info.status === "expired" || info.status === "exhausted"}
+                    disabled={
+                      info.status === "disabled" ||
+                      info.status === "expired" ||
+                      info.status === "exhausted"
+                    }
                   >
                     <ExternalLink className="mr-1.5 size-3.5" />
                     {t("subPage.importClient")}

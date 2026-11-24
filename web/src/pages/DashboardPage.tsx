@@ -184,7 +184,8 @@ export function DashboardPage() {
       (data?.nodes ?? [])
         .filter((n) => n.online)
         .map((n) => {
-          const memPct = n.mem_total > 0 ? Math.min(100, Math.round((n.mem_used / n.mem_total) * 100)) : 0
+          const memPct =
+            n.mem_total > 0 ? Math.min(100, Math.round((n.mem_used / n.mem_total) * 100)) : 0
           return {
             id: n.id,
             name: n.name.length > 12 ? `${n.name.slice(0, 12)}…` : n.name,
@@ -396,9 +397,7 @@ export function DashboardPage() {
                     formatter={(_val, _name, item) => {
                       const rawDays = Number(item?.payload?.days ?? 0)
                       return [
-                        rawDays <= 0
-                          ? t("nodes.expired")
-                          : t("nodes.daysLeft", { days: rawDays }),
+                        rawDays <= 0 ? t("nodes.expired") : t("nodes.daysLeft", { days: rawDays }),
                         String(item?.payload?.fullName ?? ""),
                       ]
                     }}
@@ -432,7 +431,10 @@ export function DashboardPage() {
             {query.isLoading ? (
               <Skeleton className="h-56 w-full" />
             ) : nodeTrafficData.length === 0 ? (
-              <ChartEmpty icon={<Server className="size-4" />} text={t("dashboard.nodeTrafficEmpty")} />
+              <ChartEmpty
+                icon={<Server className="size-4" />}
+                text={t("dashboard.nodeTrafficEmpty")}
+              />
             ) : (
               <div className="h-56 w-full">
                 <BarChart
@@ -496,7 +498,10 @@ export function DashboardPage() {
             {query.isLoading ? (
               <Skeleton className="h-56 w-full" />
             ) : userTrafficData.length === 0 ? (
-              <ChartEmpty icon={<Users className="size-4" />} text={t("dashboard.userTrafficEmpty")} />
+              <ChartEmpty
+                icon={<Users className="size-4" />}
+                text={t("dashboard.userTrafficEmpty")}
+              />
             ) : (
               <div className="h-56 w-full">
                 <BarChart
@@ -705,7 +710,9 @@ export function DashboardPage() {
       {/* Row 5: Node Status (Top 3) + Top Traffic Users (Top 3) */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className={CARD_BASE}>
-          <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between gap-2")}>
+          <CardHeader
+            className={cn(CARD_HEADER, "flex flex-row items-center justify-between gap-2")}
+          >
             <div className="min-w-0 space-y-0.5">
               <CardTitle className="text-sm font-semibold">
                 {t("dashboard.nodeStatusTitle")}
@@ -750,7 +757,9 @@ export function DashboardPage() {
         <Card className={CARD_BASE}>
           <CardHeader className={cn(CARD_HEADER, "flex flex-row items-center justify-between")}>
             <div className="space-y-0.5">
-              <CardTitle className="text-sm font-semibold">{t("dashboard.topUsersTitle")}</CardTitle>
+              <CardTitle className="text-sm font-semibold">
+                {t("dashboard.topUsersTitle")}
+              </CardTitle>
               <CardDescription className="text-xs">{t("dashboard.topUsersDesc")}</CardDescription>
             </div>
             <Button
@@ -779,7 +788,10 @@ export function DashboardPage() {
               />
             ) : (
               topUsers.map((u) => (
-                <div key={u.id} className="space-y-1.5 rounded-md border border-border px-3.5 py-2.5">
+                <div
+                  key={u.id}
+                  className="space-y-1.5 rounded-md border border-border px-3.5 py-2.5"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{u.username}</span>
                     <Badge

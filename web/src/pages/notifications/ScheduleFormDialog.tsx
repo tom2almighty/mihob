@@ -195,7 +195,9 @@ export function ScheduleFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">{t("notifications.schedules.freqDaily")}</SelectItem>
-                    <SelectItem value="weekly">{t("notifications.schedules.freqWeekly")}</SelectItem>
+                    <SelectItem value="weekly">
+                      {t("notifications.schedules.freqWeekly")}
+                    </SelectItem>
                     <SelectItem value="monthly">
                       {t("notifications.schedules.freqMonthly")}
                     </SelectItem>
@@ -296,9 +298,7 @@ export function ScheduleFormDialog({
                     </Label>
                     <Select
                       value={trafficMode}
-                      onValueChange={(v) =>
-                        setTrafficMode((v as "used" | "remaining") || "used")
-                      }
+                      onValueChange={(v) => setTrafficMode((v as "used" | "remaining") || "used")}
                     >
                       <SelectTrigger size="sm" className="w-full">
                         <SelectValue />

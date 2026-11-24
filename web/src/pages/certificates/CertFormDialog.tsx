@@ -176,249 +176,270 @@ export function CertFormDialog({
               <div className="shrink-0 border-b border-border px-6 py-2.5">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="acme">{t("certificates.form.optAcme")}</TabsTrigger>
-                  <TabsTrigger value="self_signed">{t("certificates.form.optSelfSigned")}</TabsTrigger>
+                  <TabsTrigger value="self_signed">
+                    {t("certificates.form.optSelfSigned")}
+                  </TabsTrigger>
                   <TabsTrigger value="manual">{t("certificates.form.optManual")}</TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                 <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("certificates.form.name")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={t("certificates.form.namePlaceholder")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="domain"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {source === "manual"
-                            ? t("certificates.form.domainOptional")
-                            : t("certificates.form.domain")}
-                        </FormLabel>
-                        <FormControl>
-                          <Input placeholder={t("certificates.form.domainPlaceholder")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("certificates.form.name")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("certificates.form.namePlaceholder")}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="domain"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {source === "manual"
+                              ? t("certificates.form.domainOptional")
+                              : t("certificates.form.domain")}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("certificates.form.domainPlaceholder")}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                {source !== "manual" && (
-                  <FormField
-                    control={form.control}
-                    name="sans"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("certificates.form.sans")}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="jp.example.com, hk.example.com" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                )}
+                  {source !== "manual" && (
+                    <FormField
+                      control={form.control}
+                      name="sans"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("certificates.form.sans")}</FormLabel>
+                          <FormControl>
+                            <Input placeholder="jp.example.com, hk.example.com" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                {source === "acme" && (
-                  <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="acme_provider"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t("certificates.form.provider")}</FormLabel>
-                            <Select value={field.value} onValueChange={(v) => v && field.onChange(v)}>
+                  {source === "acme" && (
+                    <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="acme_provider"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("certificates.form.provider")}</FormLabel>
+                              <Select
+                                value={field.value}
+                                onValueChange={(v) => v && field.onChange(v)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="cloudflare">
+                                    {t("certificates.form.providerCloudflare")}
+                                  </SelectItem>
+                                  <SelectItem value="alidns">
+                                    {t("certificates.form.providerAlidns")}
+                                  </SelectItem>
+                                  <SelectItem value="dnspod">
+                                    {t("certificates.form.providerDnspod")}
+                                  </SelectItem>
+                                  <SelectItem value="http">
+                                    {t("certificates.form.providerHttp")}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="acme_email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("certificates.form.acmeEmail")}</FormLabel>
                               <FormControl>
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
+                                <Input placeholder="admin@example.com" {...field} />
                               </FormControl>
-                              <SelectContent>
-                                <SelectItem value="cloudflare">
-                                  {t("certificates.form.providerCloudflare")}
-                                </SelectItem>
-                                <SelectItem value="alidns">
-                                  {t("certificates.form.providerAlidns")}
-                                </SelectItem>
-                                <SelectItem value="dnspod">
-                                  {t("certificates.form.providerDnspod")}
-                                </SelectItem>
-                                <SelectItem value="http">
-                                  {t("certificates.form.providerHttp")}
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-                        )}
-                      />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {provider === "cloudflare" && (
+                        <FormField
+                          control={form.control}
+                          name="cf_api_token"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("certificates.form.cfToken")}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="password"
+                                  placeholder={t("certificates.form.cfTokenPlaceholder")}
+                                  {...field}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {provider === "alidns" && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="ali_access_key"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t("certificates.form.aliAccessKey")}</FormLabel>
+                                <FormControl>
+                                  <Input {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="ali_secret_key"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t("certificates.form.aliSecretKey")}</FormLabel>
+                                <FormControl>
+                                  <Input type="password" {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {provider === "dnspod" && (
+                        <FormField
+                          control={form.control}
+                          name="dnspod_token"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("certificates.form.dnspodToken")}</FormLabel>
+                              <FormControl>
+                                <Input type="password" placeholder="123456,abcdef..." {...field} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {provider === "http" && (
+                        <p className="text-xs text-muted-foreground">
+                          {t("certificates.form.httpHint")}
+                        </p>
+                      )}
+
                       <FormField
                         control={form.control}
-                        name="acme_email"
+                        name="auto_renew"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t("certificates.form.acmeEmail")}</FormLabel>
+                          <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                            <div>
+                              <FormLabel className="text-xs">
+                                {t("certificates.form.autoRenew")}
+                              </FormLabel>
+                              <FormDescription className="text-xs">
+                                {t("certificates.form.autoRenewDesc")}
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                              <Input placeholder="admin@example.com" {...field} />
+                              <Switch checked={field.value} onCheckedChange={field.onChange} />
                             </FormControl>
                           </FormItem>
                         )}
                       />
                     </div>
+                  )}
 
-                    {provider === "cloudflare" && (
+                  {source === "self_signed" && (
+                    <FormField
+                      control={form.control}
+                      name="valid_days"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("certificates.form.validDays")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={3650}
+                              className="tabular-nums"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>{t("certificates.form.validDaysDesc")}</FormDescription>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {source === "manual" && (
+                    <div className="space-y-3">
                       <FormField
                         control={form.control}
-                        name="cf_api_token"
+                        name="cert_pem"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("certificates.form.cfToken")}</FormLabel>
+                            <FormLabel>{t("certificates.form.certPem")}</FormLabel>
                             <FormControl>
-                              <Input
-                                type="password"
-                                placeholder={t("certificates.form.cfTokenPlaceholder")}
+                              <Textarea
+                                rows={4}
+                                className="font-mono text-xs"
+                                placeholder="-----BEGIN CERTIFICATE-----"
                                 {...field}
                               />
                             </FormControl>
                           </FormItem>
                         )}
                       />
-                    )}
-
-                    {provider === "alidns" && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name="ali_access_key"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("certificates.form.aliAccessKey")}</FormLabel>
-                              <FormControl>
-                                <Input {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="ali_secret_key"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("certificates.form.aliSecretKey")}</FormLabel>
-                              <FormControl>
-                                <Input type="password" {...field} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    )}
-
-                    {provider === "dnspod" && (
                       <FormField
                         control={form.control}
-                        name="dnspod_token"
+                        name="key_pem"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t("certificates.form.dnspodToken")}</FormLabel>
+                            <FormLabel>{t("certificates.form.keyPem")}</FormLabel>
                             <FormControl>
-                              <Input type="password" placeholder="123456,abcdef..." {...field} />
+                              <Textarea
+                                rows={4}
+                                className="font-mono text-xs"
+                                placeholder="-----BEGIN PRIVATE KEY-----"
+                                {...field}
+                              />
                             </FormControl>
                           </FormItem>
                         )}
                       />
-                    )}
-
-                    {provider === "http" && (
-                      <p className="text-xs text-muted-foreground">{t("certificates.form.httpHint")}</p>
-                    )}
-
-                    <FormField
-                      control={form.control}
-                      name="auto_renew"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
-                          <div>
-                            <FormLabel className="text-xs">{t("certificates.form.autoRenew")}</FormLabel>
-                            <FormDescription className="text-xs">
-                              {t("certificates.form.autoRenewDesc")}
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
-
-                {source === "self_signed" && (
-                  <FormField
-                    control={form.control}
-                    name="valid_days"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("certificates.form.validDays")}</FormLabel>
-                        <FormControl>
-                          <Input type="number" min={1} max={3650} className="tabular-nums" {...field} />
-                        </FormControl>
-                        <FormDescription>{t("certificates.form.validDaysDesc")}</FormDescription>
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                {source === "manual" && (
-                  <div className="space-y-3">
-                    <FormField
-                      control={form.control}
-                      name="cert_pem"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("certificates.form.certPem")}</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              rows={4}
-                              className="font-mono text-xs"
-                              placeholder="-----BEGIN CERTIFICATE-----"
-                              {...field}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="key_pem"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("certificates.form.keyPem")}</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              rows={4}
-                              className="font-mono text-xs"
-                              placeholder="-----BEGIN PRIVATE KEY-----"
-                              {...field}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
+                    </div>
+                  )}
                 </div>
               </div>
             </Tabs>
@@ -426,7 +447,11 @@ export function CertFormDialog({
         </Form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
             {t("common.cancel")}
           </Button>
           <Button type="submit" form="cert-form" disabled={mutation.isPending}>

@@ -80,7 +80,10 @@ function MiniThemeMockup({
           borderRadius: `calc(${radius} * 0.8)`,
         }}
       >
-        <div className="h-2 w-2/3 rounded-full opacity-80" style={{ backgroundColor: c.foreground }} />
+        <div
+          className="h-2 w-2/3 rounded-full opacity-80"
+          style={{ backgroundColor: c.foreground }}
+        />
         <div className="flex items-center gap-1.5">
           <span
             className="inline-block h-4 w-12"
@@ -219,7 +222,10 @@ export function ThemeImportDialog({
       : undefined
   const fontVal =
     parseState.status === "ok"
-      ? (parseState.parsed.light["font-sans"] || parseState.parsed.theme["font-sans"])?.split(",")[0]?.replace(/["']/g, "").trim()
+      ? (parseState.parsed.light["font-sans"] || parseState.parsed.theme["font-sans"])
+          ?.split(",")[0]
+          ?.replace(/["']/g, "")
+          .trim()
       : undefined
 
   return (
@@ -357,16 +363,8 @@ export function ThemeImportDialog({
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <MiniThemeMockup
-                  theme={previewTheme}
-                  mode="light"
-                  label={t("nav.themeLight")}
-                />
-                <MiniThemeMockup
-                  theme={previewTheme}
-                  mode="dark"
-                  label={t("nav.themeDark")}
-                />
+                <MiniThemeMockup theme={previewTheme} mode="light" label={t("nav.themeLight")} />
+                <MiniThemeMockup theme={previewTheme} mode="dark" label={t("nav.themeDark")} />
               </div>
             </div>
           )}

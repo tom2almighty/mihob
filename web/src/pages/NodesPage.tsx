@@ -90,9 +90,7 @@ export function NodesPage() {
   const [inboundNodeId, setInboundNodeId] = useState<number | null>(null)
   const [deletingNode, setDeletingNode] = useState<Node | null>(null)
   const [upgradeTarget, setUpgradeTarget] = useState<
-    | { mode: "single"; node: Node }
-    | { mode: "batch"; nodes: Node[] }
-    | null
+    { mode: "single"; node: Node } | { mode: "batch"; nodes: Node[] } | null
   >(null)
   const [refreshingRelease, setRefreshingRelease] = useState(false)
 
@@ -373,7 +371,9 @@ export function NodesPage() {
               ).map((item) => (
                 <TabsTrigger key={item.key} value={item.key} className="gap-1.5">
                   <span>{item.label}</span>
-                  <span className="font-mono text-[11px] opacity-70 tabular-nums">{item.count}</span>
+                  <span className="font-mono text-[11px] opacity-70 tabular-nums">
+                    {item.count}
+                  </span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -430,7 +430,9 @@ export function NodesPage() {
                   {...getRowDragProps(n.id)}
                   className={cn(
                     draggingId === n.id && "opacity-40",
-                    overId === n.id && draggingId !== n.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
+                    overId === n.id &&
+                      draggingId !== n.id &&
+                      "bg-accent/50 ring-1 ring-inset ring-primary/40"
                   )}
                 >
                   <TableCell className="w-8 px-2">
@@ -438,6 +440,7 @@ export function NodesPage() {
                       <TooltipTrigger
                         render={
                           <span
+                            role="img"
                             className={cn(
                               "inline-flex items-center justify-center text-muted-foreground/60",
                               canDrag
@@ -605,10 +608,7 @@ export function NodesPage() {
         onConfirm={() => deletingNode && deleteMutation.mutate(deletingNode.id)}
       />
 
-      <AlertDialog
-        open={Boolean(upgradeTarget)}
-        onOpenChange={(o) => !o && setUpgradeTarget(null)}
-      >
+      <AlertDialog open={Boolean(upgradeTarget)} onOpenChange={(o) => !o && setUpgradeTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>

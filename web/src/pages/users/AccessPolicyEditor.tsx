@@ -8,11 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import {
-  evaluateAccessPolicy,
-  matchNode,
-  validateRegex,
-} from "@/lib/accessPolicy"
+import { evaluateAccessPolicy, matchNode, validateRegex } from "@/lib/accessPolicy"
 import {
   PROTOCOL_LABELS,
   type AccessMode,
@@ -148,10 +144,7 @@ export function AccessPolicyEditor({
     return map
   }, [allInbounds])
 
-  const matchedNodesOnly = useMemo(
-    () => nodes.filter((n) => matchNode(value, n)),
-    [nodes, value]
-  )
+  const matchedNodesOnly = useMemo(() => nodes.filter((n) => matchNode(value, n)), [nodes, value])
 
   const evaluation = useMemo(
     () => evaluateAccessPolicy(value, nodes, allInbounds),
@@ -163,15 +156,15 @@ export function AccessPolicyEditor({
 
   const nodeRuleEmpty =
     value.node_mode === "rule" &&
-    !(value.node_regions?.length) &&
-    !(value.node_tags?.length) &&
-    !(value.node_name_regex?.trim())
+    !value.node_regions?.length &&
+    !value.node_tags?.length &&
+    !value.node_name_regex?.trim()
 
   const inboundRuleEmpty =
     value.inbound_mode === "rule" &&
-    !(value.inbound_protocols?.length) &&
-    !(value.inbound_tags?.length) &&
-    !(value.inbound_name_regex?.trim())
+    !value.inbound_protocols?.length &&
+    !value.inbound_tags?.length &&
+    !value.inbound_name_regex?.trim()
 
   const toggleID = (list: number[] | undefined, id: number, checked: boolean) => {
     const cur = list ?? []
@@ -208,7 +201,9 @@ export function AccessPolicyEditor({
         {value.node_mode === "rule" && (
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{t("users.form.matchModeLabel")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("users.form.matchModeLabel")}
+              </span>
               <MatchModeToggle
                 value={value.node_match === "any" ? "any" : "all"}
                 onChange={(next) => patch({ node_match: next })}
@@ -309,7 +304,10 @@ export function AccessPolicyEditor({
                         <div className="flex items-center gap-1.5">
                           <span className="truncate font-medium text-foreground">{n.name}</span>
                           {n.region && (
-                            <Badge variant="secondary" className="px-1 py-0 text-[10px] font-normal">
+                            <Badge
+                              variant="secondary"
+                              className="px-1 py-0 text-[10px] font-normal"
+                            >
                               {n.region}
                             </Badge>
                           )}
@@ -390,7 +388,9 @@ export function AccessPolicyEditor({
         {value.inbound_mode === "rule" && (
           <div className="space-y-3 pt-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{t("users.form.matchModeLabel")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("users.form.matchModeLabel")}
+              </span>
               <MatchModeToggle
                 value={value.inbound_match === "any" ? "any" : "all"}
                 onChange={(next) => patch({ inbound_match: next })}
@@ -506,7 +506,10 @@ export function AccessPolicyEditor({
                         <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                           <span>{n.name}</span>
                           {n.region && (
-                            <Badge variant="secondary" className="px-1 py-0 text-[10px] font-normal">
+                            <Badge
+                              variant="secondary"
+                              className="px-1 py-0 text-[10px] font-normal"
+                            >
                               {n.region}
                             </Badge>
                           )}
@@ -528,11 +531,18 @@ export function AccessPolicyEditor({
                                     checked={checked}
                                     onCheckedChange={(v) =>
                                       patch({
-                                        inbound_ids: toggleID(value.inbound_ids, inb.id, Boolean(v)),
+                                        inbound_ids: toggleID(
+                                          value.inbound_ids,
+                                          inb.id,
+                                          Boolean(v)
+                                        ),
                                       })
                                     }
                                   />
-                                  <Badge variant="secondary" className="px-1 py-0 font-mono text-[10px]">
+                                  <Badge
+                                    variant="secondary"
+                                    className="px-1 py-0 font-mono text-[10px]"
+                                  >
                                     {PROTOCOL_LABELS[inb.protocol]}
                                   </Badge>
                                   <span className="truncate text-foreground">{inb.name}</span>
@@ -581,7 +591,9 @@ export function AccessPolicyEditor({
                     if (ins.length === 0) return null
                     return (
                       <div key={n.id} className="space-y-1">
-                        <div className="text-[11px] font-medium text-muted-foreground">{n.name}</div>
+                        <div className="text-[11px] font-medium text-muted-foreground">
+                          {n.name}
+                        </div>
                         <div className="grid gap-1 sm:grid-cols-2">
                           {ins.map((inb) => {
                             const excluded = Boolean(value.exclude_inbound_ids?.includes(inb.id))

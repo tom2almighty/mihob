@@ -143,9 +143,7 @@ export function NodeStatusCell({
         <Badge
           variant={node.online ? "secondary" : "outline"}
           className={
-            node.online
-              ? "bg-success/15 text-success hover:bg-success/20"
-              : "text-muted-foreground"
+            node.online ? "bg-success/15 text-success hover:bg-success/20" : "text-muted-foreground"
           }
         >
           {node.online ? t("nodes.online") : t("nodes.offline")}
@@ -316,7 +314,10 @@ export function NodeStatusPreviewRow({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Badge variant="destructive" className="shrink-0 cursor-help px-1.5 py-0 text-[10px]">
+                  <Badge
+                    variant="destructive"
+                    className="shrink-0 cursor-help px-1.5 py-0 text-[10px]"
+                  >
                     {t("nodes.configError")}
                   </Badge>
                 }
@@ -335,11 +336,7 @@ export function NodeStatusPreviewRow({
         </p>
       </div>
       <div className="w-full shrink-0 sm:w-44">
-        <TrafficProgress
-          used={node.traffic_used}
-          limit={node.traffic_limit}
-          mode={trafficMode}
-        />
+        <TrafficProgress used={node.traffic_used} limit={node.traffic_limit} mode={trafficMode} />
       </div>
     </div>
   )

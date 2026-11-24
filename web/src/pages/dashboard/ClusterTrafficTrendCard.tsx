@@ -201,11 +201,7 @@ export function ClusterTrafficTrendCard({
       sortedIdsKey
     ),
     queryFn: () =>
-      api.dashboardTrafficSeries(
-        range,
-        dimension === "user" ? "user" : "node",
-        activeSelectedIds
-      ),
+      api.dashboardTrafficSeries(range, dimension === "user" ? "user" : "node", activeSelectedIds),
     enabled: dimension !== "cluster" && activeSelectedIds.length > 0,
     refetchInterval: 10_000,
     placeholderData: (prev) => prev,
@@ -260,7 +256,15 @@ export function ClusterTrafficTrendCard({
     }
 
     return []
-  }, [dimension, nodes, nodeTraffic, nodeTrafficSeries, userTraffic, userTrafficSeries, allUsersQuery.data])
+  }, [
+    dimension,
+    nodes,
+    nodeTraffic,
+    nodeTrafficSeries,
+    userTraffic,
+    userTrafficSeries,
+    allUsersQuery.data,
+  ])
 
   const filteredPickerOptions = useMemo(() => {
     const q = filterSearch.trim().toLowerCase()
@@ -277,7 +281,13 @@ export function ClusterTrafficTrendCard({
       return customSeriesQuery.data.series
     }
     return dimension === "node" ? nodeTrafficSeries : userTrafficSeries
-  }, [dimension, activeSelectedIds.length, customSeriesQuery.data, nodeTrafficSeries, userTrafficSeries])
+  }, [
+    dimension,
+    activeSelectedIds.length,
+    customSeriesQuery.data,
+    nodeTrafficSeries,
+    userTrafficSeries,
+  ])
 
   // Build series descriptors for legend, colors, and tooltip
   const seriesDescriptors: SeriesDescriptor[] = useMemo(() => {
@@ -463,7 +473,10 @@ export function ClusterTrafficTrendCard({
             </Tabs>
 
             {/* Metric Tabs: Total / Download / Upload */}
-            <Tabs value={metric} onValueChange={(v) => setMetric((v as TrendTrafficMetric) || "total")}>
+            <Tabs
+              value={metric}
+              onValueChange={(v) => setMetric((v as TrendTrafficMetric) || "total")}
+            >
               <TabsList size="xs">
                 <TabsTrigger value="total">{t("dashboard.metricTotal")}</TabsTrigger>
                 <TabsTrigger value="download">{t("dashboard.metricDownload")}</TabsTrigger>
@@ -664,11 +677,7 @@ export function ClusterTrafficTrendCard({
         ) : !hasEntityData ? (
           <div className="flex h-56 flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 px-4 text-center">
             <div className="mb-1.5 text-muted-foreground">
-              {dimension === "node" ? (
-                <Server className="size-4" />
-              ) : (
-                <Users className="size-4" />
-              )}
+              {dimension === "node" ? <Server className="size-4" /> : <Users className="size-4" />}
             </div>
             <p className="text-xs text-muted-foreground">
               {dimension === "node"
