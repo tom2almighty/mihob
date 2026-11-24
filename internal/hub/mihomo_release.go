@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	mihomoGitHubAPIBase    = "https://api.github.com/repos/MetaCubeX/mihomo/releases"
-	mihomoReleaseCacheTTL  = 15 * time.Minute
-	maxMihomoArchiveBytes  = 100 * 1024 * 1024 // 100 MB compressed
-	maxMihomoBinaryBytes   = 200 * 1024 * 1024 // 200 MB decompressed
+	mihomoGitHubAPIBase     = "https://api.github.com/repos/MetaCubeX/mihomo/releases"
+	mihomoReleaseCacheTTL   = 15 * time.Minute
+	maxMihomoArchiveBytes   = 100 * 1024 * 1024 // 100 MB compressed
+	maxMihomoBinaryBytes    = 200 * 1024 * 1024 // 200 MB decompressed
 	maxCachedMihomoBinaries = 10
 )
 
@@ -36,8 +36,8 @@ var (
 	mihomoVersionPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9._-]+)?$`)
 	semverTriplePattern  = regexp.MustCompile(`v?(\d+)\.(\d+)\.(\d+)`)
 	allowedMihomoHosts   = map[string]bool{
-		"github.com":                          true,
-		"objects.githubusercontent.com":       true,
+		"github.com":                           true,
+		"objects.githubusercontent.com":        true,
 		"release-assets.githubusercontent.com": true,
 	}
 )

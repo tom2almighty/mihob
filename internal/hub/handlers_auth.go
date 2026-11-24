@@ -238,7 +238,7 @@ func (s *Server) handleDashboardTrafficSeries(w http.ResponseWriter, r *http.Req
 	}
 	var ids []int64
 	if rawIDs := strings.TrimSpace(r.URL.Query().Get("ids")); rawIDs != "" {
-		for _, part := range strings.Split(rawIDs, ",") {
+		for part := range strings.SplitSeq(rawIDs, ",") {
 			if id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil && id > 0 {
 				ids = append(ids, id)
 			}

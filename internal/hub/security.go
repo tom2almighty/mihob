@@ -199,10 +199,7 @@ func (l *loginRateLimiter) Allow(ip string, now time.Time) (bool, int) {
 
 	if len(st.attempts) >= loginMaxAttemptsPerWin {
 		oldest := st.attempts[0]
-		sec := int(oldest.Add(loginWindowDuration).Sub(now).Seconds()) + 1
-		if sec < 1 {
-			sec = 1
-		}
+		sec := max(int(oldest.Add(loginWindowDuration).Sub(now).Seconds())+1, 1)
 		return false, sec
 	}
 

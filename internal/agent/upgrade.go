@@ -127,10 +127,10 @@ func validateUpgradePayload(p *protocol.UpgradeMihomoPayload) error {
 
 func downloadAndVerifyMihomo(ctx context.Context, hubURL, nodeToken string, p *protocol.UpgradeMihomoPayload, dstPath string) error {
 	base := strings.TrimRight(strings.TrimSpace(hubURL), "/")
-	if strings.HasPrefix(base, "wss://") {
-		base = "https://" + strings.TrimPrefix(base, "wss://")
-	} else if strings.HasPrefix(base, "ws://") {
-		base = "http://" + strings.TrimPrefix(base, "ws://")
+	if after, ok := strings.CutPrefix(base, "wss://"); ok {
+		base = "https://" + after
+	} else if after, ok := strings.CutPrefix(base, "ws://"); ok {
+		base = "http://" + after
 	}
 	fullURL := base + p.DownloadPath
 

@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -214,7 +215,7 @@ func ValidateURL(rawURL string) error {
 	if err := validateWebhookHost(trimmed); err != nil {
 		return err
 	}
-	sender, err := shoutrrr.CreateSender(trimmed)
+	sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, trimmed)
 	if err != nil {
 		return fmt.Errorf("invalid Shoutrrr URL: %w", err)
 	}
@@ -364,12 +365,7 @@ func channelAcceptsEvent(ch model.NotificationChannel, eventType string) bool {
 	if len(ch.Events) == 0 {
 		return true
 	}
-	for _, ev := range ch.Events {
-		if ev == eventType {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ch.Events, eventType)
 }
 
 func (s *Service) Emit(eventType, title, message, dedupeKey string, cooldown time.Duration) {
@@ -736,10 +732,7 @@ func ShouldRunSchedule(sc *model.NotificationSchedule, now time.Time) bool {
 			return false
 		}
 	case "monthly":
-		dom := sc.DayOfMonth
-		if dom < 1 {
-			dom = 1
-		}
+		dom := max(sc.DayOfMonth, 1)
 		effectiveDay := min(dom, daysInMonth(localNow.Year(), localNow.Month()))
 		if localNow.Day() != effectiveDay {
 			return false

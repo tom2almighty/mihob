@@ -310,7 +310,7 @@ func (s *Server) isAllowedCORSOrigin(origin string, r *http.Request) bool {
 	}
 	// Check explicit env allowlist first (supports "*" if explicitly opted in)
 	if rawEnv := strings.TrimSpace(os.Getenv("MIHOB_CORS_ORIGINS")); rawEnv != "" {
-		for _, item := range strings.Split(rawEnv, ",") {
+		for item := range strings.SplitSeq(rawEnv, ",") {
 			trimmed := strings.TrimRight(strings.TrimSpace(item), "/")
 			if trimmed == "*" || strings.EqualFold(trimmed, origin) {
 				return true

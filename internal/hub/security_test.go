@@ -124,7 +124,7 @@ func TestSecurityHardeningEndToEnd(t *testing.T) {
 
 	// 2. Login rate limit after 5 consecutive failures
 	badBody, _ := json.Marshal(map[string]string{"username": "admin", "password": "wrong"})
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		res := doReq(http.MethodPost, "/api/auth/login", "", badBody, nil)
 		if res.Code != http.StatusUnauthorized {
 			t.Fatalf("attempt %d expected 401, got %d", i+1, res.Code)

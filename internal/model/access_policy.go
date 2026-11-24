@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -38,9 +39,9 @@ type AccessPolicy struct {
 
 func DefaultAccessPolicy() AccessPolicy {
 	return AccessPolicy{
-		NodeMode:    AccessModeAll,
-		NodeMatch:   MatchModeAll,
-		InboundMode: AccessModeAll,
+		NodeMode:     AccessModeAll,
+		NodeMatch:    MatchModeAll,
+		InboundMode:  AccessModeAll,
 		InboundMatch: MatchModeAll,
 	}
 }
@@ -167,12 +168,7 @@ func (p AccessPolicy) Validate() error {
 }
 
 func containsInt64(list []int64, target int64) bool {
-	for _, id := range list {
-		if id == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, target)
 }
 
 func containsFold(list []string, target string) bool {

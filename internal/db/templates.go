@@ -294,10 +294,7 @@ func (s *Store) QueryTrafficSeries(rangeKey string) ([]model.TrafficPoint, error
 				startDay = parsed
 			}
 		}
-		spanDays := int(today.Sub(startDay)/(24*time.Hour)) + 1
-		if spanDays < 1 {
-			spanDays = 1
-		}
+		spanDays := max(int(today.Sub(startDay)/(24*time.Hour))+1, 1)
 		out := make([]model.TrafficPoint, 0, spanDays)
 		for d := startDay; !d.After(today); d = d.AddDate(0, 0, 1) {
 			b := d.Format("2006-01-02")
