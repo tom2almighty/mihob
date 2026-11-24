@@ -3,13 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Cloud, KeyRound } from "lucide-react"
 import { CopyButton } from "@/components/common/CommonUI"
 import { Button } from "@/components/ui/button"
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form"
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -90,7 +84,9 @@ export function InboundProtocolFields({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="reality">{t("nodes.inbound.fields.securityReality")}</SelectItem>
+                    <SelectItem value="reality">
+                      {t("nodes.inbound.fields.securityReality")}
+                    </SelectItem>
                     <SelectItem value="tls">{t("nodes.inbound.fields.securityTls")}</SelectItem>
                     <SelectItem value="none">{t("nodes.inbound.fields.securityNone")}</SelectItem>
                   </SelectContent>
@@ -414,7 +410,13 @@ export function InboundProtocolFields({
                 <FormItem>
                   <FormLabel>{t("nodes.inbound.fields.vmessAlterId")}</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      className="tabular-nums"
+                      {...field}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -470,11 +472,15 @@ export function InboundProtocolFields({
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("nodes.inbound.fields.selectCertPlaceholder")} />
+                        <SelectValue
+                          placeholder={t("nodes.inbound.fields.selectCertPlaceholder")}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="none">{t("nodes.inbound.fields.noCertSelected")}</SelectItem>
+                      <SelectItem value="none">
+                        {t("nodes.inbound.fields.noCertSelected")}
+                      </SelectItem>
                       {certs.map((c) => (
                         <SelectItem key={c.id} value={String(c.id)}>
                           {c.name} ({c.domain})
@@ -494,7 +500,10 @@ export function InboundProtocolFields({
                   <FormItem>
                     <FormLabel>{t("nodes.inbound.fields.clientSni")}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t("nodes.inbound.fields.clientSniPlaceholder")} {...field} />
+                      <Input
+                        placeholder={t("nodes.inbound.fields.clientSniPlaceholder")}
+                        {...field}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -520,7 +529,11 @@ export function InboundProtocolFields({
                   <FormItem>
                     <FormLabel>{t("nodes.inbound.fields.alpn")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="h3, h2, http/1.1" className="font-mono text-xs" {...field} />
+                      <Input
+                        placeholder="h3, h2, http/1.1"
+                        className="font-mono text-xs"
+                        {...field}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -555,6 +568,46 @@ export function InboundProtocolFields({
                 )}
               />
             </div>
+
+            {SUPPORTS_REALITY.includes(protocol) && security === "tls" && (
+              <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="client_server"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
+                          className="font-mono text-xs"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="client_port"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("nodes.inbound.fields.clientPort")}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={65535}
+                          placeholder="0"
+                          className="tabular-nums"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <div className="space-y-3 border-t border-border pt-3">
               <div className="text-xs font-medium text-foreground">
@@ -667,8 +720,12 @@ export function InboundProtocolFields({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="2022-blake3-aes-128-gcm">2022-blake3-aes-128-gcm</SelectItem>
-                      <SelectItem value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</SelectItem>
+                      <SelectItem value="2022-blake3-aes-128-gcm">
+                        2022-blake3-aes-128-gcm
+                      </SelectItem>
+                      <SelectItem value="2022-blake3-aes-256-gcm">
+                        2022-blake3-aes-256-gcm
+                      </SelectItem>
                       <SelectItem value="aes-256-gcm">aes-256-gcm</SelectItem>
                       <SelectItem value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</SelectItem>
                     </SelectContent>
@@ -887,10 +944,7 @@ export function InboundProtocolFields({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("nodes.inbound.fields.sudokuTableType")}</FormLabel>
-                    <Select
-                      value={field.value || "prefer_ascii"}
-                      onValueChange={field.onChange}
-                    >
+                    <Select value={field.value || "prefer_ascii"} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
@@ -1247,7 +1301,9 @@ export function InboundProtocolFields({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="default">{t("nodes.inbound.fields.bbrDefault")}</SelectItem>
+                      <SelectItem value="default">
+                        {t("nodes.inbound.fields.bbrDefault")}
+                      </SelectItem>
                       <SelectItem value="standard">standard</SelectItem>
                       <SelectItem value="conservative">conservative</SelectItem>
                       <SelectItem value="aggressive">aggressive</SelectItem>
@@ -1263,7 +1319,13 @@ export function InboundProtocolFields({
                 <FormItem>
                   <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      className="tabular-nums"
+                      {...field}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -1336,7 +1398,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1348,7 +1416,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.maxIdleTime")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="15000" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="15000"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1466,7 +1540,13 @@ export function InboundProtocolFields({
                 <FormItem>
                   <FormLabel>{t("nodes.inbound.fields.mieruTcpIdleTimeout")}</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} placeholder="120" className="tabular-nums" {...field} />
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="120"
+                      className="tabular-nums"
+                      {...field}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -1504,7 +1584,9 @@ export function InboundProtocolFields({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="both">{t("nodes.inbound.fields.trusttunnelBoth")}</SelectItem>
+                    <SelectItem value="both">
+                      {t("nodes.inbound.fields.trusttunnelBoth")}
+                    </SelectItem>
                     <SelectItem value="udp">{t("nodes.inbound.fields.trusttunnelUdp")}</SelectItem>
                     <SelectItem value="tcp">TCP (HTTP/2)</SelectItem>
                   </SelectContent>
@@ -1540,7 +1622,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1564,7 +1652,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.trusttunnelMaxConns")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1576,7 +1670,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.trusttunnelMinStreams")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1588,7 +1688,13 @@ export function InboundProtocolFields({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.trusttunnelMaxStreams")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
               </FormItem>
             )}
@@ -1612,7 +1718,9 @@ export function InboundProtocolFields({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="bbr">{t("nodes.inbound.fields.bbrRecommended")}</SelectItem>
+                      <SelectItem value="bbr">
+                        {t("nodes.inbound.fields.bbrRecommended")}
+                      </SelectItem>
                       <SelectItem value="cubic">Cubic</SelectItem>
                       <SelectItem value="new_reno">New Reno</SelectItem>
                     </SelectContent>
@@ -1627,7 +1735,13 @@ export function InboundProtocolFields({
                 <FormItem>
                   <FormLabel>{t("nodes.inbound.fields.cwnd")}</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      className="tabular-nums"
+                      {...field}
+                    />
                   </FormControl>
                 </FormItem>
               )}

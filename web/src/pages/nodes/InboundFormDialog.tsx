@@ -7,12 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { TagInput } from "@/components/common/TagInput"
 import { Button } from "@/components/ui/button"
-import {
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -270,11 +265,13 @@ function buildInboundPayload(v: InboundFormValues): Record<string, unknown> {
 export function InboundFormView({
   nodeId,
   nodeName,
+  nodeOutbounds = [],
   inbound,
   onBack,
 }: {
   nodeId: number
   nodeName: string
+  nodeOutbounds?: string[]
   inbound: Inbound | null
   onBack: () => void
 }) {
@@ -549,7 +546,10 @@ export function InboundFormView({
                                 form.setValue("tag", PROTOCOL_LABELS[proto])
                                 form.setValue("name", `${proto}-${form.getValues("port")}`)
                               }
-                              if (NEEDS_CERT_ALWAYS.includes(proto) || SUPPORTS_OPTIONAL_TLS.includes(proto)) {
+                              if (
+                                NEEDS_CERT_ALWAYS.includes(proto) ||
+                                SUPPORTS_OPTIONAL_TLS.includes(proto)
+                              ) {
                                 form.setValue("security", "tls")
                               } else if (SUPPORTS_REALITY.includes(proto)) {
                                 form.setValue("security", "reality")
@@ -582,7 +582,13 @@ export function InboundFormView({
                         <FormItem>
                           <FormLabel>{t("nodes.inbound.port")}</FormLabel>
                           <FormControl>
-                            <Input type="number" min={1} max={65535} className="tabular-nums" {...field} />
+                            <Input
+                              type="number"
+                              min={1}
+                              max={65535}
+                              className="tabular-nums"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -705,6 +711,7 @@ export function InboundFormView({
                   <InboundAdvancedTab
                     key={inbound?.id ?? "new"}
                     nodeId={nodeId}
+                    nodeOutbounds={nodeOutbounds}
                     form={form}
                     buildPayload={buildInboundPayload}
                   />

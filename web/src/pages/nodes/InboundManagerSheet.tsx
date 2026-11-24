@@ -6,12 +6,7 @@ import { toast } from "sonner"
 import { ConfirmDeleteDialog, EmptyState, ErrorState } from "@/components/common/CommonUI"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
@@ -99,6 +94,9 @@ export function InboundManagerSheet({
             <InboundFormView
               nodeId={node.id}
               nodeName={node.name}
+              nodeOutbounds={(node.outbound_config?.outbounds ?? [])
+                .filter((o) => o.enabled && o.name.trim())
+                .map((o) => o.name.trim())}
               inbound={editing}
               onBack={() => {
                 setView("list")
@@ -108,7 +106,9 @@ export function InboundManagerSheet({
           ) : (
             <>
               <DialogHeader className="shrink-0 border-b border-border px-6 pt-5 pr-20 pb-4">
-                <DialogTitle>{t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}</DialogTitle>
+                <DialogTitle>
+                  {t("nodes.inbound.sheetTitle", { name: node?.name ?? "" })}
+                </DialogTitle>
                 <div className="flex items-center gap-2 pt-2">
                   <Button
                     size="sm"
@@ -134,166 +134,186 @@ export function InboundManagerSheet({
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                 <div className="space-y-3 group-data-[expanded=true]/dialog:mx-auto group-data-[expanded=true]/dialog:w-full group-data-[expanded=true]/dialog:max-w-4xl">
-            {query.isLoading ? (
-              <div className="space-y-2.5">
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : query.isError ? (
-              <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
-            ) : !query.data?.length ? (
-              <EmptyState
-                icon={<Radio className="size-5" />}
-                title={t("nodes.inbound.emptyTitle")}
-                description={t("nodes.inbound.emptyDesc")}
-              />
-            ) : (
-              inbounds.map((inb) => (
-                <div
-                  key={inb.id}
-                  {...getRowDragProps(inb.id)}
-                  className={cn(
-                    "flex items-start justify-between gap-2.5 rounded-lg border border-border bg-card p-3.5 transition-colors",
-                    draggingId === inb.id && "opacity-40",
-                    overId === inb.id && draggingId !== inb.id && "bg-accent/50 ring-1 ring-inset ring-primary/40"
-                  )}
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-2">
-                    <span
-                      className={cn(
-                        "mt-0.5 inline-flex shrink-0 items-center justify-center text-muted-foreground/60",
-                        canDrag
-                          ? "cursor-grab hover:text-foreground active:cursor-grabbing"
-                          : "cursor-not-allowed opacity-40"
-                      )}
-                      aria-label={t("common.dragToReorder")}
-                    >
-                      <GripVertical className="size-4" />
-                    </span>
-                    <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {PROTOCOL_LABELS[inb.protocol]}
-                      </Badge>
-                      <span className="text-sm font-medium text-foreground">{inb.name}</span>
-                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                        :{inb.port}
-                      </span>
-                      {(inb.tags ?? []).map((tg) => (
-                        <Badge
-                          key={tg}
-                          variant="outline"
-                          className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
-                        >
-                          {tg}
-                        </Badge>
-                      ))}
-                      {!inb.enabled && (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">
-                          {t("common.disabled")}
-                        </Badge>
-                      )}
+                  {query.isLoading ? (
+                    <div className="space-y-2.5">
+                      <Skeleton className="h-20 w-full" />
+                      <Skeleton className="h-20 w-full" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      {inb.settings?.security && inb.settings.security !== "none" && (
-                        <span>
-                          {t("nodes.inbound.securityLabel", {
-                            value: inb.settings.security.toUpperCase(),
-                          })}
-                        </span>
-                      )}
-                      {(inb.protocol === "vless" ||
-                        inb.protocol === "vmess" ||
-                        inb.protocol === "trojan") &&
-                        inb.settings?.network && (
-                          <span>
-                            {t("nodes.inbound.networkLabel", {
-                              value: inb.settings.network.toUpperCase(),
-                            })}
-                          </span>
+                  ) : query.isError ? (
+                    <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
+                  ) : !query.data?.length ? (
+                    <EmptyState
+                      icon={<Radio className="size-5" />}
+                      title={t("nodes.inbound.emptyTitle")}
+                      description={t("nodes.inbound.emptyDesc")}
+                    />
+                  ) : (
+                    inbounds.map((inb) => (
+                      <div
+                        key={inb.id}
+                        {...getRowDragProps(inb.id)}
+                        className={cn(
+                          "flex items-start justify-between gap-2.5 rounded-lg border border-border bg-card p-3.5 transition-colors",
+                          draggingId === inb.id && "opacity-40",
+                          overId === inb.id &&
+                            draggingId !== inb.id &&
+                            "bg-accent/50 ring-1 ring-inset ring-primary/40"
                         )}
-                      {inb.protocol === "shadowsocks" && inb.settings?.ss_cipher && (
-                        <span>
-                          {t("nodes.inbound.cipherLabel", { value: inb.settings.ss_cipher })}
-                        </span>
-                      )}
-                      {inb.protocol === "mieru" && (
-                        <span>
-                          {t("nodes.inbound.networkLabel", {
-                            value: (inb.settings?.mieru_transport || "TCP").toUpperCase(),
-                          })}
-                        </span>
-                      )}
-                      {inb.protocol === "trusttunnel" && (
-                        <span>
-                          {t("nodes.inbound.networkLabel", {
-                            value: (inb.settings?.trusttunnel_network || "both").toUpperCase(),
-                          })}
-                        </span>
-                      )}
-                      {inb.protocol === "snell" && (
-                        <span>v{inb.settings?.snell_version || 4}</span>
-                      )}
-                      {inb.protocol === "sudoku" && inb.settings?.sudoku_aead_method && (
-                        <span>
-                          {t("nodes.inbound.cipherLabel", {
-                            value: inb.settings.sudoku_aead_method,
-                          })}
-                        </span>
-                      )}
-                      {inb.cert_id && (
-                        <span>{t("nodes.inbound.certLabel", { id: inb.cert_id })}</span>
-                      )}
-                      {inb.settings?.proxy_name ? (
-                        <span>
-                          {t("nodes.inbound.proxyNameLabel", { value: inb.settings.proxy_name })}
-                        </span>
-                      ) : (
-                        inb.tag && <span>{t("nodes.inbound.tagLabel", { value: inb.tag })}</span>
-                      )}
-                    </div>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label={t("nodes.inbound.editAria")}
-                            onClick={() => {
-                              setEditing(inb)
-                              setView("form")
-                            }}
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          <span
+                            role="img"
+                            className={cn(
+                              "mt-0.5 inline-flex shrink-0 items-center justify-center text-muted-foreground/60",
+                              canDrag
+                                ? "cursor-grab hover:text-foreground active:cursor-grabbing"
+                                : "cursor-not-allowed opacity-40"
+                            )}
+                            aria-label={t("common.dragToReorder")}
                           >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>{t("nodes.inbound.editTooltip")}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            aria-label={t("nodes.inbound.deleteAria")}
-                            onClick={() => setDeleting(inb)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>{t("nodes.inbound.deleteTooltip")}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
-              ))
-            )}
+                            <GripVertical className="size-4" />
+                          </span>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary" className="font-mono text-xs">
+                                {PROTOCOL_LABELS[inb.protocol]}
+                              </Badge>
+                              <span className="text-sm font-medium text-foreground">
+                                {inb.name}
+                              </span>
+                              <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                                :{inb.port}
+                              </span>
+                              {(inb.tags ?? []).map((tg) => (
+                                <Badge
+                                  key={tg}
+                                  variant="outline"
+                                  className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
+                                >
+                                  {tg}
+                                </Badge>
+                              ))}
+                              {!inb.enabled && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground">
+                                  {t("common.disabled")}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              {inb.settings?.security && inb.settings.security !== "none" && (
+                                <span>
+                                  {t("nodes.inbound.securityLabel", {
+                                    value: inb.settings.security.toUpperCase(),
+                                  })}
+                                </span>
+                              )}
+                              {(inb.protocol === "vless" ||
+                                inb.protocol === "vmess" ||
+                                inb.protocol === "trojan") &&
+                                inb.settings?.network && (
+                                  <span>
+                                    {t("nodes.inbound.networkLabel", {
+                                      value: inb.settings.network.toUpperCase(),
+                                    })}
+                                  </span>
+                                )}
+                              {inb.protocol === "shadowsocks" && inb.settings?.ss_cipher && (
+                                <span>
+                                  {t("nodes.inbound.cipherLabel", {
+                                    value: inb.settings.ss_cipher,
+                                  })}
+                                </span>
+                              )}
+                              {inb.protocol === "mieru" && (
+                                <span>
+                                  {t("nodes.inbound.networkLabel", {
+                                    value: (inb.settings?.mieru_transport || "TCP").toUpperCase(),
+                                  })}
+                                </span>
+                              )}
+                              {inb.protocol === "trusttunnel" && (
+                                <span>
+                                  {t("nodes.inbound.networkLabel", {
+                                    value: (
+                                      inb.settings?.trusttunnel_network || "both"
+                                    ).toUpperCase(),
+                                  })}
+                                </span>
+                              )}
+                              {inb.protocol === "snell" && (
+                                <span>v{inb.settings?.snell_version || 4}</span>
+                              )}
+                              {inb.protocol === "sudoku" && inb.settings?.sudoku_aead_method && (
+                                <span>
+                                  {t("nodes.inbound.cipherLabel", {
+                                    value: inb.settings.sudoku_aead_method,
+                                  })}
+                                </span>
+                              )}
+                              {inb.cert_id && (
+                                <span>{t("nodes.inbound.certLabel", { id: inb.cert_id })}</span>
+                              )}
+                              {inb.settings?.listener_proxy && (
+                                <span className="font-mono">
+                                  {t("nodes.inbound.outboundLabel", {
+                                    value: inb.settings.listener_proxy,
+                                  })}
+                                </span>
+                              )}
+                              {inb.settings?.proxy_name ? (
+                                <span>
+                                  {t("nodes.inbound.proxyNameLabel", {
+                                    value: inb.settings.proxy_name,
+                                  })}
+                                </span>
+                              ) : (
+                                inb.tag && (
+                                  <span>{t("nodes.inbound.tagLabel", { value: inb.tag })}</span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8"
+                                  aria-label={t("nodes.inbound.editAria")}
+                                  onClick={() => {
+                                    setEditing(inb)
+                                    setView("form")
+                                  }}
+                                >
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>{t("nodes.inbound.editTooltip")}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  aria-label={t("nodes.inbound.deleteAria")}
+                                  onClick={() => setDeleting(inb)}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              }
+                            />
+                            <TooltipContent>{t("nodes.inbound.deleteTooltip")}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </>

@@ -110,7 +110,7 @@ func renderWithPlaceholders(tmpl string, proxies []map[string]any, names []strin
 			if proxiesYAML == "" {
 				continue
 			}
-			for _, pl := range strings.Split(proxiesYAML, "\n") {
+			for pl := range strings.SplitSeq(proxiesYAML, "\n") {
 				out = append(out, indent+pl)
 			}
 			continue
@@ -207,7 +207,7 @@ func buildClientProxyBase(
 				"path": nonEmpty(in.Settings.WSPath, "/"),
 			}
 			wsHost := strings.TrimSpace(in.Settings.WSHost)
-			if wsHost == "" && in.Settings.ClientTLS && sni != "" {
+			if wsHost == "" && (in.Settings.ClientTLS || in.Settings.Security == "tls") && sni != "" {
 				wsHost = sni
 			}
 			if wsHost != "" {
@@ -226,7 +226,7 @@ func buildClientProxyBase(
 				"mode": nonEmpty(in.Settings.XHTTPMode, "auto"),
 			}
 			xHost := strings.TrimSpace(in.Settings.XHTTPHost)
-			if xHost == "" && in.Settings.ClientTLS && sni != "" {
+			if xHost == "" && (in.Settings.ClientTLS || in.Settings.Security == "tls") && sni != "" {
 				xHost = sni
 			}
 			if xHost != "" {

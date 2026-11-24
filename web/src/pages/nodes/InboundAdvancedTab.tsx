@@ -7,23 +7,19 @@ import { toast } from "sonner"
 import { CopyButton } from "@/components/common/CommonUI"
 import { YamlCodeBlock, YamlEditor } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form"
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
 import type { InboundFormValues } from "./inboundSchema"
 
 export function InboundAdvancedTab({
   nodeId,
+  nodeOutbounds = [],
   form,
   buildPayload,
 }: {
   nodeId: number
+  nodeOutbounds?: string[]
   form: UseFormReturn<InboundFormValues>
   buildPayload: (v: InboundFormValues) => Record<string, unknown>
 }) {
@@ -51,11 +47,7 @@ export function InboundAdvancedTab({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.advanced.portRange")}</FormLabel>
                 <FormControl>
-                  <Input
-                    placeholder="200,302,401-429"
-                    className="font-mono text-xs"
-                    {...field}
-                  />
+                  <Input placeholder="200,302,401-429" className="font-mono text-xs" {...field} />
                 </FormControl>
                 <FormDescription className="text-[11px]">
                   {t("nodes.inbound.advanced.portRangeDesc")}
@@ -70,7 +62,13 @@ export function InboundAdvancedTab({
               <FormItem>
                 <FormLabel>{t("nodes.inbound.advanced.routingMark")}</FormLabel>
                 <FormControl>
-                  <Input type="number" min={0} placeholder="0" className="tabular-nums" {...field} />
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    className="tabular-nums"
+                    {...field}
+                  />
                 </FormControl>
                 <FormDescription className="text-[11px]">
                   {t("nodes.inbound.advanced.routingMarkDesc")}
@@ -107,6 +105,28 @@ export function InboundAdvancedTab({
                     {...field}
                   />
                 </FormControl>
+                {nodeOutbounds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 pt-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("nodes.inbound.advanced.quickPickOutbound")}
+                    </span>
+                    {[...nodeOutbounds, "DIRECT"].map((name) => {
+                      const active = field.value === name
+                      return (
+                        <Button
+                          key={name}
+                          type="button"
+                          variant={active ? "default" : "outline"}
+                          size="sm"
+                          className="h-5 px-1.5 font-mono text-[11px]"
+                          onClick={() => field.onChange(active ? "" : name)}
+                        >
+                          {name}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                )}
               </FormItem>
             )}
           />
@@ -184,7 +204,9 @@ export function InboundAdvancedTab({
             ) : (
               <Eye className="mr-1.5 size-3.5" />
             )}
-            {preview ? t("nodes.inbound.advanced.refreshPreview") : t("nodes.inbound.advanced.previewBtn")}
+            {preview
+              ? t("nodes.inbound.advanced.refreshPreview")
+              : t("nodes.inbound.advanced.previewBtn")}
           </Button>
         </div>
 

@@ -61,7 +61,7 @@ function buildDockerCompose(
     if (opts.cfHaConnections !== "4") cfFlags.push(`--ha-connections ${opts.cfHaConnections}`)
     if (opts.cfLogLevel !== "info") cfFlags.push(`--loglevel ${opts.cfLogLevel}`)
 
-    out += `\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    command: tunnel ${cfFlags.join(" ")} run --token "${tok}"`
+    out += `\n\n  cloudflared:\n    image: cloudflare/cloudflared:latest\n    container_name: mihob-cloudflared\n    restart: unless-stopped\n    network_mode: host\n    environment:\n      TUNNEL_TOKEN: "${tok}"\n    command: tunnel ${cfFlags.join(" ")} run`
     if (addLabel) {
       out += `\n    labels:\n      - "com.centurylinklabs.watchtower.enable=true"`
     }
@@ -99,6 +99,16 @@ export function InstallCommandDialog({
     queryFn: () => api.getNodeInstall(node!.id),
     enabled: open && Boolean(node),
   })
+
+  const inboundsQuery = useQuery({
+    queryKey: node ? queryKeys.inbounds(node.id) : ["inbounds", "none"],
+    queryFn: () => api.listInbounds(node!.id),
+    enabled: open && Boolean(node) && cfEnabled,
+  })
+
+  const cfOriginInbounds = (inboundsQuery.data ?? []).filter(
+    (inb) => inb.enabled && (inb.settings?.client_tls || inb.listen === "127.0.0.1")
+  )
 
   const regenMutation = useMutation({
     mutationFn: () => api.regenerateNodeToken(node!.id),
@@ -271,8 +281,12 @@ export function InstallCommandDialog({
                                       <SelectItem value="auto">
                                         {t("nodes.install.cfEdgeIpAuto")}
                                       </SelectItem>
-                                      <SelectItem value="4">{t("nodes.install.cfEdgeIp4")}</SelectItem>
-                                      <SelectItem value="6">{t("nodes.install.cfEdgeIp6")}</SelectItem>
+                                      <SelectItem value="4">
+                                        {t("nodes.install.cfEdgeIp4")}
+                                      </SelectItem>
+                                      <SelectItem value="6">
+                                        {t("nodes.install.cfEdgeIp6")}
+                                      </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -321,6 +335,42 @@ export function InstallCommandDialog({
                                   </Select>
                                 </div>
                               </div>
+                              {cfOriginInbounds.length > 0 && (
+                                <div className="space-y-1.5 rounded-md border border-border bg-background/80 p-2 text-xs">
+                                  <div className="text-[11px] font-medium text-muted-foreground">
+                                    {t("nodes.install.cfDetectedOrigins")}
+                                  </div>
+                                  <div className="space-y-1">
+                                    {cfOriginInbounds.map((inb) => {
+                                      const scheme =
+                                        inb.settings?.security === "tls" ? "https" : "http"
+                                      const originUrl = `${scheme}://127.0.0.1:${inb.port}`
+                                      return (
+                                        <div
+                                          key={inb.id}
+                                          className="flex items-center justify-between gap-2"
+                                        >
+                                          <div className="min-w-0 truncate">
+                                            <span className="font-medium text-foreground">
+                                              {inb.name}
+                                            </span>
+                                            <span className="mx-1.5 text-muted-foreground">→</span>
+                                            <code className="font-mono text-foreground">
+                                              {originUrl}
+                                            </code>
+                                            {inb.settings?.sni && (
+                                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
+                                                ({inb.settings.sni})
+                                              </span>
+                                            )}
+                                          </div>
+                                          <CopyButton value={originUrl} size="icon-sm" />
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

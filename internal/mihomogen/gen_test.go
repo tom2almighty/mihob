@@ -280,6 +280,46 @@ func TestCloudflareTunnelClientOverride(t *testing.T) {
 	}
 }
 
+func TestWSTLSCDNClientOverride(t *testing.T) {
+	node := &model.Node{ID: 1, Name: "CDN-Node", Host: "origin.example.com", Enabled: true}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32), Enabled: true,
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 1, Name: "vless-ws-tls", Tag: "WS-TLS", Protocol: model.ProtoVLESS,
+			Listen: "0.0.0.0", Port: 2053, Enabled: true,
+			Settings: model.InboundSettings{
+				Security:     "tls",
+				Network:      "ws",
+				WSPath:       "/ws",
+				SNI:          "cdn.example.com",
+				ClientServer: "104.16.1.1",
+				ClientPort:   443,
+			},
+		},
+	}
+	subYAML, err := RenderUserSubscription(&user, []NodeWithInbounds{{Node: *node, Inbounds: inbounds}}, map[int64]*model.Certificate{}, db.DefaultMihomoTemplate)
+	if err != nil {
+		t.Fatalf("RenderUserSubscription failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(subYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	proxies := parsed["proxies"].([]any)
+	p := proxies[0].(map[string]any)
+	if p["server"] != "104.16.1.1" || p["port"] != 443 || p["tls"] != true || p["servername"] != "cdn.example.com" {
+		t.Fatalf("unexpected ws+tls cdn client proxy: %+v", p)
+	}
+	wsOpts := p["ws-opts"].(map[string]any)
+	headers := wsOpts["headers"].(map[string]any)
+	if headers["Host"] != "cdn.example.com" {
+		t.Fatalf("expected ws Host header auto-filled from SNI cdn.example.com, got %v", headers["Host"])
+	}
+}
+
 func TestPerInboundUserAccessFiltering(t *testing.T) {
 	priv, pub, err := crypto.GenerateRealityKeyPair()
 	if err != nil {
@@ -704,5 +744,154 @@ rules:
 	selfProxy := landingProxies[1].(map[string]any)
 	if selfProxy["name"] != "UNLOCK-US" || selfProxy["type"] != "direct" {
 		t.Fatalf("expected self-referenced proxy to resolve to direct, got %+v", selfProxy)
+	}
+}
+
+func TestNodeStructuredOutboundsAndRouting(t *testing.T) {
+	node := &model.Node{
+		ID:      1,
+		Name:    "JP-01",
+		Host:    "jp.example.com",
+		Enabled: true,
+		OutboundConfig: model.NodeOutboundConfig{
+			Outbounds: []model.NodeOutbound{
+				{
+					Name:       "WARP",
+					Type:       model.OutboundTypeWARP,
+					Enabled:    true,
+					IP:         "172.16.0.2/32",
+					IPv6:       "2606:4700:110::2/128",
+					PrivateKey: "warp-private-key",
+					Reserved:   "12, 34, 56",
+				},
+				{
+					Name:     "RES-SOCKS",
+					Type:     model.OutboundTypeSocks5,
+					Enabled:  true,
+					Server:   "198.51.100.10",
+					Port:     1080,
+					Username: "u1",
+					Password: "p1",
+				},
+				{
+					Name:    "DISABLED-OUT",
+					Type:    model.OutboundTypeHTTP,
+					Enabled: false,
+					Server:  "198.51.100.20",
+					Port:    8080,
+				},
+			},
+			Routing: model.NodeOutboundRouting{
+				Mode:          model.OutboundRouteSplit,
+				Target:        "WARP",
+				RulePresets:   []string{"ai", "netflix"},
+				CustomDomains: []string{"example.org", "DOMAIN-KEYWORD,custom"},
+			},
+		},
+	}
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 1, Name: "mixed-in", Protocol: model.ProtoMixed,
+			Port: 1080, Enabled: true, Settings: model.InboundSettings{Security: "none"},
+		},
+	}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32),
+		Enabled: true, AccessPolicy: model.DefaultAccessPolicy(),
+	}
+
+	// Server template has an anti-abuse rule + placeholder WARP + another proxy KEEP-ME
+	serverTmpl := `
+mode: rule
+proxies:
+  - name: WARP
+    type: socks5
+    server: 127.0.0.1
+    port: 40000
+  - name: KEEP-ME
+    type: http
+    server: 127.0.0.1
+    port: 8888
+rules:
+  - DST-PORT,25,REJECT
+  - MATCH,DIRECT
+`
+
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, serverTmpl, nil, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(bundle.ConfigYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// 1. Proxies merged by name: WARP replaced by native WireGuard, KEEP-ME preserved, RES-SOCKS appended, DISABLED-OUT skipped
+	proxies, ok := parsed["proxies"].([]any)
+	if !ok || len(proxies) != 3 {
+		t.Fatalf("expected 3 merged proxies (WARP, KEEP-ME, RES-SOCKS), got %+v", parsed["proxies"])
+	}
+	p0 := proxies[0].(map[string]any)
+	if p0["name"] != "WARP" || p0["type"] != "wireguard" || p0["server"] != model.DefaultWARPServer || p0["port"] != model.DefaultWARPPort || p0["ip"] != "172.16.0.2" || p0["ipv6"] != "2606:4700:110::2" || p0["public-key"] != model.DefaultWARPPublicKey || p0["remote-dns-resolve"] != true {
+		t.Fatalf("unexpected WARP wireguard proxy: %+v", p0)
+	}
+	resBytes, ok := p0["reserved"].([]any)
+	if !ok || len(resBytes) != 3 || resBytes[0] != 12 || resBytes[1] != 34 || resBytes[2] != 56 {
+		t.Fatalf("unexpected WARP reserved bytes: %+v", p0["reserved"])
+	}
+	if proxies[1].(map[string]any)["name"] != "KEEP-ME" {
+		t.Fatalf("expected template proxy KEEP-ME preserved, got %+v", proxies[1])
+	}
+	p2 := proxies[2].(map[string]any)
+	if p2["name"] != "RES-SOCKS" || p2["type"] != "socks5" || p2["username"] != "u1" {
+		t.Fatalf("unexpected RES-SOCKS proxy: %+v", p2)
+	}
+
+	// 2. Rules preserve DST-PORT,25,REJECT first, insert split rules, end with MATCH,DIRECT
+	rules, ok := parsed["rules"].([]any)
+	if !ok || len(rules) < 5 {
+		t.Fatalf("expected merged rules, got %+v", parsed["rules"])
+	}
+	if rules[0] != "DST-PORT,25,REJECT" {
+		t.Fatalf("expected template reject rule preserved first, got %v", rules[0])
+	}
+	if rules[len(rules)-1] != "MATCH,DIRECT" {
+		t.Fatalf("expected MATCH,DIRECT last, got %v", rules[len(rules)-1])
+	}
+	hasOpenAI, hasCustomSuffix, hasCustomKeyword := false, false, false
+	for _, r := range rules {
+		switch r {
+		case "DOMAIN-SUFFIX,openai.com,WARP":
+			hasOpenAI = true
+		case "DOMAIN-SUFFIX,example.org,WARP":
+			hasCustomSuffix = true
+		case "DOMAIN-KEYWORD,custom,WARP":
+			hasCustomKeyword = true
+		}
+	}
+	if !hasOpenAI || !hasCustomSuffix || !hasCustomKeyword {
+		t.Fatalf("missing expected split rules in %+v", rules)
+	}
+	if sniffer, ok := parsed["sniffer"].(map[string]any); !ok || sniffer["enable"] != true {
+		t.Fatalf("expected sniffer auto-enabled for split routing, got %+v", parsed["sniffer"])
+	}
+
+	// 3. Global routing mode preserves non-MATCH rules and rewrites MATCH to target
+	node.OutboundConfig.Routing = model.NodeOutboundRouting{
+		Mode:   model.OutboundRouteGlobal,
+		Target: "RES-SOCKS",
+	}
+	globalBundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, serverTmpl, nil, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig global: %v", err)
+	}
+	var globalParsed map[string]any
+	if err := yaml.Unmarshal([]byte(globalBundle.ConfigYAML), &globalParsed); err != nil {
+		t.Fatalf("unmarshal global: %v", err)
+	}
+	gRules := globalParsed["rules"].([]any)
+	if len(gRules) != 2 || gRules[0] != "DST-PORT,25,REJECT" || gRules[1] != "MATCH,RES-SOCKS" {
+		t.Fatalf("unexpected global routing rules: %+v", gRules)
 	}
 }
