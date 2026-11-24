@@ -30,7 +30,7 @@ const (
 
 type NodeOutboundConfig struct {
 	Outbounds []NodeOutbound      `json:"outbounds,omitempty"`
-	Routing   NodeOutboundRouting `json:"routing,omitempty"`
+	Routing   NodeOutboundRouting `json:"routing"`
 }
 
 type NodeOutbound struct {

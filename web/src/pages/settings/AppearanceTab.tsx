@@ -106,7 +106,7 @@ function ThemePresetCard({
                 className="flex size-4 items-center justify-center rounded-full"
                 style={{ backgroundColor: preview.primary, color: preview.background }}
               >
-                <Check className="size-2.5 stroke-[3]" />
+                <Check className="size-2.5 stroke-3" />
               </span>
             )}
           </div>
