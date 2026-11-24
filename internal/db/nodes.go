@@ -13,13 +13,14 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	var n model.Node
 	var enabled int
 	var tagsJSON string
+	var outboundJSON string
 	var serverTmplID, serverIPv6 sql.NullInt64
 	var lastReset, expireAt, lastSeen sql.NullTime
 	err := row.Scan(
 		&n.ID, &n.Name, &n.Host, &n.Region, &tagsJSON, &n.Token, &enabled,
 		&n.TrafficLimit, &n.TrafficUsed, &n.UploadUsed, &n.DownloadUsed,
 		&n.TrafficMultiplier, &n.ResetDay, &lastReset, &expireAt, &n.BillingCycle, &n.Remark,
-		&serverTmplID, &n.ServerLogLevel, &serverIPv6, &n.ExtraServerYAML,
+		&serverTmplID, &n.ServerLogLevel, &serverIPv6, &outboundJSON, &n.ExtraServerYAML,
 		&n.MihomoVersion, &n.AgentVersion, &n.ConfigHash, &n.ConfigStatus,
 		&n.ConfigError, &lastSeen, &n.CreatedAt, &n.UpdatedAt, &n.InboundCount,
 	)
@@ -29,6 +30,10 @@ func scanNode(row interface{ Scan(...any) error }) (*model.Node, error) {
 	n.Enabled = enabled == 1
 	_ = json.Unmarshal([]byte(tagsJSON), &n.Tags)
 	n.Tags = model.NormalizeTags(n.Tags)
+	if outboundJSON != "" {
+		_ = json.Unmarshal([]byte(outboundJSON), &n.OutboundConfig)
+	}
+	n.OutboundConfig.Normalize()
 	if serverTmplID.Valid {
 		v := serverTmplID.Int64
 		n.ServerTemplateID = &v
@@ -63,7 +68,7 @@ const nodeSelectSQL = `
 SELECT n.id, n.name, n.host, n.region, n.tags, n.token, n.enabled,
        n.traffic_limit, n.traffic_used, n.upload_used, n.download_used,
        n.traffic_multiplier, n.reset_day, n.last_reset_at, n.expire_at, n.billing_cycle, n.remark,
-       n.server_template_id, n.server_log_level, n.server_ipv6, n.extra_server_yaml,
+       n.server_template_id, n.server_log_level, n.server_ipv6, n.outbound_config, n.extra_server_yaml,
        n.mihomo_version, n.agent_version, n.config_hash, n.config_status,
        n.config_error, n.last_seen_at, n.created_at, n.updated_at,
        (SELECT COUNT(1) FROM inbounds i WHERE i.node_id = n.id) AS inbound_count
@@ -122,12 +127,14 @@ func (s *Store) CreateNode(n *model.Node) error {
 	}
 	n.Tags = model.NormalizeTags(n.Tags)
 	tagsJSON, _ := json.Marshal(n.Tags)
+	n.OutboundConfig.Normalize()
+	outboundJSON, _ := json.Marshal(n.OutboundConfig)
 	res, err := s.db.Exec(
-		`INSERT INTO nodes(name, host, region, tags, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, server_template_id, server_log_level, server_ipv6, extra_server_yaml, config_status, created_at, updated_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+		`INSERT INTO nodes(name, host, region, tags, token, enabled, traffic_limit, traffic_multiplier, reset_day, expire_at, billing_cycle, remark, server_template_id, server_log_level, server_ipv6, outbound_config, extra_server_yaml, config_status, created_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
 		n.Name, n.Host, n.Region, string(tagsJSON), n.Token, boolToInt(n.Enabled),
 		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark,
-		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), n.ExtraServerYAML, now, now,
+		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), string(outboundJSON), n.ExtraServerYAML, now, now,
 	)
 	if err != nil {
 		return err
@@ -148,12 +155,14 @@ func (s *Store) UpdateNode(n *model.Node) error {
 	}
 	n.Tags = model.NormalizeTags(n.Tags)
 	tagsJSON, _ := json.Marshal(n.Tags)
+	n.OutboundConfig.Normalize()
+	outboundJSON, _ := json.Marshal(n.OutboundConfig)
 	now := time.Now().UTC()
 	_, err := s.db.Exec(
-		`UPDATE nodes SET name=?, host=?, region=?, tags=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, server_template_id=?, server_log_level=?, server_ipv6=?, extra_server_yaml=?, updated_at=? WHERE id=?`,
+		`UPDATE nodes SET name=?, host=?, region=?, tags=?, enabled=?, traffic_limit=?, traffic_multiplier=?, reset_day=?, expire_at=?, billing_cycle=?, remark=?, server_template_id=?, server_log_level=?, server_ipv6=?, outbound_config=?, extra_server_yaml=?, updated_at=? WHERE id=?`,
 		n.Name, n.Host, n.Region, string(tagsJSON), boolToInt(n.Enabled),
 		n.TrafficLimit, n.TrafficMultiplier, n.ResetDay, n.ExpireAt, n.BillingCycle, n.Remark,
-		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), n.ExtraServerYAML, now, n.ID,
+		n.ServerTemplateID, n.ServerLogLevel, nullBoolToSQL(n.ServerIPv6), string(outboundJSON), n.ExtraServerYAML, now, n.ID,
 	)
 	return err
 }

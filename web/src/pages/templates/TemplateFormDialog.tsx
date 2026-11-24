@@ -60,16 +60,13 @@ rules:
   - MATCH,Proxy
 `
 
-const SERVER_PRESET_DIRECT = `# Standard direct outbound server config
-# listeners, external-controller(-unix), and secret are managed automatically
-mode: direct
+const SERVER_PRESET_DIRECT = `mode: direct
 log-level: info
 ipv6: true
 allow-lan: false
 `
 
-const SERVER_PRESET_AUDIT = `# Anti-abuse & audit server config (blocks SMTP, BitTorrent, and private ranges)
-mode: rule
+const SERVER_PRESET_AUDIT = `mode: rule
 log-level: info
 ipv6: true
 allow-lan: false
@@ -86,17 +83,14 @@ sniffer:
       ports: [443, 8443]
 
 rules:
-  # Block SMTP outbound spam
   - DST-PORT,25,REJECT
   - DST-PORT,465,REJECT
   - DST-PORT,587,REJECT
-  # Block BitTorrent / P2P trackers
   - DOMAIN-KEYWORD,announce,REJECT
   - DOMAIN-KEYWORD,torrent,REJECT
   - DOMAIN-KEYWORD,peer_id,REJECT
   - DOMAIN-KEYWORD,info_hash,REJECT
   - DST-PORT,6881-6889,REJECT
-  # Block private / loopback networks
   - IP-CIDR,127.0.0.0/8,REJECT,no-resolve
   - IP-CIDR,10.0.0.0/8,REJECT,no-resolve
   - IP-CIDR,172.16.0.0/12,REJECT,no-resolve
@@ -104,9 +98,7 @@ rules:
   - MATCH,DIRECT
 `
 
-const SERVER_PRESET_WARP = `# Streaming & AI unlock split-routing template
-# Replace the UNLOCK outbound below with your WireGuard / WARP / SOCKS5 proxy
-mode: rule
+const SERVER_PRESET_WARP = `mode: rule
 log-level: info
 ipv6: true
 allow-lan: false
@@ -141,10 +133,7 @@ rules:
 
 function buildServerPresetChain(sampleNodeName: string): string {
   const escaped = JSON.stringify(sampleNodeName || "US-LA-01")
-  return `# Dynamic node chaining & streaming/AI unlock template
-# Uses type: mihob-node to reference another managed node without hardcoding IP/port/keys
-# Internal relay credentials and self-loop protection are handled automatically by Hub
-mode: rule
+  return `mode: rule
 log-level: info
 ipv6: true
 allow-lan: false
@@ -164,12 +153,8 @@ proxies:
   - name: UNLOCK-NODE
     type: mihob-node
     node: ${escaped}
-    # inbound: vless-reality-443   # Optional: pick a specific inbound name/tag/ID
-    # protocol: vless              # Optional: filter by protocol
-    # dialer-proxy: HOP-NODE       # Optional: multi-hop chaining through another proxy
 
 rules:
-  # Route AI & streaming traffic through the referenced landing node
   - DOMAIN-SUFFIX,openai.com,UNLOCK-NODE
   - DOMAIN-SUFFIX,chatgpt.com,UNLOCK-NODE
   - DOMAIN-SUFFIX,claude.ai,UNLOCK-NODE
@@ -177,7 +162,6 @@ rules:
   - DOMAIN-SUFFIX,netflix.com,UNLOCK-NODE
   - DOMAIN-SUFFIX,nflxvideo.net,UNLOCK-NODE
   - DOMAIN-SUFFIX,disneyplus.com,UNLOCK-NODE
-  # Change MATCH to UNLOCK-NODE for full-traffic relay forwarding
   - MATCH,DIRECT
 `
 }
@@ -258,9 +242,7 @@ export function TemplateFormDialog({
 
   const mutation = useMutation({
     mutationFn: (v: TemplateFormValues) =>
-      isEdit && template
-        ? api.updateTemplate(template.id, v)
-        : api.createTemplate({ ...v, kind }),
+      isEdit && template ? api.updateTemplate(template.id, v) : api.createTemplate({ ...v, kind }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.templates })
       if (isServer) {
@@ -305,7 +287,9 @@ export function TemplateFormDialog({
             ) : (
               <>
                 {t("templates.form.descBefore")}{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{PROXIES}}"}</code>{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                  {"{{PROXIES}}"}
+                </code>{" "}
                 {t("templates.form.descMiddle")}{" "}
                 <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
                   {"{{PROXY_NAMES}}"}
@@ -467,7 +451,11 @@ export function TemplateFormDialog({
         </Form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
             {t("common.cancel")}
           </Button>
           <Button type="submit" form="template-form" disabled={mutation.isPending}>

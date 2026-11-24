@@ -84,12 +84,15 @@ func GenerateServerConfig(
 		"allow-lan": false,
 	}
 	if strings.TrimSpace(serverTemplateYAML) != "" {
-		if err := MergeExtraYAML(cfg, serverTemplateYAML, serverTopProtectedKeys); err != nil {
+		if err := MergeServerYAML(cfg, serverTemplateYAML, serverTopProtectedKeys); err != nil {
 			return nil, fmt.Errorf("server template YAML: %w", err)
 		}
 	}
+	if err := ApplyNodeOutboundConfig(cfg, &node.OutboundConfig); err != nil {
+		return nil, fmt.Errorf("node outbound config: %w", err)
+	}
 	if strings.TrimSpace(node.ExtraServerYAML) != "" {
-		if err := MergeExtraYAML(cfg, node.ExtraServerYAML, serverTopProtectedKeys); err != nil {
+		if err := MergeServerYAML(cfg, node.ExtraServerYAML, serverTopProtectedKeys); err != nil {
 			return nil, fmt.Errorf("node extra server YAML: %w", err)
 		}
 	}
@@ -122,14 +125,15 @@ func GenerateServerConfig(
 	}
 
 	yamlStr := string(raw)
-	hashInput := yamlStr
+	var hashInput strings.Builder
+	hashInput.WriteString(yamlStr)
 	for _, cf := range certFiles {
-		hashInput += fmt.Sprintf("\n--cert:%d--\n%s", cf.ID, cf.CertPEM)
+		fmt.Fprintf(&hashInput, "\n--cert:%d--\n%s", cf.ID, cf.CertPEM)
 	}
 
 	return &ServerBundle{
 		ConfigYAML: yamlStr,
-		ConfigHash: crypto.SHA256Hex(hashInput),
+		ConfigHash: crypto.SHA256Hex(hashInput.String()),
 		Certs:      certFiles,
 	}, nil
 }
@@ -206,7 +210,7 @@ func buildListener(
 		}
 		serverNames := in.Settings.RealityServerNames
 		if len(serverNames) == 0 {
-			host := strings.Split(in.Settings.RealityDest, ":")[0]
+			host, _, _ := strings.Cut(in.Settings.RealityDest, ":")
 			serverNames = []string{host}
 		}
 		shortIDs := in.Settings.RealityShortIDs

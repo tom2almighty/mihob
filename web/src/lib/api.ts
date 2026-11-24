@@ -10,6 +10,7 @@ import type {
   InstallCommands,
   MihomoReleaseInfo,
   Node,
+  NodeOutboundConfig,
   NotificationChannel,
   NotificationLog,
   NotificationRules,
@@ -45,7 +46,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit, options?: { public?: boolean }): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options?: { public?: boolean }
+): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json")
@@ -141,8 +146,7 @@ export const api = {
     request<Node>("/api/nodes", { method: "POST", body: JSON.stringify(body) }),
   updateNode: (id: number, body: Record<string, unknown>) =>
     request<Node>(`/api/nodes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  deleteNode: (id: number) =>
-    request<{ status: string }>(`/api/nodes/${id}`, { method: "DELETE" }),
+  deleteNode: (id: number) => request<{ status: string }>(`/api/nodes/${id}`, { method: "DELETE" }),
   resetNodeTraffic: (id: number) =>
     request<{ status: string }>(`/api/nodes/${id}/reset-traffic`, { method: "POST" }),
   regenerateNodeToken: (id: number) =>
@@ -154,10 +158,13 @@ export const api = {
   getLatestMihomo: (refresh = false) =>
     request<MihomoReleaseInfo>(`/api/mihomo/latest${refresh ? "?refresh=1" : ""}`),
   upgradeNodeMihomo: (id: number, version?: string) =>
-    request<{ status: string; version: string; sha256: string }>(`/api/nodes/${id}/upgrade-mihomo`, {
-      method: "POST",
-      body: JSON.stringify(version ? { version } : {}),
-    }),
+    request<{ status: string; version: string; sha256: string }>(
+      `/api/nodes/${id}/upgrade-mihomo`,
+      {
+        method: "POST",
+        body: JSON.stringify(version ? { version } : {}),
+      }
+    ),
   batchUpgradeMihomo: (nodeIds: number[], version?: string) =>
     request<BatchUpgradeResult>("/api/nodes/upgrade-mihomo", {
       method: "POST",
@@ -198,7 +205,7 @@ export const api = {
       | "short_id"
       | "password"
       | "snell_psk"
-      | "sudoku_key",
+      | "sudoku_key"
   ) =>
     request<Record<string, string>>("/api/tools/keygen", {
       method: "POST",
@@ -233,8 +240,7 @@ export const api = {
     request<User>("/api/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id: number, body: Record<string, unknown>) =>
     request<User>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  deleteUser: (id: number) =>
-    request<{ status: string }>(`/api/users/${id}`, { method: "DELETE" }),
+  deleteUser: (id: number) => request<{ status: string }>(`/api/users/${id}`, { method: "DELETE" }),
   resetUserTraffic: (id: number) =>
     request<{ status: string }>(`/api/users/${id}/reset-traffic`, { method: "POST" }),
   rotateUserToken: (id: number) =>
@@ -261,6 +267,7 @@ export const api = {
     server_log_level?: string
     server_ipv6?: boolean | null
     clear_server_ipv6?: boolean
+    outbound_config?: NodeOutboundConfig
     extra_server_yaml?: string
   }) =>
     request<{ yaml: string }>("/api/templates/preview-server", {
@@ -345,8 +352,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  listNotificationSchedules: () =>
-    request<NotificationSchedule[]>("/api/notifications/schedules"),
+  listNotificationSchedules: () => request<NotificationSchedule[]>("/api/notifications/schedules"),
   createNotificationSchedule: (body: Record<string, unknown>) =>
     request<NotificationSchedule>("/api/notifications/schedules", {
       method: "POST",

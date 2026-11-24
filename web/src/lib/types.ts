@@ -40,6 +40,46 @@ export interface Admin {
   updated_at: string
 }
 
+export type OutboundType = "warp" | "wireguard" | "socks5" | "http" | "mihob-node"
+export type OutboundRouteMode = "none" | "split" | "global"
+
+export interface NodeOutbound {
+  name: string
+  type: OutboundType
+  enabled: boolean
+  server?: string
+  port?: number
+  username?: string
+  password?: string
+  tls?: boolean
+  skip_cert_verify?: boolean
+  udp?: boolean
+  ip?: string
+  ipv6?: string
+  private_key?: string
+  public_key?: string
+  pre_shared_key?: string
+  reserved?: string
+  mtu?: number
+  remote_dns_resolve?: boolean
+  dns?: string[]
+  node_ref?: string
+  inbound_ref?: string
+  dialer_proxy?: string
+}
+
+export interface NodeOutboundRouting {
+  mode?: OutboundRouteMode
+  target?: string
+  rule_presets?: string[]
+  custom_domains?: string[]
+}
+
+export interface NodeOutboundConfig {
+  outbounds?: NodeOutbound[]
+  routing?: NodeOutboundRouting
+}
+
 export interface Node {
   id: number
   name: string
@@ -61,6 +101,7 @@ export interface Node {
   server_template_id: number | null
   server_log_level: string
   server_ipv6: boolean | null
+  outbound_config?: NodeOutboundConfig
   extra_server_yaml: string
   mihomo_version: string
   agent_version: string

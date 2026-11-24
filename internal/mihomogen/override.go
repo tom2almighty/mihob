@@ -50,6 +50,16 @@ func ValidateExtraYAML(raw string) error {
 // MergeExtraYAML parses raw YAML as a mapping and deep-merges it into base,
 // skipping protected top-level keys managed by the control plane.
 func MergeExtraYAML(base map[string]any, raw string, protected map[string]bool) error {
+	return mergeYAML(base, raw, protected, false)
+}
+
+// MergeServerYAML deep-merges a server-level YAML overlay into base,
+// merging top-level `proxies` entries by `name` instead of wiping out previously defined proxies.
+func MergeServerYAML(base map[string]any, raw string, protected map[string]bool) error {
+	return mergeYAML(base, raw, protected, true)
+}
+
+func mergeYAML(base map[string]any, raw string, protected map[string]bool, mergeProxies bool) error {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil
@@ -61,7 +71,21 @@ func MergeExtraYAML(base map[string]any, raw string, protected map[string]bool) 
 	if len(overlay) == 0 {
 		return nil
 	}
+	var overlayProxies []any
+	hasProxies := false
+	if mergeProxies {
+		if rawProxies, ok := overlay["proxies"]; ok {
+			if list, ok := rawProxies.([]any); ok && len(list) > 0 {
+				overlayProxies = list
+				hasProxies = true
+				delete(overlay, "proxies")
+			}
+		}
+	}
 	deepMergeMap(base, overlay, protected, true)
+	if hasProxies {
+		mergeProxiesByName(base, overlayProxies)
+	}
 	return nil
 }
 

@@ -62,21 +62,22 @@ func (s *Server) handleGetNode(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name              string     `json:"name"`
-		Host              string     `json:"host"`
-		Region            string     `json:"region"`
-		Tags              []string   `json:"tags"`
-		Enabled           *bool      `json:"enabled"`
-		TrafficLimit      int64      `json:"traffic_limit"`
-		TrafficMultiplier float64    `json:"traffic_multiplier"`
-		ResetDay          int        `json:"reset_day"`
-		ExpireAt          *time.Time `json:"expire_at"`
-		BillingCycle      string     `json:"billing_cycle"`
-		Remark            string     `json:"remark"`
-		ServerTemplateID  *int64     `json:"server_template_id"`
-		ServerLogLevel    string     `json:"server_log_level"`
-		ServerIPv6        *bool      `json:"server_ipv6"`
-		ExtraServerYAML   string     `json:"extra_server_yaml"`
+		Name              string                    `json:"name"`
+		Host              string                    `json:"host"`
+		Region            string                    `json:"region"`
+		Tags              []string                  `json:"tags"`
+		Enabled           *bool                     `json:"enabled"`
+		TrafficLimit      int64                     `json:"traffic_limit"`
+		TrafficMultiplier float64                   `json:"traffic_multiplier"`
+		ResetDay          int                       `json:"reset_day"`
+		ExpireAt          *time.Time                `json:"expire_at"`
+		BillingCycle      string                    `json:"billing_cycle"`
+		Remark            string                    `json:"remark"`
+		ServerTemplateID  *int64                    `json:"server_template_id"`
+		ServerLogLevel    string                    `json:"server_log_level"`
+		ServerIPv6        *bool                     `json:"server_ipv6"`
+		OutboundConfig    *model.NodeOutboundConfig `json:"outbound_config"`
+		ExtraServerYAML   string                    `json:"extra_server_yaml"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -97,6 +98,15 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "指定的节点服务端模板不存在")
 			return
 		}
+	}
+	var outboundCfg model.NodeOutboundConfig
+	if req.OutboundConfig != nil {
+		outboundCfg = *req.OutboundConfig
+	}
+	outboundCfg.Normalize()
+	if err := outboundCfg.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "节点出站配置无效: "+err.Error())
+		return
 	}
 	if err := mihomogen.ValidateServerTemplateDirectives(req.ExtraServerYAML); err != nil {
 		writeError(w, http.StatusBadRequest, "节点附加 YAML 无效: "+err.Error())
@@ -121,6 +131,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		ServerTemplateID:  req.ServerTemplateID,
 		ServerLogLevel:    req.ServerLogLevel,
 		ServerIPv6:        req.ServerIPv6,
+		OutboundConfig:    outboundCfg,
 		ExtraServerYAML:   req.ExtraServerYAML,
 	}
 	if err := s.store.CreateNode(node); err != nil {
@@ -143,22 +154,23 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name              string     `json:"name"`
-		Host              string     `json:"host"`
-		Region            string     `json:"region"`
-		Tags              []string   `json:"tags"`
-		Enabled           *bool      `json:"enabled"`
-		TrafficLimit      int64      `json:"traffic_limit"`
-		TrafficUsed       *int64     `json:"traffic_used"`
-		TrafficMultiplier float64    `json:"traffic_multiplier"`
-		ResetDay          int        `json:"reset_day"`
-		ExpireAt          *time.Time `json:"expire_at"`
-		BillingCycle      string     `json:"billing_cycle"`
-		Remark            string     `json:"remark"`
-		ServerTemplateID  *int64     `json:"server_template_id"`
-		ServerLogLevel    string     `json:"server_log_level"`
-		ServerIPv6        *bool      `json:"server_ipv6"`
-		ExtraServerYAML   string     `json:"extra_server_yaml"`
+		Name              string                    `json:"name"`
+		Host              string                    `json:"host"`
+		Region            string                    `json:"region"`
+		Tags              []string                  `json:"tags"`
+		Enabled           *bool                     `json:"enabled"`
+		TrafficLimit      int64                     `json:"traffic_limit"`
+		TrafficUsed       *int64                    `json:"traffic_used"`
+		TrafficMultiplier float64                   `json:"traffic_multiplier"`
+		ResetDay          int                       `json:"reset_day"`
+		ExpireAt          *time.Time                `json:"expire_at"`
+		BillingCycle      string                    `json:"billing_cycle"`
+		Remark            string                    `json:"remark"`
+		ServerTemplateID  *int64                    `json:"server_template_id"`
+		ServerLogLevel    string                    `json:"server_log_level"`
+		ServerIPv6        *bool                     `json:"server_ipv6"`
+		OutboundConfig    *model.NodeOutboundConfig `json:"outbound_config"`
+		ExtraServerYAML   string                    `json:"extra_server_yaml"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -173,6 +185,13 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		t, err := s.store.GetTemplate(*req.ServerTemplateID)
 		if err != nil || t.Kind != model.TemplateKindServer {
 			writeError(w, http.StatusBadRequest, "指定的节点服务端模板不存在")
+			return
+		}
+	}
+	if req.OutboundConfig != nil {
+		req.OutboundConfig.Normalize()
+		if err := req.OutboundConfig.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "节点出站配置无效: "+err.Error())
 			return
 		}
 	}
@@ -207,6 +226,9 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	existing.ServerTemplateID = req.ServerTemplateID
 	existing.ServerLogLevel = req.ServerLogLevel
 	existing.ServerIPv6 = req.ServerIPv6
+	if req.OutboundConfig != nil {
+		existing.OutboundConfig = *req.OutboundConfig
+	}
 	existing.ExtraServerYAML = req.ExtraServerYAML
 
 	if err := s.store.UpdateNode(existing); err != nil {
@@ -214,10 +236,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.TrafficUsed != nil {
-		val := *req.TrafficUsed
-		if val < 0 {
-			val = 0
-		}
+		val := max(*req.TrafficUsed, 0)
 		if err := s.store.SetNodeTraffic(existing.ID, val); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

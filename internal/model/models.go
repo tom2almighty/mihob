@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 const (
 	ProtoVLESS       = "vless"
@@ -39,12 +42,7 @@ var SupportedProtocols = []string{
 }
 
 func IsValidProtocol(p string) bool {
-	for _, s := range SupportedProtocols {
-		if s == p {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(SupportedProtocols, p)
 }
 
 const (
@@ -78,35 +76,36 @@ type Admin struct {
 }
 
 type Node struct {
-	ID                int64      `json:"id"`
-	Name              string     `json:"name"`
-	Host              string     `json:"host"`
-	Region            string     `json:"region"`
-	Tags              []string   `json:"tags"`
-	Token             string     `json:"token"`
-	Enabled           bool       `json:"enabled"`
-	TrafficLimit      int64      `json:"traffic_limit"`
-	TrafficUsed       int64      `json:"traffic_used"`
-	UploadUsed        int64      `json:"upload_used"`
-	DownloadUsed      int64      `json:"download_used"`
-	TrafficMultiplier float64    `json:"traffic_multiplier"`
-	ResetDay          int        `json:"reset_day"`
-	LastResetAt       *time.Time `json:"last_reset_at"`
-	ExpireAt          *time.Time `json:"expire_at"`
-	BillingCycle      string     `json:"billing_cycle"`
-	Remark            string     `json:"remark"`
-	ServerTemplateID  *int64     `json:"server_template_id"`
-	ServerLogLevel    string     `json:"server_log_level"`
-	ServerIPv6        *bool      `json:"server_ipv6"`
-	ExtraServerYAML   string     `json:"extra_server_yaml"`
-	MihomoVersion     string     `json:"mihomo_version"`
-	AgentVersion      string     `json:"agent_version"`
-	ConfigHash        string     `json:"config_hash"`
-	ConfigStatus      string     `json:"config_status"`
-	ConfigError       string     `json:"config_error"`
-	LastSeenAt        *time.Time `json:"last_seen_at"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID                int64              `json:"id"`
+	Name              string             `json:"name"`
+	Host              string             `json:"host"`
+	Region            string             `json:"region"`
+	Tags              []string           `json:"tags"`
+	Token             string             `json:"token"`
+	Enabled           bool               `json:"enabled"`
+	TrafficLimit      int64              `json:"traffic_limit"`
+	TrafficUsed       int64              `json:"traffic_used"`
+	UploadUsed        int64              `json:"upload_used"`
+	DownloadUsed      int64              `json:"download_used"`
+	TrafficMultiplier float64            `json:"traffic_multiplier"`
+	ResetDay          int                `json:"reset_day"`
+	LastResetAt       *time.Time         `json:"last_reset_at"`
+	ExpireAt          *time.Time         `json:"expire_at"`
+	BillingCycle      string             `json:"billing_cycle"`
+	Remark            string             `json:"remark"`
+	ServerTemplateID  *int64             `json:"server_template_id"`
+	ServerLogLevel    string             `json:"server_log_level"`
+	ServerIPv6        *bool              `json:"server_ipv6"`
+	OutboundConfig    NodeOutboundConfig `json:"outbound_config"`
+	ExtraServerYAML   string             `json:"extra_server_yaml"`
+	MihomoVersion     string             `json:"mihomo_version"`
+	AgentVersion      string             `json:"agent_version"`
+	ConfigHash        string             `json:"config_hash"`
+	ConfigStatus      string             `json:"config_status"`
+	ConfigError       string             `json:"config_error"`
+	LastSeenAt        *time.Time         `json:"last_seen_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
 
 	// Runtime fields populated from WS manager
 	Online            bool    `json:"online"`
@@ -204,10 +203,10 @@ type InboundSettings struct {
 	UDP              bool   `json:"udp,omitempty"`
 
 	// Mieru
-	MieruTransport         string `json:"mieru_transport,omitempty"`       // "TCP" | "UDP"
-	MieruPortRange         string `json:"mieru_port_range,omitempty"`      // e.g. "20000-20010"
-	MieruMultiplexing      string `json:"mieru_multiplexing,omitempty"`    // MULTIPLEXING_OFF | LOW | MIDDLE | HIGH
-	MieruHandshakeMode     string `json:"mieru_handshake_mode,omitempty"`  // HANDSHAKE_STANDARD | HANDSHAKE_NO_WAIT
+	MieruTransport         string `json:"mieru_transport,omitempty"`      // "TCP" | "UDP"
+	MieruPortRange         string `json:"mieru_port_range,omitempty"`     // e.g. "20000-20010"
+	MieruMultiplexing      string `json:"mieru_multiplexing,omitempty"`   // MULTIPLEXING_OFF | LOW | MIDDLE | HIGH
+	MieruHandshakeMode     string `json:"mieru_handshake_mode,omitempty"` // HANDSHAKE_STANDARD | HANDSHAKE_NO_WAIT
 	MieruTrafficPattern    string `json:"mieru_traffic_pattern,omitempty"`
 	MieruTCPIdleTimeout    int    `json:"mieru_tcp_idle_timeout,omitempty"` // >= 60s
 	MieruUserHintMandatory bool   `json:"mieru_user_hint_mandatory,omitempty"`

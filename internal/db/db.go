@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 	server_template_id INTEGER,
 	server_log_level TEXT NOT NULL DEFAULT '',
 	server_ipv6 INTEGER,
+	outbound_config TEXT NOT NULL DEFAULT '{}',
 	extra_server_yaml TEXT NOT NULL DEFAULT '',
 	mihomo_version TEXT NOT NULL DEFAULT '',
 	agent_version TEXT NOT NULL DEFAULT '',
@@ -294,6 +295,9 @@ CREATE INDEX IF NOT EXISTS idx_notification_logs_created ON notification_logs(cr
 	if err := s.ensureColumn("nodes", "server_ipv6", "INTEGER"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("nodes", "outbound_config", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
+		return err
+	}
 	if err := s.ensureColumn("nodes", "extra_server_yaml", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
@@ -329,11 +333,7 @@ func (s *Store) ensureColumn(table, column, definition string) error {
 	return nil
 }
 
-const DefaultMihomoTemplate = `# Mihob Default Mihomo Client Template
-# 可使用占位符：
-#   {{PROXIES}}      - 自动注入当前用户可用的所有代理节点
-#   {{PROXY_NAMES}}  - 自动注入节点名称列表（用于策略组）
-mixed-port: 7890
+const DefaultMihomoTemplate = `mixed-port: 7890
 allow-lan: false
 mode: rule
 log-level: info
@@ -356,15 +356,15 @@ proxies:
 {{PROXIES}}
 
 proxy-groups:
-  - name: "节点选择"
+  - name: "Proxy"
     type: select
     proxies:
-      - "自动选择"
-      - "故障转移"
+      - "Auto"
+      - "Fallback"
 {{PROXY_NAMES}}
       - DIRECT
 
-  - name: "自动选择"
+  - name: "Auto"
     type: url-test
     url: http://www.gstatic.com/generate_204
     interval: 300
@@ -372,7 +372,7 @@ proxy-groups:
     proxies:
 {{PROXY_NAMES}}
 
-  - name: "故障转移"
+  - name: "Fallback"
     type: fallback
     url: http://www.gstatic.com/generate_204
     interval: 300
@@ -382,14 +382,10 @@ proxy-groups:
 rules:
   - GEOIP,LAN,DIRECT,no-resolve
   - GEOIP,CN,DIRECT,no-resolve
-  - MATCH,节点选择
+  - MATCH,Proxy
 `
 
-const DefaultServerMihomoTemplate = `# Mihob Default Mihomo Server Template
-# 节点服务端基础配置模板：
-# - listeners / external-controller(-unix) / secret 由控制平面自动托管
-# - 可按需自定义 mode、log-level、ipv6、dns、sniffer、proxies、proxy-groups、rules、sub-rules 等
-mode: direct
+const DefaultServerMihomoTemplate = `mode: direct
 log-level: info
 ipv6: true
 allow-lan: false
@@ -422,8 +418,8 @@ func (s *Store) seedDefaults() error {
 	if clientTmplCount == 0 {
 		_, err := s.db.Exec(
 			`INSERT INTO templates(kind, name, description, content, is_default, created_at, updated_at) VALUES('client', ?, ?, ?, 1, ?, ?)`,
-			"默认分流模板",
-			"内置 Mihomo 通用规则模板（含自动选择、故障转移、国内直连）",
+			"Default Client",
+			"",
 			DefaultMihomoTemplate,
 			now, now,
 		)
@@ -440,8 +436,8 @@ func (s *Store) seedDefaults() error {
 	if serverTmplCount == 0 {
 		_, err := s.db.Exec(
 			`INSERT INTO templates(kind, name, description, content, is_default, created_at, updated_at) VALUES('server', ?, ?, ?, 1, ?, ?)`,
-			"默认节点直连模板",
-			"内置 Mihomo 服务端基础模板（mode: direct，所有入站流量直接出站）",
+			"Default Server",
+			"",
 			DefaultServerMihomoTemplate,
 			now, now,
 		)

@@ -463,14 +463,15 @@ func (s *Server) handlePreviewTemplate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		NodeID           *int64  `json:"node_id"`
-		TemplateID       *int64  `json:"template_id"`
-		Content          string  `json:"content"`
-		UseDraftTemplate bool    `json:"use_draft_template"`
-		ServerLogLevel   *string `json:"server_log_level"`
-		ServerIPv6       *bool   `json:"server_ipv6"`
-		ClearServerIPv6  bool    `json:"clear_server_ipv6"`
-		ExtraServerYAML  *string `json:"extra_server_yaml"`
+		NodeID           *int64                    `json:"node_id"`
+		TemplateID       *int64                    `json:"template_id"`
+		Content          string                    `json:"content"`
+		UseDraftTemplate bool                      `json:"use_draft_template"`
+		ServerLogLevel   *string                   `json:"server_log_level"`
+		ServerIPv6       *bool                     `json:"server_ipv6"`
+		ClearServerIPv6  bool                      `json:"clear_server_ipv6"`
+		OutboundConfig   *model.NodeOutboundConfig `json:"outbound_config"`
+		ExtraServerYAML  *string                   `json:"extra_server_yaml"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -512,6 +513,14 @@ func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Reques
 	} else if req.ServerIPv6 != nil {
 		v := *req.ServerIPv6
 		node.ServerIPv6 = &v
+	}
+	if req.OutboundConfig != nil {
+		req.OutboundConfig.Normalize()
+		if err := req.OutboundConfig.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "节点出站配置无效: "+err.Error())
+			return
+		}
+		node.OutboundConfig = *req.OutboundConfig
 	}
 	if req.ExtraServerYAML != nil {
 		if err := mihomogen.ValidateServerTemplateDirectives(*req.ExtraServerYAML); err != nil {
@@ -580,15 +589,15 @@ func (s *Server) handlePreviewServerConfig(w http.ResponseWriter, r *http.Reques
 var subPathPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+(?:/[a-zA-Z0-9._-]+)*$`)
 
 var reservedFirstSegments = map[string]bool{
-	"api":          true,
-	"ws":           true,
-	"assets":       true,
-	"install":      true,
-	"healthz":      true,
-	"login":        true,
-	"nodes":        true,
-	"certificates": true,
-	"users":        true,
+	"api":           true,
+	"ws":            true,
+	"assets":        true,
+	"install":       true,
+	"healthz":       true,
+	"login":         true,
+	"nodes":         true,
+	"certificates":  true,
+	"users":         true,
 	"templates":     true,
 	"notifications": true,
 	"settings":      true,
@@ -746,7 +755,7 @@ func (s *Server) handlePublicSubInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, info)
 }
 
-func (s *Server) serveSubscriptionYAML(w http.ResponseWriter, r *http.Request, token string) {
+func (s *Server) serveSubscriptionYAML(w http.ResponseWriter, _ *http.Request, token string) {
 	if token == "" {
 		http.Error(w, "missing token", http.StatusNotFound)
 		return

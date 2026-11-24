@@ -307,10 +307,11 @@ func BuildClusterRelayGraph(
 
 		cfg := map[string]any{}
 		if tmpl := resolveTemplate(n); strings.TrimSpace(tmpl) != "" {
-			_ = MergeExtraYAML(cfg, tmpl, serverTopProtectedKeys)
+			_ = MergeServerYAML(cfg, tmpl, serverTopProtectedKeys)
 		}
+		_ = ApplyNodeOutboundConfig(cfg, &n.OutboundConfig)
 		if strings.TrimSpace(n.ExtraServerYAML) != "" {
-			_ = MergeExtraYAML(cfg, n.ExtraServerYAML, serverTopProtectedKeys)
+			_ = MergeServerYAML(cfg, n.ExtraServerYAML, serverTopProtectedKeys)
 		}
 
 		list, ok := cfg["proxies"].([]any)

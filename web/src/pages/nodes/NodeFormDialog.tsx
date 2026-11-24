@@ -42,7 +42,8 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
-import type { Node } from "@/lib/types"
+import type { Node, NodeOutboundConfig } from "@/lib/types"
+import { NodeOutboundEditor } from "./NodeOutboundEditor"
 
 type NodeFormValues = {
   name: string
@@ -94,7 +95,11 @@ export function NodeFormDialog({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const isEdit = Boolean(node)
-  const [activeTab, setActiveTab] = useState<"basic" | "traffic" | "config">("basic")
+  const [activeTab, setActiveTab] = useState<"basic" | "traffic" | "outbound" | "config">("basic")
+  const [outboundConfig, setOutboundConfig] = useState<NodeOutboundConfig>({
+    outbounds: [],
+    routing: { mode: "none", target: "", rule_presets: [], custom_domains: [] },
+  })
   const [previewYAML, setPreviewYAML] = useState<string>("")
 
   const nodesQuery = useQuery({
@@ -143,7 +148,10 @@ export function NodeFormDialog({
         region: z.string().trim().optional(),
         tags: z.array(z.string()),
         traffic_limit_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficMin")),
-        traffic_used_gb: z.coerce.number().min(0, t("nodes.form.validation.trafficUsedMin")).optional(),
+        traffic_used_gb: z.coerce
+          .number()
+          .min(0, t("nodes.form.validation.trafficUsedMin"))
+          .optional(),
         traffic_multiplier: z.coerce
           .number()
           .min(0.1, t("nodes.form.validation.multiplierMin"))
@@ -192,6 +200,15 @@ export function NodeFormDialog({
       setActiveTab("basic")
       setPreviewYAML("")
       if (node) {
+        setOutboundConfig({
+          outbounds: node.outbound_config?.outbounds ?? [],
+          routing: {
+            mode: node.outbound_config?.routing?.mode || "none",
+            target: node.outbound_config?.routing?.target || "",
+            rule_presets: node.outbound_config?.routing?.rule_presets ?? [],
+            custom_domains: node.outbound_config?.routing?.custom_domains ?? [],
+          },
+        })
         form.reset({
           name: node.name,
           host: node.host,
@@ -211,6 +228,10 @@ export function NodeFormDialog({
           extra_server_yaml: node.extra_server_yaml || "",
         })
       } else {
+        setOutboundConfig({
+          outbounds: [],
+          routing: { mode: "none", target: "", rule_presets: [], custom_domains: [] },
+        })
         form.reset({
           name: "",
           host: "",
@@ -248,7 +269,8 @@ export function NodeFormDialog({
         traffic_multiplier: values.traffic_multiplier,
         reset_day: values.reset_day,
         expire_at,
-        billing_cycle: values.billing_cycle && values.billing_cycle !== "none" ? values.billing_cycle : "",
+        billing_cycle:
+          values.billing_cycle && values.billing_cycle !== "none" ? values.billing_cycle : "",
         enabled: values.enabled,
         remark: values.remark || "",
         server_template_id:
@@ -260,6 +282,7 @@ export function NodeFormDialog({
             ? values.server_log_level
             : "",
         server_ipv6: selectValueToIPv6(values.server_ipv6),
+        outbound_config: outboundConfig,
         extra_server_yaml: values.extra_server_yaml || "",
       }
       if (isEdit && node && form.formState.dirtyFields.traffic_used_gb) {
@@ -291,6 +314,7 @@ export function NodeFormDialog({
           v.server_log_level && v.server_log_level !== "follow" ? v.server_log_level : "",
         server_ipv6: ipv6Val,
         clear_server_ipv6: ipv6Val === null,
+        outbound_config: outboundConfig,
         extra_server_yaml: v.extra_server_yaml || "",
       })
     },
@@ -343,13 +367,14 @@ export function NodeFormDialog({
           >
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as "basic" | "traffic" | "config")}
+              onValueChange={(v) => setActiveTab(v as "basic" | "traffic" | "outbound" | "config")}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
               <div className="shrink-0 border-b border-border px-6 py-2.5">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="basic">{t("nodes.form.tabBasic")}</TabsTrigger>
                   <TabsTrigger value="traffic">{t("nodes.form.tabTraffic")}</TabsTrigger>
+                  <TabsTrigger value="outbound">{t("nodes.form.tabOutbound")}</TabsTrigger>
                   <TabsTrigger value="config">{t("nodes.form.tabConfig")}</TabsTrigger>
                 </TabsList>
               </div>
@@ -460,7 +485,13 @@ export function NodeFormDialog({
                         <FormItem>
                           <FormLabel>{t("nodes.form.trafficLimit")}</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.5" min="0" className="tabular-nums" {...field} />
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              className="tabular-nums"
+                              {...field}
+                            />
                           </FormControl>
                           <FormDescription>{t("nodes.form.trafficLimitDesc")}</FormDescription>
                           <FormMessage />
@@ -499,7 +530,13 @@ export function NodeFormDialog({
                         <FormItem>
                           <FormLabel>{t("nodes.form.multiplier")}</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" min="0.1" className="tabular-nums" {...field} />
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              className="tabular-nums"
+                              {...field}
+                            />
                           </FormControl>
                           <FormDescription>{t("nodes.form.multiplierDesc")}</FormDescription>
                           <FormMessage />
@@ -547,11 +584,21 @@ export function NodeFormDialog({
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="none">{t("nodes.billingCycles.none")}</SelectItem>
-                              <SelectItem value="monthly">{t("nodes.billingCycles.monthly")}</SelectItem>
-                              <SelectItem value="quarterly">{t("nodes.billingCycles.quarterly")}</SelectItem>
-                              <SelectItem value="semiannual">{t("nodes.billingCycles.semiannual")}</SelectItem>
-                              <SelectItem value="yearly">{t("nodes.billingCycles.yearly")}</SelectItem>
-                              <SelectItem value="onetime">{t("nodes.billingCycles.onetime")}</SelectItem>
+                              <SelectItem value="monthly">
+                                {t("nodes.billingCycles.monthly")}
+                              </SelectItem>
+                              <SelectItem value="quarterly">
+                                {t("nodes.billingCycles.quarterly")}
+                              </SelectItem>
+                              <SelectItem value="semiannual">
+                                {t("nodes.billingCycles.semiannual")}
+                              </SelectItem>
+                              <SelectItem value="yearly">
+                                {t("nodes.billingCycles.yearly")}
+                              </SelectItem>
+                              <SelectItem value="onetime">
+                                {t("nodes.billingCycles.onetime")}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -576,6 +623,16 @@ export function NodeFormDialog({
                       )}
                     />
                   </div>
+                </TabsContent>
+
+                <TabsContent value="outbound" keepMounted className="mt-0 space-y-4">
+                  <NodeOutboundEditor
+                    value={outboundConfig}
+                    onChange={setOutboundConfig}
+                    nodes={nodesQuery.data ?? []}
+                    inbounds={inboundsQuery.data ?? []}
+                    excludeNodeId={node?.id}
+                  />
                 </TabsContent>
 
                 <TabsContent value="config" keepMounted className="mt-0 space-y-4">
@@ -632,7 +689,9 @@ export function NodeFormDialog({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="follow">{t("nodes.form.followTemplate")}</SelectItem>
+                              <SelectItem value="follow">
+                                {t("nodes.form.followTemplate")}
+                              </SelectItem>
                               <SelectItem value="silent">silent</SelectItem>
                               <SelectItem value="error">error</SelectItem>
                               <SelectItem value="warning">warning</SelectItem>
@@ -660,7 +719,9 @@ export function NodeFormDialog({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="follow">{t("nodes.form.followTemplate")}</SelectItem>
+                              <SelectItem value="follow">
+                                {t("nodes.form.followTemplate")}
+                              </SelectItem>
                               <SelectItem value="true">{t("nodes.form.ipv6Enabled")}</SelectItem>
                               <SelectItem value="false">{t("nodes.form.ipv6Disabled")}</SelectItem>
                             </SelectContent>
@@ -734,9 +795,7 @@ export function NodeFormDialog({
                         </Button>
                       </div>
                     </div>
-                    {previewYAML && (
-                      <YamlCodeBlock value={previewYAML} className="max-h-64" />
-                    )}
+                    {previewYAML && <YamlCodeBlock value={previewYAML} className="max-h-64" />}
                   </div>
                 </TabsContent>
               </div>
@@ -745,7 +804,11 @@ export function NodeFormDialog({
         </Form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
             {t("common.cancel")}
           </Button>
           <Button type="submit" form="node-form" disabled={mutation.isPending}>
