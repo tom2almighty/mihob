@@ -136,7 +136,7 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "wireguard", "LIC-123")
+		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "wireguard", "LIC-123", "")
 		if err != nil {
 			t.Fatalf("wireguard register failed: %v", err)
 		}
@@ -179,17 +179,62 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "")
+		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", "")
 		if err != nil {
 			t.Fatalf("masque register failed: %v", err)
 		}
-		if res.Protocol != "masque" || res.Server != "162.159.198.2" || res.ServerV6 != "2606:4700:104::1" || res.Port != 443 || res.PublicKey == "" || res.IP != "172.16.0.9/32" {
+		if res.Protocol != "masque" || res.Server != "162.159.198.2" || res.ServerV6 != "2606:4700:104::1" || res.Port != 443 || res.PublicKey == "" || res.IP != "172.16.0.9/32" || res.SNI != model.DefaultWARPMASQUESNI {
 			t.Fatalf("unexpected masque result: %+v", res)
 		}
 	})
 
+	t.Run("zero trust masque enrollment with jwt", func(t *testing.T) {
+		var sawJWT string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodPost && r.URL.Path == "/reg":
+				sawJWT = r.Header.Get("Cf-Access-Jwt-Assertion")
+				_ = json.NewEncoder(w).Encode(map[string]any{"id": "dev-zt", "token": "tok-zt"})
+			case r.Method == http.MethodPatch && r.URL.Path == "/reg/dev-zt":
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":    "dev-zt",
+					"token": "tok-zt",
+					"config": map[string]any{
+						"peers": []map[string]any{{
+							"public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n-----END PUBLIC KEY-----",
+							"endpoint": map[string]any{
+								"v4": "162.159.197.2:0",
+								"v6": "[2606:4700:103::2]:0",
+							},
+						}},
+						"interface": map[string]any{
+							"addresses": map[string]any{
+								"v4": "172.16.0.5",
+								"v6": "2606:4700:110::5",
+							},
+						},
+					},
+				})
+			default:
+				http.Error(w, "unexpected path", http.StatusNotFound)
+			}
+		}))
+		defer srv.Close()
+
+		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "IGNORED-LIC", "eyJ.team.jwt")
+		if err != nil {
+			t.Fatalf("zt masque register failed: %v", err)
+		}
+		if sawJWT != "eyJ.team.jwt" {
+			t.Fatalf("expected Cf-Access-Jwt-Assertion header, got %q", sawJWT)
+		}
+		if res.SNI != model.DefaultWARPZeroTrustMASQUESNI || res.Server != "162.159.197.2" {
+			t.Fatalf("unexpected zt masque result: %+v", res)
+		}
+	})
+
 	t.Run("missing masque public key and invalid protocol", func(t *testing.T) {
-		if _, err := registerCloudflareWARPWithBase(context.Background(), http.DefaultClient, "http://127.0.0.1", "invalid", ""); !errors.Is(err, errInvalidWARPProtocol) {
+		if _, err := registerCloudflareWARPWithBase(context.Background(), http.DefaultClient, "http://127.0.0.1", "invalid", "", ""); !errors.Is(err, errInvalidWARPProtocol) {
 			t.Fatalf("expected errInvalidWARPProtocol, got %v", err)
 		}
 
@@ -206,7 +251,7 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		if _, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", ""); err == nil {
+		if _, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", ""); err == nil {
 			t.Fatalf("expected error when masque peer public_key is empty")
 		}
 	})

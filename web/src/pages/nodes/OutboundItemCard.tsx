@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react"
 import { FormSwitchCard, PasswordInput } from "@/components/common/FormControls"
@@ -15,8 +16,19 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Inbound, Node, NodeOutbound, OutboundIPVersion, OutboundType } from "@/lib/types"
+import { OutboundCustomFields } from "./OutboundCustomFields"
 import { OUTBOUND_TYPES, summarizeOutbound } from "./outboundDefaults"
 import { type OutboundItemMeta, OutboundTunnelFields } from "./OutboundTunnelFields"
+
+const DIALER_NONE = "__none__"
+const DIALER_CUSTOM = "__custom__"
+
+export interface DialerCandidate {
+  name: string
+  type: OutboundType
+  enabled: boolean
+  cyclic: boolean
+}
 
 export function OutboundItemCard({
   item,
@@ -24,7 +36,7 @@ export function OutboundItemCard({
   isExpanded,
   availableNodes,
   inbounds,
-  otherOutboundNames,
+  dialerCandidates,
   isRegistering,
   isKeygenPending,
   onToggleExpand,
@@ -41,7 +53,7 @@ export function OutboundItemCard({
   isExpanded: boolean
   availableNodes: Node[]
   inbounds: Inbound[]
-  otherOutboundNames: string[]
+  dialerCandidates: DialerCandidate[]
   isRegistering: boolean
   isKeygenPending: boolean
   onToggleExpand: () => void
@@ -50,13 +62,25 @@ export function OutboundItemCard({
   onRename: (nextName: string) => void
   onChangeType: (nextType: OutboundType) => void
   onRememberAddr: (ip?: string, ipv6?: string) => void
-  onRegisterWARP: (protocol: "wireguard" | "masque", license?: string) => void
+  onRegisterWARP: (opts: {
+    protocol: "wireguard" | "masque"
+    license?: string
+    jwt?: string
+  }) => void
   onKeygen: (type: "wireguard" | "masque") => void
 }) {
   const { t } = useTranslation()
   const typeLabel = (type: OutboundType) => t(`nodes.form.outbound.types.${type}`)
 
-  const isTunnelType = item.type === "warp" || item.type === "wireguard" || item.type === "masque"
+  const currentDialer = (item.dialer_proxy ?? "").trim()
+  const isKnownCandidate = dialerCandidates.some((c) => c.name === currentDialer)
+  const [customDialerMode, setCustomDialerMode] = useState(
+    () => Boolean(currentDialer) && !isKnownCandidate
+  )
+  const showCustomDialerInput = customDialerMode || (Boolean(currentDialer) && !isKnownCandidate)
+  const dialerSelectValue = showCustomDialerInput ? DIALER_CUSTOM : currentDialer || DIALER_NONE
+
+  const isTunnelType = item.type === "wireguard" || item.type === "masque"
   const targetNodeObj =
     item.type === "mihob-node"
       ? availableNodes.find((n) => n.name === item.node_ref || String(n.id) === item.node_ref)
@@ -86,6 +110,14 @@ export function OutboundItemCard({
             <Badge variant="secondary" className="shrink-0 text-xs">
               {typeLabel(item.type)}
             </Badge>
+            {currentDialer && (
+              <Badge
+                variant="outline"
+                className="shrink-0 font-mono text-[11px] text-muted-foreground"
+              >
+                via {currentDialer}
+              </Badge>
+            )}
             {item.ip_version && item.ip_version !== "dual" && (
               <Badge variant="outline" className="shrink-0 font-mono text-xs">
                 {item.ip_version}
@@ -155,7 +187,7 @@ export function OutboundItemCard({
                 value={item.name}
                 onChange={(e) => onRename(e.target.value)}
                 placeholder="WARP"
-                className="h-8 font-mono text-xs"
+                className="h-8 bg-background font-mono text-xs"
               />
             </div>
             <div className="space-y-1">
@@ -207,16 +239,59 @@ export function OutboundItemCard({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">{t("nodes.form.outbound.dialerProxy")}</Label>
+              <Select
+                value={dialerSelectValue}
+                onValueChange={(v) => {
+                  if (!v || v === DIALER_NONE) {
+                    setCustomDialerMode(false)
+                    onPatch({ dialer_proxy: "" })
+                  } else if (v === DIALER_CUSTOM) {
+                    setCustomDialerMode(true)
+                    if (isKnownCandidate) {
+                      onPatch({ dialer_proxy: "" })
+                    }
+                  } else {
+                    setCustomDialerMode(false)
+                    onPatch({ dialer_proxy: v })
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 w-full bg-background text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DIALER_NONE}>
+                    {t("nodes.form.outbound.dialerProxyNone")}
+                  </SelectItem>
+                  {dialerCandidates.map((c) => (
+                    <SelectItem key={c.name} value={c.name} disabled={c.cyclic}>
+                      <span className="font-mono">{c.name}</span>
+                      <span className="ml-1.5 text-muted-foreground">
+                        ({typeLabel(c.type)}
+                        {!c.enabled ? ` · ${t("common.disabled")}` : ""}
+                        {c.cyclic ? ` · ${t("nodes.form.outbound.dialerCycleTag")}` : ""})
+                      </span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={DIALER_CUSTOM}>
+                    {t("nodes.form.outbound.dialerProxyCustom")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {showCustomDialerInput && (
+            <div className="space-y-1">
+              <Label className="text-xs">{t("nodes.form.outbound.dialerProxyCustomLabel")}</Label>
               <Input
                 value={item.dialer_proxy ?? ""}
                 onChange={(e) => onPatch({ dialer_proxy: e.target.value })}
-                placeholder={
-                  otherOutboundNames[0] || t("nodes.form.outbound.dialerProxyPlaceholder")
-                }
-                className="h-8 font-mono text-xs"
+                placeholder={t("nodes.form.outbound.dialerProxyPlaceholder")}
+                className="h-8 bg-background font-mono text-xs"
               />
             </div>
-          </div>
+          )}
 
           {isTunnelType && (
             <OutboundTunnelFields
@@ -241,7 +316,7 @@ export function OutboundItemCard({
                     value={item.server ?? ""}
                     onChange={(e) => onPatch({ server: e.target.value })}
                     placeholder="127.0.0.1"
-                    className="h-8 font-mono text-xs"
+                    className="h-8 bg-background font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-1">
@@ -257,7 +332,7 @@ export function OutboundItemCard({
                       })
                     }
                     placeholder={item.type === "socks5" ? "40000" : "8080"}
-                    className="h-8 font-mono text-xs tabular-nums"
+                    className="h-8 bg-background font-mono text-xs tabular-nums"
                   />
                 </div>
               </div>
@@ -269,7 +344,7 @@ export function OutboundItemCard({
                     value={item.username ?? ""}
                     onChange={(e) => onPatch({ username: e.target.value })}
                     placeholder={t("nodes.form.outbound.optionalPlaceholder")}
-                    className="h-8 font-mono text-xs"
+                    className="h-8 bg-background font-mono text-xs"
                   />
                 </div>
                 <div className="space-y-1">
@@ -306,6 +381,8 @@ export function OutboundItemCard({
               </div>
             </div>
           )}
+
+          {item.type === "custom" && <OutboundCustomFields item={item} onPatch={onPatch} />}
 
           {item.type === "mihob-node" && (
             <div className="grid gap-3 sm:grid-cols-2">

@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import {
+  ConfirmActionDialog,
   ConfirmDeleteDialog,
   EmptyState,
   ErrorState,
@@ -56,6 +57,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -89,6 +91,10 @@ export function NodesPage() {
   const [installNodeId, setInstallNodeId] = useState<number | null>(null)
   const [inboundNodeId, setInboundNodeId] = useState<number | null>(null)
   const [deletingNode, setDeletingNode] = useState<Node | null>(null)
+  const [pendingAction, setPendingAction] = useState<{
+    type: "push" | "restart" | "resetTraffic"
+    node: Node
+  } | null>(null)
   const [upgradeTarget, setUpgradeTarget] = useState<
     { mode: "single"; node: Node } | { mode: "batch"; nodes: Node[] } | null
   >(null)
@@ -166,18 +172,36 @@ export function NodesPage() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      api.setNodeEnabled(id, enabled),
+    onSuccess: (updated) => {
+      qc.setQueryData<Node[]>(queryKeys.nodes, (prev) =>
+        prev?.map((item) => (item.id === updated.id ? updated : item))
+      )
+      qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard })
+      toast.success(updated.enabled ? t("nodes.toastEnabled") : t("nodes.toastDisabled"))
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const pushMutation = useMutation({
     mutationFn: (id: number) => api.pushNodeConfig(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.nodes })
       toast.success(t("nodes.toastPushed"))
+      setPendingAction(null)
     },
     onError: (err: Error) => toast.error(err.message),
   })
 
   const restartMutation = useMutation({
     mutationFn: (id: number) => api.restartNode(id),
-    onSuccess: () => toast.success(t("nodes.toastRestarted")),
+    onSuccess: () => {
+      toast.success(t("nodes.toastRestarted"))
+      setPendingAction(null)
+    },
     onError: (err: Error) => toast.error(err.message),
   })
 
@@ -186,6 +210,7 @@ export function NodesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.nodes })
       toast.success(t("nodes.toastTrafficReset"))
+      setPendingAction(null)
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -492,7 +517,29 @@ export function NodesPage() {
                   </TableCell>
 
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="inline-flex items-center">
+                              <Switch
+                                size="sm"
+                                checked={n.enabled}
+                                disabled={
+                                  toggleMutation.isPending && toggleMutation.variables?.id === n.id
+                                }
+                                onCheckedChange={(checked) =>
+                                  toggleMutation.mutate({ id: n.id, enabled: checked })
+                                }
+                                aria-label={t("nodes.toggleAria")}
+                              />
+                            </span>
+                          }
+                        />
+                        <TooltipContent>
+                          {n.enabled ? t("nodes.disableTooltip") : t("nodes.enableTooltip")}
+                        </TooltipContent>
+                      </Tooltip>
                       <Button variant="outline" size="sm" onClick={() => setInboundNodeId(n.id)}>
                         <Radio className="mr-1.5 size-3.5" />
                         {t("nodes.btnProtocol")}
@@ -501,17 +548,25 @@ export function NodesPage() {
                         <Terminal className="mr-1.5 size-3.5" />
                         {t("nodes.btnDeploy")}
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditingNode(n)
-                          setFormOpen(true)
-                        }}
-                      >
-                        <Pencil className="mr-1.5 size-3.5" />
-                        {t("common.edit")}
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label={t("nodes.editNode")}
+                              onClick={() => {
+                                setEditingNode(n)
+                                setFormOpen(true)
+                              }}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>{t("nodes.editNode")}</TooltipContent>
+                      </Tooltip>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -526,11 +581,15 @@ export function NodesPage() {
                           }
                         />
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => pushMutation.mutate(n.id)}>
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ type: "push", node: n })}
+                          >
                             <Send className="mr-2 size-4" />
                             {t("nodes.pushConfig")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => restartMutation.mutate(n.id)}>
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ type: "restart", node: n })}
+                          >
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.restartMihomo")}
                           </DropdownMenuItem>
@@ -559,7 +618,9 @@ export function NodesPage() {
                               </DropdownMenuItem>
                             )
                           })()}
-                          <DropdownMenuItem onClick={() => resetTrafficMutation.mutate(n.id)}>
+                          <DropdownMenuItem
+                            onClick={() => setPendingAction({ type: "resetTraffic", node: n })}
+                          >
                             <RotateCcw className="mr-2 size-4" />
                             {t("nodes.resetTraffic")}
                           </DropdownMenuItem>
@@ -608,6 +669,48 @@ export function NodesPage() {
         confirmName={deletingNode?.name}
         loading={deleteMutation.isPending}
         onConfirm={() => deletingNode && deleteMutation.mutate(deletingNode.id)}
+      />
+
+      <ConfirmActionDialog
+        open={Boolean(pendingAction)}
+        onOpenChange={(o) => !o && setPendingAction(null)}
+        title={
+          pendingAction?.type === "push"
+            ? t("nodes.confirmPushTitle", { name: pendingAction.node.name })
+            : pendingAction?.type === "restart"
+              ? t("nodes.confirmRestartTitle", { name: pendingAction.node.name })
+              : t("nodes.confirmResetTrafficTitle", { name: pendingAction?.node.name ?? "" })
+        }
+        description={
+          pendingAction?.type === "push"
+            ? pendingAction.node.online
+              ? t("nodes.confirmPushDesc")
+              : t("nodes.confirmPushOfflineDesc")
+            : pendingAction?.type === "restart"
+              ? t("nodes.confirmRestartDesc")
+              : t("nodes.confirmResetTrafficDesc")
+        }
+        confirmLabel={
+          pendingAction?.type === "push"
+            ? t("nodes.confirmPushAction")
+            : pendingAction?.type === "restart"
+              ? t("nodes.confirmRestartAction")
+              : t("nodes.confirmResetTrafficAction")
+        }
+        variant={pendingAction?.type === "resetTraffic" ? "destructive" : "default"}
+        loading={
+          pushMutation.isPending || restartMutation.isPending || resetTrafficMutation.isPending
+        }
+        onConfirm={() => {
+          if (!pendingAction) return
+          if (pendingAction.type === "push") {
+            pushMutation.mutate(pendingAction.node.id)
+          } else if (pendingAction.type === "restart") {
+            restartMutation.mutate(pendingAction.node.id)
+          } else {
+            resetTrafficMutation.mutate(pendingAction.node.id)
+          }
+        }}
       />
 
       <AlertDialog open={Boolean(upgradeTarget)} onOpenChange={(o) => !o && setUpgradeTarget(null)}>

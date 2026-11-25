@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronDown, ClipboardPaste, KeyRound, Loader2, Sparkles, Wrench } from "lucide-react"
+import {
+  ChevronDown,
+  ClipboardPaste,
+  KeyRound,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  Wrench,
+} from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton } from "@/components/common/CommonUI"
 import { FormSwitchCard } from "@/components/common/FormControls"
@@ -29,7 +37,6 @@ import {
   DEFAULT_MASQUE_SNI,
   DEFAULT_WARP_IP,
   DEFAULT_WARP_PORT,
-  DEFAULT_WARP_PUBLIC_KEY,
   DEFAULT_WARP_SERVER,
   WARP_MASQUE_ENDPOINTS,
   WARP_WG_ENDPOINTS,
@@ -43,6 +50,8 @@ export interface OutboundItemMeta {
   registeredV4?: string
   registeredV6?: string
 }
+
+type ToolPanel = null | "license" | "jwt" | "import"
 
 export function OutboundTunnelFields({
   item,
@@ -60,14 +69,18 @@ export function OutboundTunnelFields({
   isKeygenPending: boolean
   onPatch: (patch: Partial<NodeOutbound>) => void
   onRememberAddr: (ip?: string, ipv6?: string) => void
-  onRegisterWARP: (protocol: "wireguard" | "masque", license?: string) => void
+  onRegisterWARP: (opts: {
+    protocol: "wireguard" | "masque"
+    license?: string
+    jwt?: string
+  }) => void
   onKeygen: (type: "wireguard" | "masque") => void
 }) {
   const { t } = useTranslation()
-  const [importOpen, setImportOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<ToolPanel>(null)
   const [importText, setImportText] = useState("")
-  const [licenseOpen, setLicenseOpen] = useState(false)
   const [warpLicense, setWarpLicense] = useState("")
+  const [warpJWT, setWarpJWT] = useState("")
   const ipv6InputRef = useRef<HTMLInputElement>(null)
 
   const serializedDns = (item.dns ?? []).join(", ")
@@ -81,11 +94,11 @@ export function OutboundTunnelFields({
     }
   }, [serializedDns])
 
+  const protocol: "wireguard" | "masque" = item.type === "masque" ? "masque" : "wireguard"
   const isL4Proxy = item.type === "masque" && item.network === "h3-l4proxy"
-  const isWARPFamily = item.type === "warp" || item.type === "masque"
 
   const endpointPresets = useMemo(() => {
-    const base = item.type === "warp" ? WARP_WG_ENDPOINTS : WARP_MASQUE_ENDPOINTS
+    const base = item.type === "masque" ? WARP_MASQUE_ENDPOINTS : WARP_WG_ENDPOINTS
     return base.map((ep) => {
       if (ep.key === "v4" && meta?.registeredV4) {
         return { ...ep, server: meta.registeredV4 }
@@ -96,6 +109,13 @@ export function OutboundTunnelFields({
       return ep
     })
   }, [item.type, meta?.registeredV4, meta?.registeredV6])
+
+  const togglePanel = (panel: Exclude<ToolPanel, null>) => {
+    setActivePanel((cur) => (cur === panel ? null : panel))
+    setImportText("")
+    setWarpLicense("")
+    setWarpJWT("")
+  }
 
   const handleApplyImport = () => {
     const patch =
@@ -110,7 +130,7 @@ export function OutboundTunnelFields({
     }
     onRememberAddr(patch.ip, patch.ipv6)
     onPatch(patch)
-    setImportOpen(false)
+    setActivePanel(null)
     setImportText("")
     toast.success(
       item.type === "masque"
@@ -139,7 +159,7 @@ export function OutboundTunnelFields({
 
   return (
     <div className="space-y-3">
-      {/* Compact quick actions bar: primary register button + single tools dropdown */}
+      {/* Compact quick actions bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-3 py-2">
         <span className="text-xs text-muted-foreground">
           {item.type === "masque"
@@ -147,22 +167,20 @@ export function OutboundTunnelFields({
             : t("nodes.form.outbound.wgImportHint")}
         </span>
         <div className="flex items-center gap-1.5">
-          {isWARPFamily && (
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 px-2.5 text-xs"
-              disabled={isRegistering}
-              onClick={() => onRegisterWARP(item.type === "masque" ? "masque" : "wireguard")}
-            >
-              {isRegistering ? (
-                <Loader2 className="mr-1.5 size-3 animate-spin" />
-              ) : (
-                <Sparkles className="mr-1.5 size-3" />
-              )}
-              {t("nodes.form.outbound.warpRegisterBtn")}
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={isRegistering}
+            onClick={() => onRegisterWARP({ protocol })}
+          >
+            {isRegistering ? (
+              <Loader2 className="mr-1.5 size-3 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1.5 size-3" />
+            )}
+            {t("nodes.form.outbound.warpRegisterBtn")}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -183,35 +201,21 @@ export function OutboundTunnelFields({
                 </Button>
               }
             />
-            <DropdownMenuContent align="end" className="w-52">
-              {isWARPFamily && (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setLicenseOpen((v) => !v)
-                      setImportOpen(false)
-                      setWarpLicense("")
-                    }}
-                  >
-                    <Sparkles className="mr-2 size-3.5" />
-                    {t("nodes.form.outbound.warpRegisterWithLicenseBtn")}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem
-                onClick={() => onKeygen(item.type === "masque" ? "masque" : "wireguard")}
-              >
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => togglePanel("license")}>
+                <Sparkles className="mr-2 size-3.5" />
+                {t("nodes.form.outbound.warpRegisterWithLicenseBtn")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => togglePanel("jwt")}>
+                <ShieldCheck className="mr-2 size-3.5" />
+                {t("nodes.form.outbound.warpRegisterWithJwtBtn")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onKeygen(protocol)}>
                 <KeyRound className="mr-2 size-3.5" />
                 {t("nodes.form.outbound.keygenBtn")}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setImportOpen((v) => !v)
-                  setLicenseOpen(false)
-                  setImportText("")
-                }}
-              >
+              <DropdownMenuItem onClick={() => togglePanel("import")}>
                 <ClipboardPaste className="mr-2 size-3.5" />
                 {t("nodes.form.outbound.importBtn")}
               </DropdownMenuItem>
@@ -220,7 +224,7 @@ export function OutboundTunnelFields({
         </div>
       </div>
 
-      {licenseOpen && isWARPFamily && (
+      {activePanel === "license" && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2.5">
           <Input
             value={warpLicense}
@@ -233,10 +237,7 @@ export function OutboundTunnelFields({
             variant="ghost"
             size="sm"
             className="h-8 text-xs"
-            onClick={() => {
-              setLicenseOpen(false)
-              setWarpLicense("")
-            }}
+            onClick={() => setActivePanel(null)}
           >
             {t("common.cancel")}
           </Button>
@@ -246,14 +247,53 @@ export function OutboundTunnelFields({
             className="h-8 text-xs"
             disabled={isRegistering}
             onClick={() => {
-              onRegisterWARP(item.type === "masque" ? "masque" : "wireguard", warpLicense.trim())
-              setLicenseOpen(false)
+              onRegisterWARP({ protocol, license: warpLicense.trim() })
+              setActivePanel(null)
               setWarpLicense("")
             }}
           >
             {isRegistering && <Loader2 className="mr-1 size-3 animate-spin" />}
             {t("nodes.form.outbound.warpRegisterWithLicenseBtn")}
           </Button>
+        </div>
+      )}
+
+      {activePanel === "jwt" && (
+        <div className="space-y-2 rounded-md border border-border bg-background p-2.5">
+          <p className="text-[11px] text-muted-foreground">
+            {t("nodes.form.outbound.warpJwtDesc")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={warpJWT}
+              onChange={(e) => setWarpJWT(e.target.value)}
+              placeholder={t("nodes.form.outbound.warpJwtPlaceholder")}
+              className="h-8 flex-1 font-mono text-xs"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setActivePanel(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={isRegistering || !warpJWT.trim()}
+              onClick={() => {
+                onRegisterWARP({ protocol, jwt: warpJWT.trim() })
+                setActivePanel(null)
+                setWarpJWT("")
+              }}
+            >
+              {isRegistering && <Loader2 className="mr-1 size-3 animate-spin" />}
+              {t("nodes.form.outbound.warpRegisterWithJwtBtn")}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -276,7 +316,7 @@ export function OutboundTunnelFields({
         </div>
       )}
 
-      {importOpen && (
+      {activePanel === "import" && (
         <div className="space-y-2 rounded-md border border-border bg-background p-2.5">
           <Textarea
             value={importText}
@@ -295,7 +335,7 @@ export function OutboundTunnelFields({
               size="sm"
               className="h-7 text-xs"
               onClick={() => {
-                setImportOpen(false)
+                setActivePanel(null)
                 setImportText("")
               }}
             >
@@ -323,7 +363,7 @@ export function OutboundTunnelFields({
           <Input
             value={item.public_key ?? ""}
             onChange={(e) => onPatch({ public_key: e.target.value })}
-            placeholder={item.type === "warp" ? DEFAULT_WARP_PUBLIC_KEY : "base64..."}
+            placeholder="base64..."
             className="h-8 bg-background font-mono text-xs"
           />
         </div>
@@ -408,49 +448,41 @@ export function OutboundTunnelFields({
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-1">
             <Label className="text-xs">{t("nodes.form.outbound.server")}</Label>
-            {isWARPFamily && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      <span>{t("nodes.form.outbound.endpointPresetsShort")}</span>
-                      <ChevronDown className="size-3" />
-                    </button>
-                  }
-                />
-                <DropdownMenuContent align="end" className="w-60">
-                  {endpointPresets.map((ep) => (
-                    <DropdownMenuItem
-                      key={ep.key}
-                      onClick={() => onPatch({ server: ep.server, port: ep.port })}
-                    >
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <span className="text-xs">
-                          {t(`nodes.form.outbound.endpointPresets.${ep.key}`)}
-                        </span>
-                        <span className="truncate font-mono text-xs text-muted-foreground">
-                          {ep.server}
-                        </span>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <span>{t("nodes.form.outbound.endpointPresetsShort")}</span>
+                    <ChevronDown className="size-3" />
+                  </button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-60">
+                {endpointPresets.map((ep) => (
+                  <DropdownMenuItem
+                    key={ep.key}
+                    onClick={() => onPatch({ server: ep.server, port: ep.port })}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <span className="text-xs">
+                        {t(`nodes.form.outbound.endpointPresets.${ep.key}`)}
+                      </span>
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        {ep.server}
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <Input
             value={item.server ?? ""}
             onChange={(e) => onPatch({ server: e.target.value })}
-            placeholder={
-              item.type === "warp"
-                ? DEFAULT_WARP_SERVER
-                : item.type === "masque"
-                  ? DEFAULT_MASQUE_SERVER
-                  : "wg.example.com"
-            }
+            placeholder={item.type === "masque" ? DEFAULT_MASQUE_SERVER : DEFAULT_WARP_SERVER}
             className="h-8 bg-background font-mono text-xs"
           />
         </div>
@@ -467,11 +499,7 @@ export function OutboundTunnelFields({
               })
             }
             placeholder={
-              item.type === "warp"
-                ? String(DEFAULT_WARP_PORT)
-                : item.type === "masque"
-                  ? String(DEFAULT_MASQUE_PORT)
-                  : "51820"
+              item.type === "masque" ? String(DEFAULT_MASQUE_PORT) : String(DEFAULT_WARP_PORT)
             }
             className="h-8 bg-background font-mono text-xs tabular-nums"
           />
@@ -488,7 +516,7 @@ export function OutboundTunnelFields({
                 mtu: e.target.value ? Number(e.target.value) : 0,
               })
             }
-            placeholder={isWARPFamily ? "1280" : "1420"}
+            placeholder="1280"
             className="h-8 bg-background font-mono text-xs tabular-nums"
           />
         </div>

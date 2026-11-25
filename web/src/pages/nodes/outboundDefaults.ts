@@ -1,4 +1,5 @@
 import type { NodeOutbound, OutboundType } from "@/lib/types"
+import { summarizeCustomOutboundYAML } from "./outboundCustom"
 
 export const DEFAULT_WARP_SERVER = "engage.cloudflareclient.com"
 export const DEFAULT_WARP_PORT = 2408
@@ -22,20 +23,20 @@ export const RULE_PRESET_KEYS = [
 ] as const
 
 export const OUTBOUND_TYPES: OutboundType[] = [
-  "warp",
-  "masque",
   "wireguard",
+  "masque",
   "socks5",
   "http",
+  "custom",
   "mihob-node",
 ]
 
 export const DEFAULT_OUTBOUND_NAMES: Record<OutboundType, string> = {
-  warp: "WARP",
-  masque: "WARP-MASQUE",
   wireguard: "WG-OUT",
+  masque: "MASQUE-OUT",
   socks5: "SOCKS5-OUT",
   http: "HTTP-OUT",
+  custom: "PROXY-OUT",
   "mihob-node": "UNLOCK-NODE",
 }
 
@@ -67,27 +68,44 @@ export function createDefaultOutbound(
   existing: NodeOutbound[],
   preset?: "warp"
 ): NodeOutbound {
-  const baseName =
-    type === "masque" && preset !== "warp" ? "MASQUE-OUT" : DEFAULT_OUTBOUND_NAMES[type]
+  let baseName = DEFAULT_OUTBOUND_NAMES[type]
+  if (preset === "warp") {
+    baseName = type === "masque" ? "WARP-MASQUE" : "WARP"
+  }
   const name = nextUniqueName(existing, baseName)
   switch (type) {
-    case "warp":
-      return {
-        name,
-        type: "warp",
-        enabled: true,
-        server: DEFAULT_WARP_SERVER,
-        port: DEFAULT_WARP_PORT,
-        ip: DEFAULT_WARP_IP,
-        ipv6: "",
-        private_key: "",
-        public_key: DEFAULT_WARP_PUBLIC_KEY,
-        reserved: "",
-        mtu: DEFAULT_WARP_MTU,
-        udp: true,
-        remote_dns_resolve: true,
-        dns: ["1.1.1.1", "1.0.0.1"],
-      }
+    case "wireguard":
+      return preset === "warp"
+        ? {
+            name,
+            type: "wireguard",
+            enabled: true,
+            server: DEFAULT_WARP_SERVER,
+            port: DEFAULT_WARP_PORT,
+            ip: DEFAULT_WARP_IP,
+            ipv6: "",
+            private_key: "",
+            public_key: DEFAULT_WARP_PUBLIC_KEY,
+            reserved: "",
+            mtu: DEFAULT_WARP_MTU,
+            udp: true,
+            remote_dns_resolve: true,
+            dns: ["1.1.1.1", "1.0.0.1"],
+          }
+        : {
+            name,
+            type: "wireguard",
+            enabled: true,
+            server: "",
+            port: 51820,
+            ip: "",
+            ipv6: "",
+            private_key: "",
+            public_key: "",
+            mtu: 1420,
+            udp: true,
+            remote_dns_resolve: false,
+          }
     case "masque":
       return preset === "warp"
         ? {
@@ -123,21 +141,6 @@ export function createDefaultOutbound(
             udp: true,
             remote_dns_resolve: false,
           }
-    case "wireguard":
-      return {
-        name,
-        type: "wireguard",
-        enabled: true,
-        server: "",
-        port: 51820,
-        ip: "",
-        ipv6: "",
-        private_key: "",
-        public_key: "",
-        mtu: 1420,
-        udp: true,
-        remote_dns_resolve: false,
-      }
     case "socks5":
       return {
         name,
@@ -154,6 +157,13 @@ export function createDefaultOutbound(
         enabled: true,
         server: "127.0.0.1",
         port: 8080,
+      }
+    case "custom":
+      return {
+        name,
+        type: "custom",
+        enabled: true,
+        custom_yaml: "",
       }
     case "mihob-node":
       return {
@@ -174,12 +184,11 @@ export function summarizeOutbound(o: NodeOutbound, unconfiguredLabel: string): s
         : o.node_ref
       : unconfiguredLabel
   }
-  const host =
-    o.server ||
-    (o.type === "warp" ? DEFAULT_WARP_SERVER : o.type === "masque" ? DEFAULT_MASQUE_SERVER : "")
-  const port =
-    o.port ||
-    (o.type === "warp" ? DEFAULT_WARP_PORT : o.type === "masque" ? DEFAULT_MASQUE_PORT : 0)
+  if (o.type === "custom") {
+    return summarizeCustomOutboundYAML(o.custom_yaml) || unconfiguredLabel
+  }
+  const host = o.server || ""
+  const port = o.port || (o.type === "masque" ? DEFAULT_MASQUE_PORT : 0)
   if (!host) return unconfiguredLabel
   return port ? `${host}:${port}` : host
 }

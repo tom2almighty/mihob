@@ -117,40 +117,14 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 	}
 
 	switch o.Type {
-	case model.OutboundTypeWARP, model.OutboundTypeWireGuard:
-		server := o.Server
-		port := o.Port
-		pubKey := o.PublicKey
-		mtu := o.MTU
-		remoteDNS := o.RemoteDNSResolve
-		dnsList := o.DNS
-
-		if o.Type == model.OutboundTypeWARP {
-			if server == "" {
-				server = model.DefaultWARPServer
-			}
-			if port <= 0 {
-				port = model.DefaultWARPPort
-			}
-			if pubKey == "" {
-				pubKey = model.DefaultWARPPublicKey
-			}
-			if mtu <= 0 {
-				mtu = model.DefaultWARPMTU
-			}
-			// WARP works best with remote DNS resolution enabled by default
-			if !remoteDNS && len(dnsList) == 0 {
-				remoteDNS = true
-			}
-		}
-
+	case model.OutboundTypeWireGuard:
 		p := map[string]any{
 			"name":        o.Name,
 			"type":        "wireguard",
-			"server":      server,
-			"port":        port,
+			"server":      o.Server,
+			"port":        o.Port,
 			"private-key": o.PrivateKey,
-			"public-key":  pubKey,
+			"public-key":  o.PublicKey,
 		}
 		if ip := stripCIDR(o.IP); ip != "" {
 			p["ip"] = ip
@@ -170,11 +144,11 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 				p["reserved"] = resBytes
 			}
 		}
-		if mtu > 0 {
-			p["mtu"] = mtu
+		if o.MTU > 0 {
+			p["mtu"] = o.MTU
 		}
 		p["udp"] = boolOrDefault(o.UDP, true)
-		attachOutboundDNS(p, remoteDNS, dnsList)
+		attachOutboundDNS(p, o.RemoteDNSResolve, o.DNS)
 		return attachCommon(p), nil
 
 	case model.OutboundTypeMASQUE:
@@ -273,6 +247,14 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		if o.InboundRef != "" {
 			p["inbound"] = o.InboundRef
 		}
+		return attachCommon(p), nil
+
+	case model.OutboundTypeCustom:
+		p, err := model.ParseCustomOutboundYAML(o.CustomYAML)
+		if err != nil {
+			return nil, fmt.Errorf("outbound %q: %w", o.Name, err)
+		}
+		p["name"] = o.Name
 		return attachCommon(p), nil
 
 	default:

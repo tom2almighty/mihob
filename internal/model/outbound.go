@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	OutboundTypeWARP      = "warp"
 	OutboundTypeWireGuard = "wireguard"
 	OutboundTypeMASQUE    = "masque"
 	OutboundTypeSocks5    = "socks5"
 	OutboundTypeHTTP      = "http"
 	OutboundTypeNode      = "mihob-node"
+	OutboundTypeCustom    = "custom"
 )
 
 const (
@@ -23,14 +25,15 @@ const (
 )
 
 const (
-	DefaultWARPServer       = "engage.cloudflareclient.com"
-	DefaultWARPPort         = 2408
-	DefaultWARPPublicKey    = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-	DefaultWARPMTU          = 1280
-	DefaultWARPMASQUEServer = "162.159.198.1"
-	DefaultWARPMASQUEPort   = 443
-	DefaultWARPMASQUESNI    = "consumer-masque.cloudflareclient.com"
-	DefaultWARPMASQUEMTU    = 1280
+	DefaultWARPServer             = "engage.cloudflareclient.com"
+	DefaultWARPPort               = 2408
+	DefaultWARPPublicKey          = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+	DefaultWARPMTU                = 1280
+	DefaultWARPMASQUEServer       = "162.159.198.1"
+	DefaultWARPMASQUEPort         = 443
+	DefaultWARPMASQUESNI          = "consumer-masque.cloudflareclient.com"
+	DefaultWARPZeroTrustMASQUESNI = "zt-masque.cloudflareclient.com"
+	DefaultWARPMASQUEMTU          = 1280
 )
 
 type NodeOutboundConfig struct {
@@ -40,10 +43,10 @@ type NodeOutboundConfig struct {
 
 type NodeOutbound struct {
 	Name    string `json:"name"`
-	Type    string `json:"type"` // "warp" | "masque" | "wireguard" | "socks5" | "http" | "mihob-node"
+	Type    string `json:"type"` // "wireguard" | "masque" | "socks5" | "http" | "mihob-node" | "custom"
 	Enabled bool   `json:"enabled"`
 
-	// Shared proxy server fields (warp / masque / wireguard / socks5 / http)
+	// Shared proxy server fields (wireguard / masque / socks5 / http)
 	Server string `json:"server,omitempty"`
 	Port   int    `json:"port,omitempty"`
 
@@ -54,7 +57,7 @@ type NodeOutbound struct {
 	SkipCertVerify bool   `json:"skip_cert_verify,omitempty"`
 	UDP            *bool  `json:"udp,omitempty"`
 
-	// WireGuard / Cloudflare WARP / MASQUE fields
+	// WireGuard / MASQUE fields
 	IP               string   `json:"ip,omitempty"`
 	IPv6             string   `json:"ipv6,omitempty"`
 	PrivateKey       string   `json:"private_key,omitempty"`
@@ -73,6 +76,9 @@ type NodeOutbound struct {
 	// Cluster node reference (type: "mihob-node")
 	NodeRef    string `json:"node_ref,omitempty"`
 	InboundRef string `json:"inbound_ref,omitempty"`
+
+	// Custom Mihomo proxy YAML snippet (type: "custom")
+	CustomYAML string `json:"custom_yaml,omitempty"`
 
 	// Common proxy options
 	IPVersion   string `json:"ip_version,omitempty"` // "" | "dual" | "ipv4" | "ipv6" | "ipv4-prefer" | "ipv6-prefer"
@@ -96,11 +102,45 @@ var reservedOutboundNames = map[string]bool{
 
 func IsValidOutboundType(t string) bool {
 	switch t {
-	case OutboundTypeWARP, OutboundTypeWireGuard, OutboundTypeMASQUE, OutboundTypeSocks5, OutboundTypeHTTP, OutboundTypeNode:
+	case OutboundTypeWireGuard, OutboundTypeMASQUE, OutboundTypeSocks5, OutboundTypeHTTP, OutboundTypeNode, OutboundTypeCustom:
 		return true
 	default:
 		return false
 	}
+}
+
+// ParseCustomOutboundYAML parses a single Mihomo proxy YAML snippet (either a mapping
+// or a single-element sequence containing a mapping) and validates that `type` is present.
+func ParseCustomOutboundYAML(raw string) (map[string]any, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("custom proxy YAML is required")
+	}
+	var doc any
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil, fmt.Errorf("invalid custom proxy YAML: %w", err)
+	}
+	var m map[string]any
+	switch v := doc.(type) {
+	case map[string]any:
+		m = v
+	case []any:
+		if len(v) != 1 {
+			return nil, fmt.Errorf("custom proxy YAML must define a single proxy object")
+		}
+		item, ok := v[0].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("custom proxy YAML item must be a YAML mapping")
+		}
+		m = item
+	default:
+		return nil, fmt.Errorf("custom proxy YAML must be a YAML mapping")
+	}
+	tp, ok := m["type"].(string)
+	if !ok || strings.TrimSpace(tp) == "" {
+		return nil, fmt.Errorf("custom proxy YAML must include a non-empty \"type\" field")
+	}
+	return m, nil
 }
 
 func IsValidOutboundIPVersion(v string) bool {
@@ -205,6 +245,7 @@ func (c *NodeOutboundConfig) Normalize() {
 		o.CongestionController = strings.ToLower(strings.TrimSpace(o.CongestionController))
 		o.NodeRef = strings.TrimSpace(o.NodeRef)
 		o.InboundRef = strings.TrimSpace(o.InboundRef)
+		o.CustomYAML = strings.TrimSpace(o.CustomYAML)
 		o.IPVersion = strings.ToLower(strings.TrimSpace(o.IPVersion))
 		o.DialerProxy = strings.TrimSpace(o.DialerProxy)
 		if len(o.DNS) > 0 {
@@ -278,21 +319,6 @@ func (c *NodeOutboundConfig) Validate() error {
 		}
 
 		switch o.Type {
-		case OutboundTypeWARP:
-			if o.PrivateKey == "" {
-				return fmt.Errorf("outbound %q: WARP private key is required", o.Name)
-			}
-			if o.IP == "" && o.IPv6 == "" {
-				return fmt.Errorf("outbound %q: WARP IPv4 or IPv6 address is required", o.Name)
-			}
-			if o.Port != 0 && (o.Port < 1 || o.Port > 65535) {
-				return fmt.Errorf("outbound %q: port must be between 1 and 65535", o.Name)
-			}
-			if o.Reserved != "" {
-				if _, err := ParseWireGuardReserved(o.Reserved); err != nil {
-					return fmt.Errorf("outbound %q: %w", o.Name, err)
-				}
-			}
 		case OutboundTypeWireGuard:
 			if o.Server == "" {
 				return fmt.Errorf("outbound %q: WireGuard server is required", o.Name)
@@ -341,6 +367,35 @@ func (c *NodeOutboundConfig) Validate() error {
 			if o.NodeRef == "" {
 				return fmt.Errorf("outbound %q: target node reference is required", o.Name)
 			}
+		case OutboundTypeCustom:
+			if _, err := ParseCustomOutboundYAML(o.CustomYAML); err != nil {
+				return fmt.Errorf("outbound %q: %w", o.Name, err)
+			}
+		}
+	}
+
+	// Validate dialer_proxy references: prevent self-reference and circular chains
+	dialerByKey := make(map[string]string, len(c.Outbounds))
+	for _, o := range c.Outbounds {
+		if o.DialerProxy != "" {
+			if strings.EqualFold(o.Name, o.DialerProxy) {
+				return fmt.Errorf("outbound %q: dialer_proxy cannot reference itself", o.Name)
+			}
+			dialerByKey[strings.ToLower(o.Name)] = strings.ToLower(o.DialerProxy)
+		}
+	}
+	for _, o := range c.Outbounds {
+		if o.DialerProxy == "" {
+			continue
+		}
+		visited := map[string]bool{strings.ToLower(o.Name): true}
+		cur := strings.ToLower(o.DialerProxy)
+		for cur != "" {
+			if visited[cur] {
+				return fmt.Errorf("outbound %q: circular dialer_proxy chain detected", o.Name)
+			}
+			visited[cur] = true
+			cur = dialerByKey[cur]
 		}
 	}
 

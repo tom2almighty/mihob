@@ -151,6 +151,11 @@ export const api = {
     request<Node>("/api/nodes", { method: "POST", body: JSON.stringify(body) }),
   updateNode: (id: number, body: Record<string, unknown>) =>
     request<Node>(`/api/nodes/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  setNodeEnabled: (id: number, enabled: boolean) =>
+    request<Node>(`/api/nodes/${id}/enabled`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
   deleteNode: (id: number) => request<{ status: string }>(`/api/nodes/${id}`, { method: "DELETE" }),
   resetNodeTraffic: (id: number) =>
     request<{ status: string }>(`/api/nodes/${id}/reset-traffic`, { method: "POST" }),
@@ -200,6 +205,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  setInboundEnabled: (id: number, enabled: boolean) =>
+    request<Inbound>(`/api/inbounds/${id}/enabled`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
   deleteInbound: (id: number) =>
     request<{ status: string }>(`/api/inbounds/${id}`, { method: "DELETE" }),
   keygen: (
@@ -218,7 +228,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ type }),
     }),
-  registerWARP: (body: { protocol: "wireguard" | "masque"; license?: string }) =>
+  registerWARP: (body: { protocol: "wireguard" | "masque"; license?: string; jwt?: string }) =>
     request<WARPRegisterResult>("/api/tools/warp-register", {
       method: "POST",
       body: JSON.stringify(body),
@@ -252,6 +262,11 @@ export const api = {
     request<User>("/api/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id: number, body: Record<string, unknown>) =>
     request<User>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  setUserEnabled: (id: number, enabled: boolean) =>
+    request<User>(`/api/users/${id}/enabled`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
   deleteUser: (id: number) => request<{ status: string }>(`/api/users/${id}`, { method: "DELETE" }),
   resetUserTraffic: (id: number) =>
     request<{ status: string }>(`/api/users/${id}/reset-traffic`, { method: "POST" }),

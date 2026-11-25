@@ -66,7 +66,7 @@ type cfWARPResponse struct {
 	} `json:"config"`
 }
 
-func cfDoJSON(ctx context.Context, client *http.Client, method, url, bearer string, body any) ([]byte, int, error) {
+func cfDoJSON(ctx context.Context, client *http.Client, method, url, bearer string, extraHeaders map[string]string, body any) ([]byte, int, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
@@ -84,6 +84,11 @@ func cfDoJSON(ctx context.Context, client *http.Client, method, url, bearer stri
 	req.Header.Set("CF-Client-Version", cfWARPClientVer)
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	for k, v := range extraHeaders {
+		if strings.TrimSpace(v) != "" {
+			req.Header.Set(k, v)
+		}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -147,12 +152,12 @@ func formatCFClientIDToReserved(clientID string) string {
 	return fmt.Sprintf("%d, %d, %d", decoded[0], decoded[1], decoded[2])
 }
 
-func registerCloudflareWARP(ctx context.Context, protocol, license string) (*warpRegisterResult, error) {
+func registerCloudflareWARP(ctx context.Context, protocol, license, jwt string) (*warpRegisterResult, error) {
 	client := &http.Client{Timeout: cfWARPHTTPTimeout}
-	return registerCloudflareWARPWithBase(ctx, client, cfWARPAPIBase, protocol, license)
+	return registerCloudflareWARPWithBase(ctx, client, cfWARPAPIBase, protocol, license, jwt)
 }
 
-func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, apiBase, protocol, license string) (*warpRegisterResult, error) {
+func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, apiBase, protocol, license, jwt string) (*warpRegisterResult, error) {
 	protocol = strings.ToLower(strings.TrimSpace(protocol))
 	if protocol == "" {
 		protocol = "wireguard"
@@ -161,6 +166,8 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 		return nil, fmt.Errorf("%w %q", errInvalidWARPProtocol, protocol)
 	}
 	apiBase = strings.TrimRight(apiBase, "/")
+	jwt = strings.TrimSpace(jwt)
+	license = strings.TrimSpace(license)
 
 	wgPriv, wgPub, err := crypto.GenerateWireGuardKeyPair()
 	if err != nil {
@@ -177,7 +184,14 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 		"locale":     "en_US",
 	}
 
-	raw, status, err := cfDoJSON(ctx, client, http.MethodPost, apiBase+"/reg", "", regPayload)
+	var regHeaders map[string]string
+	if jwt != "" {
+		regHeaders = map[string]string{
+			"Cf-Access-Jwt-Assertion": jwt,
+		}
+	}
+
+	raw, status, err := cfDoJSON(ctx, client, http.MethodPost, apiBase+"/reg", "", regHeaders, regPayload)
 	if err != nil {
 		return nil, fmt.Errorf("cloudflare register request failed: %w", err)
 	}
@@ -193,9 +207,9 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 		return nil, fmt.Errorf("cloudflare register returned empty device id or token")
 	}
 
-	license = strings.TrimSpace(license)
-	if license != "" {
-		licRaw, licStatus, err := cfDoJSON(ctx, client, http.MethodPut, fmt.Sprintf("%s/reg/%s/account", apiBase, account.ID), account.Token, map[string]string{
+	// Consumer WARP+ license is only applicable when not registering via Zero Trust JWT
+	if jwt == "" && license != "" {
+		licRaw, licStatus, err := cfDoJSON(ctx, client, http.MethodPut, fmt.Sprintf("%s/reg/%s/account", apiBase, account.ID), account.Token, nil, map[string]string{
 			"license": license,
 		})
 		if err != nil {
@@ -205,7 +219,7 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 			return nil, fmt.Errorf("apply WARP+ license returned HTTP %d: %s", licStatus, truncateErrorBody(licRaw, cfWARPErrorBodyMaxByte))
 		}
 		if protocol == "wireguard" {
-			refRaw, refStatus, err := cfDoJSON(ctx, client, http.MethodGet, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, nil)
+			refRaw, refStatus, err := cfDoJSON(ctx, client, http.MethodGet, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, nil, nil)
 			if err == nil && refStatus >= 200 && refStatus < 300 {
 				var refreshed cfWARPResponse
 				if json.Unmarshal(refRaw, &refreshed) == nil && len(refreshed.Config.Peers) > 0 {
@@ -254,7 +268,7 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 	if err != nil {
 		return nil, fmt.Errorf("generate masque keypair: %w", err)
 	}
-	enrollRaw, enrollStatus, err := cfDoJSON(ctx, client, http.MethodPatch, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, map[string]string{
+	enrollRaw, enrollStatus, err := cfDoJSON(ctx, client, http.MethodPatch, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, nil, map[string]string{
 		"key":         ecPub,
 		"key_type":    "secp256r1",
 		"tunnel_type": "masque",
@@ -283,6 +297,10 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 	if v4Host == "" {
 		v4Host = model.DefaultWARPMASQUEServer
 	}
+	sni := model.DefaultWARPMASQUESNI
+	if jwt != "" {
+		sni = model.DefaultWARPZeroTrustMASQUESNI
+	}
 	return &warpRegisterResult{
 		Protocol:   "masque",
 		PrivateKey: ecPriv,
@@ -293,7 +311,7 @@ func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, ap
 		ServerV4:   v4Host,
 		ServerV6:   v6Host,
 		Port:       port,
-		SNI:        model.DefaultWARPMASQUESNI,
+		SNI:        sni,
 		MTU:        model.DefaultWARPMASQUEMTU,
 	}, nil
 }
@@ -302,6 +320,7 @@ func (s *Server) handleWARPRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Protocol string `json:"protocol"` // "wireguard" | "masque"
 		License  string `json:"license"`
+		JWT      string `json:"jwt"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -310,7 +329,7 @@ func (s *Server) handleWARPRegister(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 
-	res, err := registerCloudflareWARP(ctx, req.Protocol, req.License)
+	res, err := registerCloudflareWARP(ctx, req.Protocol, req.License, req.JWT)
 	if err != nil {
 		if errors.Is(err, errInvalidWARPProtocol) {
 			writeError(w, http.StatusBadRequest, err.Error())

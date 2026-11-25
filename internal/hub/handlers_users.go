@@ -189,6 +189,42 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
+func (s *Server) handleSetUserEnabled(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: enabled is required")
+		return
+	}
+	existing, err := s.store.GetUser(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	wasActive := existing.IsActive(time.Now().UTC())
+	existing.Enabled = *req.Enabled
+	affected, err := s.store.UpdateUser(existing)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.ws.PushConfigToNodes(affected)
+
+	nowActive := existing.IsActive(time.Now().UTC())
+	if wasActive && !nowActive {
+		for _, nid := range affected {
+			_ = s.ws.KickUsersOnNode(nid, []string{existing.Username, existing.UUID})
+		}
+	}
+	writeJSON(w, http.StatusOK, existing)
+}
+
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseIDParam(r, "id")
 	if err != nil {

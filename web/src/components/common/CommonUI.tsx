@@ -302,6 +302,46 @@ export function ConfirmDeleteDialog({
   )
 }
 
+export function ConfirmActionDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  variant = "default",
+  loading,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  description: string
+  confirmLabel?: string
+  variant?: "default" | "destructive"
+  loading?: boolean
+  onConfirm: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={loading}>{t("common.cancel")}</AlertDialogCancel>
+          <Button variant={variant} disabled={loading} onClick={onConfirm}>
+            {loading && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+            {confirmLabel ?? t("common.confirm")}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 export function TablePagination({
   total,
   page,

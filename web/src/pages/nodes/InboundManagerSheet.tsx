@@ -3,11 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { GripVertical, Pencil, Plus, Radio, Send, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { ConfirmDeleteDialog, EmptyState, ErrorState } from "@/components/common/CommonUI"
+import {
+  ConfirmActionDialog,
+  ConfirmDeleteDialog,
+  EmptyState,
+  ErrorState,
+} from "@/components/common/CommonUI"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { PROTOCOL_LABELS, type Inbound, type Node } from "@/lib/types"
@@ -29,11 +35,13 @@ export function InboundManagerSheet({
   const [view, setView] = useState<"list" | "form">("list")
   const [editing, setEditing] = useState<Inbound | null>(null)
   const [deleting, setDeleting] = useState<Inbound | null>(null)
+  const [confirmPushOpen, setConfirmPushOpen] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setView("list")
       setEditing(null)
+      setConfirmPushOpen(false)
     }
   }, [open])
 
@@ -41,6 +49,24 @@ export function InboundManagerSheet({
     queryKey: node ? queryKeys.inbounds(node.id) : ["inbounds", "none"],
     queryFn: () => api.listInbounds(node!.id),
     enabled: open && Boolean(node),
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      api.setInboundEnabled(id, enabled),
+    onSuccess: (updated) => {
+      if (node) {
+        qc.setQueryData<Inbound[]>(queryKeys.inbounds(node.id), (prev) =>
+          prev?.map((item) => (item.id === updated.id ? updated : item))
+        )
+        qc.invalidateQueries({ queryKey: queryKeys.inbounds(node.id) })
+      }
+      qc.invalidateQueries({ queryKey: queryKeys.nodes })
+      toast.success(
+        updated.enabled ? t("nodes.inbound.toastEnabled") : t("nodes.inbound.toastDisabled")
+      )
+    },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const deleteMutation = useMutation({
@@ -59,6 +85,7 @@ export function InboundManagerSheet({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.nodes })
       toast.success(t("nodes.inbound.toastPushed"))
+      setConfirmPushOpen(false)
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -124,7 +151,7 @@ export function InboundManagerSheet({
                     size="sm"
                     variant="outline"
                     disabled={pushMutation.isPending}
-                    onClick={() => pushMutation.mutate()}
+                    onClick={() => setConfirmPushOpen(true)}
                   >
                     <Send className="mr-1.5 size-3.5" />
                     {t("nodes.inbound.pushNow")}
@@ -274,7 +301,32 @@ export function InboundManagerSheet({
                             </div>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span className="inline-flex items-center">
+                                  <Switch
+                                    size="sm"
+                                    checked={inb.enabled}
+                                    disabled={
+                                      toggleMutation.isPending &&
+                                      toggleMutation.variables?.id === inb.id
+                                    }
+                                    onCheckedChange={(checked) =>
+                                      toggleMutation.mutate({ id: inb.id, enabled: checked })
+                                    }
+                                    aria-label={t("nodes.inbound.toggleAria")}
+                                  />
+                                </span>
+                              }
+                            />
+                            <TooltipContent>
+                              {inb.enabled
+                                ? t("nodes.inbound.disableTooltip")
+                                : t("nodes.inbound.enableTooltip")}
+                            </TooltipContent>
+                          </Tooltip>
                           <Tooltip>
                             <TooltipTrigger
                               render={
@@ -328,6 +380,16 @@ export function InboundManagerSheet({
         description={t("nodes.inbound.deleteDesc", { name: deleting?.name ?? "" })}
         loading={deleteMutation.isPending}
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
+      />
+
+      <ConfirmActionDialog
+        open={confirmPushOpen}
+        onOpenChange={setConfirmPushOpen}
+        title={t("nodes.confirmPushTitle", { name: node?.name ?? "" })}
+        description={node?.online ? t("nodes.confirmPushDesc") : t("nodes.confirmPushOfflineDesc")}
+        confirmLabel={t("nodes.confirmPushAction")}
+        loading={pushMutation.isPending}
+        onConfirm={() => pushMutation.mutate()}
       />
     </>
   )

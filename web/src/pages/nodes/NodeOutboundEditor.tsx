@@ -23,7 +23,7 @@ import type {
   OutboundType,
 } from "@/lib/types"
 import { createDefaultOutbound } from "./outboundDefaults"
-import { OutboundItemCard } from "./OutboundItemCard"
+import { type DialerCandidate, OutboundItemCard } from "./OutboundItemCard"
 import { OutboundRoutingSection } from "./OutboundRoutingSection"
 import type { OutboundItemMeta } from "./OutboundTunnelFields"
 import { ServerConfigPreviewCard } from "./ServerConfigPreviewCard"
@@ -33,6 +33,31 @@ const EMPTY_ROUTING: NodeOutboundRouting = {
   target: "",
   rule_presets: [],
   custom_domains: [],
+}
+
+function wouldCreateDialerCycle(
+  outbounds: NodeOutbound[],
+  fromName: string,
+  candidateName: string
+): boolean {
+  const fromKey = fromName.trim().toLowerCase()
+  const startKey = candidateName.trim().toLowerCase()
+  if (!fromKey || !startKey) return false
+  if (fromKey === startKey) return true
+  const nextByKey = new Map<string, string>()
+  for (const o of outbounds) {
+    const k = o.name.trim().toLowerCase()
+    const d = (o.dialer_proxy ?? "").trim().toLowerCase()
+    if (k && d) nextByKey.set(k, d)
+  }
+  const visited = new Set<string>([fromKey])
+  let cur: string | undefined = startKey
+  while (cur) {
+    if (visited.has(cur)) return true
+    visited.add(cur)
+    cur = nextByKey.get(cur)
+  }
+  return false
 }
 
 export function NodeOutboundEditor({
@@ -179,6 +204,8 @@ export function NodeOutboundEditor({
         ...defaults,
         name: current.name || defaults.name,
         enabled: current.enabled,
+        ip_version: current.ip_version,
+        dialer_proxy: current.dialer_proxy,
       }
     })
   }
@@ -201,9 +228,17 @@ export function NodeOutboundEditor({
 
   const removeOutbound = (uid: string) => {
     const removed = outbounds.find((o) => getItemUid(o) === uid)
-    const next = outbounds.filter((o) => getItemUid(o) !== uid)
+    const removedName = removed?.name.trim() || ""
+    const next = outbounds
+      .filter((o) => getItemUid(o) !== uid)
+      .map((item) => {
+        if (removedName && (item.dialer_proxy ?? "").trim() === removedName) {
+          return bindUid({ ...item, dialer_proxy: "" }, getItemUid(item))
+        }
+        return item
+      })
     const nextRouting = { ...routing }
-    if (removed && nextRouting.target === removed.name) {
+    if (removedName && nextRouting.target === removedName) {
       const fallback = next.find((o) => o.enabled && o.name.trim())?.name ?? ""
       nextRouting.target = fallback
       if (!fallback && nextRouting.mode !== "none") {
@@ -251,11 +286,13 @@ export function NodeOutboundEditor({
       uid,
       protocol,
       license,
+      jwt,
     }: {
       uid: string
       protocol: "wireguard" | "masque"
       license?: string
-    }) => api.registerWARP({ protocol, license }).then((res) => ({ uid, res })),
+      jwt?: string
+    }) => api.registerWARP({ protocol, license, jwt }).then((res) => ({ uid, res })),
     onSuccess: ({ uid, res }) => {
       const exists = (latestValueRef.current.outbounds ?? []).some((o) => getItemUid(o) === uid)
       if (!exists) return
@@ -310,7 +347,7 @@ export function NodeOutboundEditor({
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupWarp")}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => addOutbound("warp", "warp")}>
+                <DropdownMenuItem onClick={() => addOutbound("wireguard", "warp")}>
                   {t("nodes.form.outbound.menuWarpWg")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => addOutbound("masque", "warp")}>
@@ -332,6 +369,9 @@ export function NodeOutboundEditor({
                 <DropdownMenuItem onClick={() => addOutbound("http")}>
                   {t("nodes.form.outbound.types.http")}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addOutbound("custom")}>
+                  {t("nodes.form.outbound.types.custom")}
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -352,10 +392,14 @@ export function NodeOutboundEditor({
           <div className="space-y-2.5">
             {outbounds.map((item) => {
               const uid = getItemUid(item)
-              const otherOutboundNames = outbounds
-                .filter((o) => getItemUid(o) !== uid)
-                .map((o) => o.name.trim())
-                .filter(Boolean)
+              const dialerCandidates: DialerCandidate[] = outbounds
+                .filter((o) => getItemUid(o) !== uid && o.name.trim())
+                .map((o) => ({
+                  name: o.name.trim(),
+                  type: o.type,
+                  enabled: o.enabled,
+                  cyclic: wouldCreateDialerCycle(outbounds, item.name, o.name),
+                }))
 
               return (
                 <OutboundItemCard
@@ -365,7 +409,7 @@ export function NodeOutboundEditor({
                   isExpanded={expandedUid === uid}
                   availableNodes={availableNodes}
                   inbounds={inbounds}
-                  otherOutboundNames={otherOutboundNames}
+                  dialerCandidates={dialerCandidates}
                   isRegistering={
                     warpRegisterMutation.isPending && warpRegisterMutation.variables?.uid === uid
                   }
@@ -378,8 +422,8 @@ export function NodeOutboundEditor({
                   onRename={(nextName) => renameOutboundByUid(uid, nextName)}
                   onChangeType={(nextType) => changeTypeByUid(uid, nextType)}
                   onRememberAddr={(ip, ipv6) => rememberAddr(uid, ip, ipv6)}
-                  onRegisterWARP={(protocol, license) =>
-                    warpRegisterMutation.mutate({ uid, protocol, license })
+                  onRegisterWARP={({ protocol, license, jwt }) =>
+                    warpRegisterMutation.mutate({ uid, protocol, license, jwt })
                   }
                   onKeygen={(type) => keygenMutation.mutate({ uid, type })}
                 />

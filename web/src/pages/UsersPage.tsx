@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import {
+  ConfirmActionDialog,
   ConfirmDeleteDialog,
   EmptyState,
   ErrorState,
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -82,6 +84,7 @@ export function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null)
   const [subUserId, setSubUserId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<User | null>(null)
+  const [resettingUser, setResettingUser] = useState<User | null>(null)
 
   const query = useQuery({
     queryKey: queryKeys.users,
@@ -89,6 +92,20 @@ export function UsersPage() {
   })
 
   const subUser = (query.data ?? []).find((u) => u.id === subUserId) ?? null
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      api.setUserEnabled(id, enabled),
+    onSuccess: (updated) => {
+      qc.setQueryData<User[]>(queryKeys.users, (prev) =>
+        prev?.map((item) => (item.id === updated.id ? updated : item))
+      )
+      qc.invalidateQueries({ queryKey: queryKeys.users })
+      qc.invalidateQueries({ queryKey: queryKeys.dashboard })
+      toast.success(updated.enabled ? t("users.toastEnabled") : t("users.toastDisabled"))
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.deleteUser(id),
@@ -106,6 +123,7 @@ export function UsersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.users })
       toast.success(t("users.toastTrafficReset"))
+      setResettingUser(null)
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -351,22 +369,53 @@ export function UsersPage() {
                       })()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <span className="inline-flex items-center">
+                                <Switch
+                                  size="sm"
+                                  checked={u.enabled}
+                                  disabled={
+                                    toggleMutation.isPending &&
+                                    toggleMutation.variables?.id === u.id
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    toggleMutation.mutate({ id: u.id, enabled: checked })
+                                  }
+                                  aria-label={t("users.toggleAria")}
+                                />
+                              </span>
+                            }
+                          />
+                          <TooltipContent>
+                            {u.enabled ? t("users.disableTooltip") : t("users.enableTooltip")}
+                          </TooltipContent>
+                        </Tooltip>
                         <Button variant="outline" size="sm" onClick={() => setSubUserId(u.id)}>
                           <Link2 className="mr-1.5 size-3.5" />
                           {t("users.btnSub")}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditing(u)
-                            setFormOpen(true)
-                          }}
-                        >
-                          <Pencil className="mr-1.5 size-3.5" />
-                          {t("common.edit")}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                aria-label={t("users.editUser")}
+                                onClick={() => {
+                                  setEditing(u)
+                                  setFormOpen(true)
+                                }}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>{t("users.editUser")}</TooltipContent>
+                        </Tooltip>
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={
@@ -381,7 +430,7 @@ export function UsersPage() {
                             }
                           />
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => resetTrafficMutation.mutate(u.id)}>
+                            <DropdownMenuItem onClick={() => setResettingUser(u)}>
                               <RotateCcw className="mr-2 size-4" />
                               {t("users.resetTraffic")}
                             </DropdownMenuItem>
@@ -423,6 +472,17 @@ export function UsersPage() {
         confirmName={deleting?.username}
         loading={deleteMutation.isPending}
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
+      />
+
+      <ConfirmActionDialog
+        open={Boolean(resettingUser)}
+        onOpenChange={(o) => !o && setResettingUser(null)}
+        title={t("users.confirmResetTrafficTitle", { name: resettingUser?.username ?? "" })}
+        description={t("users.confirmResetTrafficDesc")}
+        confirmLabel={t("users.confirmResetTrafficAction")}
+        variant="destructive"
+        loading={resetTrafficMutation.isPending}
+        onConfirm={() => resettingUser && resetTrafficMutation.mutate(resettingUser.id)}
       />
     </div>
   )

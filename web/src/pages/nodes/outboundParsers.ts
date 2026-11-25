@@ -1,5 +1,4 @@
 import type { MASQUENetwork, NodeOutbound } from "@/lib/types"
-import { DEFAULT_MASQUE_PORT, DEFAULT_MASQUE_SNI } from "./outboundDefaults"
 
 function stripInlineComment(raw: string): string {
   const hashIdx = raw.indexOf("#")
@@ -118,64 +117,6 @@ export function parseMASQUEConfig(raw: string): Partial<NodeOutbound> {
   const trimmed = raw.trim()
   if (!trimmed) return {}
 
-  // 1. Try parsing usque config.json
-  if (trimmed.startsWith("{")) {
-    try {
-      const obj = JSON.parse(trimmed) as Record<string, unknown>
-      const patch: Partial<NodeOutbound> = {}
-      if (typeof obj.private_key === "string" && obj.private_key.trim()) {
-        patch.private_key = obj.private_key.trim()
-      }
-      if (typeof obj.endpoint_pub_key === "string" && obj.endpoint_pub_key.trim()) {
-        patch.public_key = stripPEMHeaders(obj.endpoint_pub_key)
-      } else if (typeof obj.public_key === "string" && obj.public_key.trim()) {
-        patch.public_key = stripPEMHeaders(obj.public_key)
-      }
-      if (typeof obj.ipv4 === "string" && obj.ipv4.trim()) {
-        const v4 = obj.ipv4.trim()
-        patch.ip = v4.includes("/") ? v4 : `${v4}/32`
-      } else if (typeof obj.ip === "string" && obj.ip.trim()) {
-        const ip = obj.ip.trim()
-        patch.ip = ip.includes("/") ? ip : `${ip}/32`
-      }
-      if (typeof obj.ipv6 === "string" && obj.ipv6.trim()) {
-        const v6 = obj.ipv6.trim()
-        patch.ipv6 = v6.includes("/") ? v6 : `${v6}/128`
-      }
-      const v4Ep = typeof obj.endpoint_v4 === "string" ? obj.endpoint_v4.trim() : ""
-      const v6Ep = typeof obj.endpoint_v6 === "string" ? obj.endpoint_v6.trim() : ""
-      const srv = typeof obj.server === "string" ? obj.server.trim() : ""
-      if (v4Ep) {
-        const parsed = splitHostPort(v4Ep)
-        if (parsed.host) patch.server = parsed.host
-        patch.port = parsed.port ?? DEFAULT_MASQUE_PORT
-      } else if (v6Ep) {
-        const parsed = splitHostPort(v6Ep)
-        if (parsed.host) patch.server = parsed.host
-        patch.port = parsed.port ?? DEFAULT_MASQUE_PORT
-      } else if (srv) {
-        const parsed = splitHostPort(srv)
-        if (parsed.host) patch.server = parsed.host
-        if (parsed.port) patch.port = parsed.port
-      }
-      if (typeof obj.port === "number" && obj.port > 0 && obj.port <= 65535) {
-        patch.port = obj.port
-      }
-      if (typeof obj.mtu === "number" && obj.mtu > 0) {
-        patch.mtu = obj.mtu
-      }
-      if (typeof obj.sni === "string" && obj.sni.trim()) {
-        patch.sni = obj.sni.trim()
-      } else if (patch.public_key && !patch.sni) {
-        patch.sni = DEFAULT_MASQUE_SNI
-      }
-      return patch
-    } catch {
-      // fall through to line parser
-    }
-  }
-
-  // 2. Simple line-based Mihomo YAML snippet fallback (key: value)
   const patch: Partial<NodeOutbound> = {}
   for (const line of trimmed.split(/\r?\n/)) {
     const clean = line.trim().replace(/^-\s+/, "")

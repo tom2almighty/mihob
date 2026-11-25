@@ -250,6 +250,39 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
+func (s *Server) handleSetNodeEnabled(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid node id")
+		return
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: enabled is required")
+		return
+	}
+	existing, err := s.store.GetNode(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "node not found")
+		return
+	}
+	var affected []int64
+	if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+		affected = append(affected, g.TargetsByNode[existing.ID]...)
+		affected = append(affected, g.ReferrersByNode[existing.ID]...)
+	}
+	existing.Enabled = *req.Enabled
+	if err := s.store.UpdateNode(existing); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.ws.PushConfigToNodes(append([]int64{existing.ID}, affected...))
+	s.ws.EnrichNode(existing)
+	writeJSON(w, http.StatusOK, existing)
+}
+
 func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 	id, err := parseIDParam(r, "id")
 	if err != nil {
@@ -622,6 +655,37 @@ func (s *Server) handleUpdateInbound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.ws.PushConfigToNodes([]int64{existing.NodeID})
+	writeJSON(w, http.StatusOK, existing)
+}
+
+func (s *Server) handleSetInboundEnabled(w http.ResponseWriter, r *http.Request) {
+	id, err := parseIDParam(r, "id")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid inbound id")
+		return
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := decodeJSON(r, &req); err != nil || req.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: enabled is required")
+		return
+	}
+	existing, err := s.store.GetInbound(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "inbound not found")
+		return
+	}
+	var affected []int64
+	if _, g, err := s.ws.BuildServerGenOptions(); err == nil && g != nil {
+		affected = append(affected, g.ReferrersByNode[existing.NodeID]...)
+	}
+	existing.Enabled = *req.Enabled
+	if err := s.store.UpdateInbound(existing); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.ws.PushConfigToNodes(append([]int64{existing.NodeID}, affected...))
 	writeJSON(w, http.StatusOK, existing)
 }
 

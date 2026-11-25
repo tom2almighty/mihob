@@ -756,13 +756,19 @@ func TestNodeStructuredOutboundsAndRouting(t *testing.T) {
 		OutboundConfig: model.NodeOutboundConfig{
 			Outbounds: []model.NodeOutbound{
 				{
-					Name:       "WARP",
-					Type:       model.OutboundTypeWARP,
-					Enabled:    true,
-					IP:         "172.16.0.2/32",
-					IPv6:       "2606:4700:110::2/128",
-					PrivateKey: "warp-private-key",
-					Reserved:   "12, 34, 56",
+					Name:             "WARP",
+					Type:             model.OutboundTypeWireGuard,
+					Enabled:          true,
+					Server:           model.DefaultWARPServer,
+					Port:             model.DefaultWARPPort,
+					IP:               "172.16.0.2/32",
+					IPv6:             "2606:4700:110::2/128",
+					PrivateKey:       "warp-private-key",
+					PublicKey:        model.DefaultWARPPublicKey,
+					Reserved:         "12, 34, 56",
+					MTU:              model.DefaultWARPMTU,
+					RemoteDNSResolve: true,
+					DNS:              []string{"1.1.1.1", "1.0.0.1"},
 				},
 				{
 					Name:     "RES-SOCKS",
@@ -1000,5 +1006,62 @@ func TestNodeMASQUEOutboundAndIPVersion(t *testing.T) {
 	}
 	if err := invalidCC.Validate(); err == nil {
 		t.Fatalf("expected invalid MASQUE congestion_controller to fail validation")
+	}
+}
+
+func TestNodeCustomOutboundAndDialerCycle(t *testing.T) {
+	cfg := model.NodeOutboundConfig{
+		Outbounds: []model.NodeOutbound{
+			{
+				Name:    "HOP-1",
+				Type:    model.OutboundTypeSocks5,
+				Enabled: true,
+				Server:  "127.0.0.1",
+				Port:    1080,
+			},
+			{
+				Name:        "EXT-VLESS",
+				Type:        model.OutboundTypeCustom,
+				Enabled:     true,
+				IPVersion:   "ipv4-prefer",
+				DialerProxy: "HOP-1",
+				CustomYAML: `
+type: vless
+server: ext.example.com
+port: 443
+uuid: 11111111-2222-3333-4444-555555555555
+tls: true
+udp: true
+`,
+			},
+		},
+		Routing: model.NodeOutboundRouting{Mode: model.OutboundRouteNone},
+	}
+	cfg.Normalize()
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+	doc := map[string]any{}
+	if err := ApplyNodeOutboundConfig(doc, &cfg); err != nil {
+		t.Fatalf("ApplyNodeOutboundConfig: %v", err)
+	}
+	proxies := doc["proxies"].([]any)
+	if len(proxies) != 2 {
+		t.Fatalf("expected 2 proxies, got %d", len(proxies))
+	}
+	p := proxies[1].(map[string]any)
+	if p["name"] != "EXT-VLESS" || p["type"] != "vless" || p["server"] != "ext.example.com" || p["dialer-proxy"] != "HOP-1" || p["ip-version"] != "ipv4-prefer" {
+		t.Fatalf("unexpected custom outbound: %+v", p)
+	}
+
+	// Cycle detection: A -> B -> A must fail validation
+	cyclic := model.NodeOutboundConfig{
+		Outbounds: []model.NodeOutbound{
+			{Name: "A", Type: model.OutboundTypeSocks5, Enabled: true, Server: "1.1.1.1", Port: 1080, DialerProxy: "B"},
+			{Name: "B", Type: model.OutboundTypeSocks5, Enabled: true, Server: "2.2.2.2", Port: 1080, DialerProxy: "A"},
+		},
+	}
+	if err := cyclic.Validate(); err == nil {
+		t.Fatalf("expected circular dialer_proxy chain to fail validation")
 	}
 }

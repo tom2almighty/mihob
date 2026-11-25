@@ -1,10 +1,11 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Cloud, RefreshCw, Terminal } from "lucide-react"
+import { ChevronDown, Cloud, RefreshCw, SlidersHorizontal, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton, ErrorState } from "@/components/common/CommonUI"
 import { YamlCodeBlock } from "@/components/common/YamlEditor"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -25,8 +26,10 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import type { Node } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 type CfProtocol = "auto" | "http2" | "quic"
 type CfEdgeIp = "auto" | "4" | "6"
@@ -88,11 +91,18 @@ export function InstallCommandDialog({
   const [watchtowerLabel, setWatchtowerLabel] = useState(false)
   const [watchtowerService, setWatchtowerService] = useState(false)
   const [cfEnabled, setCfEnabled] = useState(false)
+  const [cfAdvancedOpen, setCfAdvancedOpen] = useState(false)
   const [cfToken, setCfToken] = useState("")
   const [cfProtocol, setCfProtocol] = useState<CfProtocol>("auto")
   const [cfEdgeIp, setCfEdgeIp] = useState<CfEdgeIp>("auto")
   const [cfHaConnections, setCfHaConnections] = useState<CfHaConnections>("4")
   const [cfLogLevel, setCfLogLevel] = useState<CfLogLevel>("info")
+
+  const cfCustomCount =
+    Number(cfProtocol !== "auto") +
+    Number(cfEdgeIp !== "auto") +
+    Number(cfHaConnections !== "4") +
+    Number(cfLogLevel !== "info")
 
   const query = useQuery({
     queryKey: node ? queryKeys.nodeInstall(node.id) : ["nodes", "install", "none"],
@@ -233,142 +243,195 @@ export function InstallCommandDialog({
                           </div>
 
                           {cfEnabled && (
-                            <div className="space-y-2.5 border-t border-border/60 pt-2.5">
-                              <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1">
-                                <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
-                                <Input
-                                  value={cfToken}
-                                  onChange={(e) => setCfToken(e.target.value)}
-                                  placeholder={t("nodes.install.cfTokenPlaceholder")}
-                                  className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
-                                />
+                            <div className="space-y-2 border-t border-border/60 pt-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-background px-2.5 py-0.5">
+                                  <Cloud className="size-3.5 shrink-0 text-muted-foreground" />
+                                  <Input
+                                    value={cfToken}
+                                    onChange={(e) => setCfToken(e.target.value)}
+                                    placeholder={t("nodes.install.cfTokenPlaceholder")}
+                                    className="h-7 border-0 bg-transparent px-1 font-mono text-xs shadow-none focus-visible:ring-0"
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant={cfAdvancedOpen ? "secondary" : "outline"}
+                                  size="sm"
+                                  className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+                                  aria-expanded={cfAdvancedOpen}
+                                  onClick={() => setCfAdvancedOpen((v) => !v)}
+                                >
+                                  <SlidersHorizontal className="size-3.5" />
+                                  <span>{t("nodes.install.cfAdvancedToggle")}</span>
+                                  {cfCustomCount > 0 && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="h-4 min-w-4 px-1 font-mono text-[10px] tabular-nums"
+                                    >
+                                      {cfCustomCount}
+                                    </Badge>
+                                  )}
+                                  <ChevronDown
+                                    className={cn(
+                                      "size-3 text-muted-foreground transition-transform",
+                                      cfAdvancedOpen && "rotate-180"
+                                    )}
+                                  />
+                                </Button>
                               </div>
-                              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                                <div className="space-y-1">
-                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfProtocol")}{" "}
-                                    <span className="font-mono opacity-70">--protocol</span>
-                                  </Label>
-                                  <Select
-                                    value={cfProtocol}
-                                    onValueChange={(v) => v && setCfProtocol(v as CfProtocol)}
-                                  >
-                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="auto">
-                                        {t("nodes.install.cfProtocolAuto")}
-                                      </SelectItem>
-                                      <SelectItem value="http2">http2</SelectItem>
-                                      <SelectItem value="quic">quic</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfEdgeIp")}{" "}
-                                    <span className="font-mono opacity-70">--edge-ip-version</span>
-                                  </Label>
-                                  <Select
-                                    value={cfEdgeIp}
-                                    onValueChange={(v) => v && setCfEdgeIp(v as CfEdgeIp)}
-                                  >
-                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="auto">
-                                        {t("nodes.install.cfEdgeIpAuto")}
-                                      </SelectItem>
-                                      <SelectItem value="4">
-                                        {t("nodes.install.cfEdgeIp4")}
-                                      </SelectItem>
-                                      <SelectItem value="6">
-                                        {t("nodes.install.cfEdgeIp6")}
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfHaConnections")}{" "}
-                                    <span className="font-mono opacity-70">--ha-connections</span>
-                                  </Label>
-                                  <Select
-                                    value={cfHaConnections}
-                                    onValueChange={(v) =>
-                                      v && setCfHaConnections(v as CfHaConnections)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="4">
-                                        {t("nodes.install.cfHaDefault")}
-                                      </SelectItem>
-                                      <SelectItem value="2">2</SelectItem>
-                                      <SelectItem value="1">1</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="block truncate whitespace-nowrap text-[11px] text-muted-foreground">
-                                    {t("nodes.install.cfLogLevel")}{" "}
-                                    <span className="font-mono opacity-70">--loglevel</span>
-                                  </Label>
-                                  <Select
-                                    value={cfLogLevel}
-                                    onValueChange={(v) => v && setCfLogLevel(v as CfLogLevel)}
-                                  >
-                                    <SelectTrigger className="h-8 w-full bg-background text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="info">
-                                        {t("nodes.install.cfLogInfo")}
-                                      </SelectItem>
-                                      <SelectItem value="warn">warn</SelectItem>
-                                      <SelectItem value="error">error</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                              {cfOriginInbounds.length > 0 && (
-                                <div className="space-y-1.5 rounded-md border border-border bg-background/80 p-2 text-xs">
-                                  <div className="text-[11px] font-medium text-muted-foreground">
-                                    {t("nodes.install.cfDetectedOrigins")}
+
+                              {cfAdvancedOpen && (
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                  <div className="space-y-1">
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <Label className="block w-fit truncate text-[11px] text-muted-foreground">
+                                            {t("nodes.install.cfProtocol")}
+                                          </Label>
+                                        }
+                                      />
+                                      <TooltipContent className="font-mono text-xs">
+                                        --protocol
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Select
+                                      value={cfProtocol}
+                                      onValueChange={(v) => v && setCfProtocol(v as CfProtocol)}
+                                    >
+                                      <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto">
+                                          {t("nodes.install.cfProtocolAuto")}
+                                        </SelectItem>
+                                        <SelectItem value="http2">http2</SelectItem>
+                                        <SelectItem value="quic">quic</SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                   <div className="space-y-1">
-                                    {cfOriginInbounds.map((inb) => {
-                                      const scheme =
-                                        inb.settings?.security === "tls" ? "https" : "http"
-                                      const originUrl = `${scheme}://127.0.0.1:${inb.port}`
-                                      return (
-                                        <div
-                                          key={inb.id}
-                                          className="flex items-center justify-between gap-2"
-                                        >
-                                          <div className="min-w-0 truncate">
-                                            <span className="font-medium text-foreground">
-                                              {inb.name}
-                                            </span>
-                                            <span className="mx-1.5 text-muted-foreground">→</span>
-                                            <code className="font-mono text-foreground">
-                                              {originUrl}
-                                            </code>
-                                            {inb.settings?.sni && (
-                                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">
-                                                ({inb.settings.sni})
-                                              </span>
-                                            )}
-                                          </div>
-                                          <CopyButton value={originUrl} size="icon-sm" />
-                                        </div>
-                                      )
-                                    })}
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <Label className="block w-fit truncate text-[11px] text-muted-foreground">
+                                            {t("nodes.install.cfEdgeIp")}
+                                          </Label>
+                                        }
+                                      />
+                                      <TooltipContent className="font-mono text-xs">
+                                        --edge-ip-version
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Select
+                                      value={cfEdgeIp}
+                                      onValueChange={(v) => v && setCfEdgeIp(v as CfEdgeIp)}
+                                    >
+                                      <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto">
+                                          {t("nodes.install.cfEdgeIpAuto")}
+                                        </SelectItem>
+                                        <SelectItem value="4">
+                                          {t("nodes.install.cfEdgeIp4")}
+                                        </SelectItem>
+                                        <SelectItem value="6">
+                                          {t("nodes.install.cfEdgeIp6")}
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
+                                  <div className="space-y-1">
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <Label className="block w-fit truncate text-[11px] text-muted-foreground">
+                                            {t("nodes.install.cfHaConnections")}
+                                          </Label>
+                                        }
+                                      />
+                                      <TooltipContent className="font-mono text-xs">
+                                        --ha-connections
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Select
+                                      value={cfHaConnections}
+                                      onValueChange={(v) =>
+                                        v && setCfHaConnections(v as CfHaConnections)
+                                      }
+                                    >
+                                      <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="4">
+                                          {t("nodes.install.cfHaDefault")}
+                                        </SelectItem>
+                                        <SelectItem value="2">2</SelectItem>
+                                        <SelectItem value="1">1</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <Label className="block w-fit truncate text-[11px] text-muted-foreground">
+                                            {t("nodes.install.cfLogLevel")}
+                                          </Label>
+                                        }
+                                      />
+                                      <TooltipContent className="font-mono text-xs">
+                                        --loglevel
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Select
+                                      value={cfLogLevel}
+                                      onValueChange={(v) => v && setCfLogLevel(v as CfLogLevel)}
+                                    >
+                                      <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="info">
+                                          {t("nodes.install.cfLogInfo")}
+                                        </SelectItem>
+                                        <SelectItem value="warn">warn</SelectItem>
+                                        <SelectItem value="error">error</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {cfOriginInbounds.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-background/80 px-2.5 py-1.5 text-xs">
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {t("nodes.install.cfDetectedOriginsShort")}
+                                  </span>
+                                  {cfOriginInbounds.map((inb) => {
+                                    const scheme =
+                                      inb.settings?.security === "tls" ? "https" : "http"
+                                    const originUrl = `${scheme}://127.0.0.1:${inb.port}`
+                                    return (
+                                      <span
+                                        key={inb.id}
+                                        className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 py-0.5 pr-0.5 pl-1.5"
+                                      >
+                                        <span className="font-medium text-foreground">
+                                          {inb.name}
+                                        </span>
+                                        <code className="font-mono text-[11px] text-muted-foreground">
+                                          {originUrl}
+                                        </code>
+                                        <CopyButton value={originUrl} size="icon-sm" />
+                                      </span>
+                                    )
+                                  })}
                                 </div>
                               )}
                             </div>

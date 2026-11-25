@@ -40,7 +40,7 @@ export interface Admin {
   updated_at: string
 }
 
-export type OutboundType = "warp" | "masque" | "wireguard" | "socks5" | "http" | "mihob-node"
+export type OutboundType = "wireguard" | "masque" | "socks5" | "http" | "mihob-node" | "custom"
 export type OutboundRouteMode = "none" | "split" | "global"
 export type OutboundIPVersion = "" | "dual" | "ipv4" | "ipv6" | "ipv4-prefer" | "ipv6-prefer"
 export type MASQUENetwork = "" | "quic" | "h2" | "h3-l4proxy"
@@ -70,6 +70,7 @@ export interface NodeOutbound {
   congestion_controller?: string
   node_ref?: string
   inbound_ref?: string
+  custom_yaml?: string
   ip_version?: OutboundIPVersion
   dialer_proxy?: string
 }
