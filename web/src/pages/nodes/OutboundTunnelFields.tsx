@@ -56,23 +56,30 @@ type ToolPanel = null | "license" | "jwt" | "import"
 export function OutboundTunnelFields({
   item,
   meta,
+  canRegisterViaAgent,
+  registerSource,
   isRegistering,
   isKeygenPending,
   onPatch,
   onRememberAddr,
+  onChangeRegisterSource,
   onRegisterWARP,
   onKeygen,
 }: {
   item: NodeOutbound
   meta?: OutboundItemMeta
+  canRegisterViaAgent: boolean
+  registerSource: "agent" | "hub"
   isRegistering: boolean
   isKeygenPending: boolean
   onPatch: (patch: Partial<NodeOutbound>) => void
   onRememberAddr: (ip?: string, ipv6?: string) => void
+  onChangeRegisterSource: (source: "agent" | "hub") => void
   onRegisterWARP: (opts: {
     protocol: "wireguard" | "masque"
     license?: string
     jwt?: string
+    source: "agent" | "hub"
   }) => void
   onKeygen: (type: "wireguard" | "masque") => void
 }) {
@@ -166,13 +173,36 @@ export function OutboundTunnelFields({
             ? t("nodes.form.outbound.masqueImportHint")
             : t("nodes.form.outbound.wgImportHint")}
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {canRegisterViaAgent && (
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+              {(["agent", "hub"] as const).map((src) => (
+                <button
+                  key={src}
+                  type="button"
+                  disabled={isRegistering}
+                  onClick={() => onChangeRegisterSource(src)}
+                  className={
+                    registerSource === src
+                      ? "rounded-sm bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+                      : "rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                  }
+                >
+                  {t(
+                    src === "agent"
+                      ? "nodes.form.outbound.warpSourceAgent"
+                      : "nodes.form.outbound.warpSourceHub"
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <Button
             type="button"
             size="sm"
             className="h-7 px-2.5 text-xs"
             disabled={isRegistering}
-            onClick={() => onRegisterWARP({ protocol })}
+            onClick={() => onRegisterWARP({ protocol, source: registerSource })}
           >
             {isRegistering ? (
               <Loader2 className="mr-1.5 size-3 animate-spin" />
@@ -247,7 +277,11 @@ export function OutboundTunnelFields({
             className="h-8 text-xs"
             disabled={isRegistering}
             onClick={() => {
-              onRegisterWARP({ protocol, license: warpLicense.trim() })
+              onRegisterWARP({
+                protocol,
+                license: warpLicense.trim(),
+                source: registerSource,
+              })
               setActivePanel(null)
               setWarpLicense("")
             }}
@@ -285,7 +319,11 @@ export function OutboundTunnelFields({
               className="h-8 text-xs"
               disabled={isRegistering || !warpJWT.trim()}
               onClick={() => {
-                onRegisterWARP({ protocol, jwt: warpJWT.trim() })
+                onRegisterWARP({
+                  protocol,
+                  jwt: warpJWT.trim(),
+                  source: registerSource,
+                })
                 setActivePanel(null)
                 setWarpJWT("")
               }}

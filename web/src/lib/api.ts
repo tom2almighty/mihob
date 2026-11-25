@@ -228,7 +228,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ type }),
     }),
-  registerWARP: (body: { protocol: "wireguard" | "masque"; license?: string; jwt?: string }) =>
+  registerWARP: (body: {
+    protocol: "wireguard" | "masque"
+    license?: string
+    jwt?: string
+    node_id?: number
+    source?: "auto" | "agent" | "hub"
+  }) =>
     request<WARPRegisterResult>("/api/tools/warp-register", {
       method: "POST",
       body: JSON.stringify(body),

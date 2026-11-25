@@ -16,19 +16,22 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/mihob/mihob/internal/protocol"
+	"github.com/mihob/mihob/internal/warp"
 )
 
 type Config struct {
-	HubURL    string
-	NodeToken string
-	DataDir   string
-	MihomoBin string
-	Version   string
+	HubURL      string
+	NodeToken   string
+	DataDir     string
+	MihomoBin   string
+	Version     string
+	Cloudflared CloudflaredConfig
 }
 
 type Agent struct {
 	cfg       Config
 	sup       *MihomoSupervisor
+	cfSup     *CloudflaredSupervisor
 	collector *TrafficCollector
 	startedAt time.Time
 }
@@ -38,6 +41,7 @@ func New(cfg Config) *Agent {
 	return &Agent{
 		cfg:       cfg,
 		sup:       sup,
+		cfSup:     NewCloudflaredSupervisor(cfg.Cloudflared),
 		collector: NewTrafficCollector(sup),
 		startedAt: time.Now(),
 	}
@@ -47,6 +51,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err := a.sup.Start(ctx); err != nil {
 		return fmt.Errorf("start mihomo supervisor: %w", err)
 	}
+	a.cfSup.Start(ctx)
 	a.collector.Start(ctx)
 
 	wsURL, err := buildAgentWSURL(a.cfg.HubURL)
@@ -233,6 +238,33 @@ func (a *Agent) connectAndServe(ctx context.Context, wsURL string) error {
 					log.Printf("[agent] mihomo upgrade to %s failed: %v", payload.Version, err)
 				}
 				_ = sendEnv(protocol.MsgUpgradeAck, id, ack)
+			}(p, reqID)
+
+		case protocol.MsgWARPRegister:
+			var p protocol.WARPRegisterPayload
+			if err := json.Unmarshal(env.Payload, &p); err != nil {
+				_ = sendEnv(protocol.MsgWARPRegisterAck, env.RequestID, protocol.WARPRegisterAckPayload{
+					Success: false,
+					Error:   "invalid warp_register payload",
+				})
+				continue
+			}
+			reqID := env.RequestID
+			go func(payload protocol.WARPRegisterPayload, id string) {
+				regCtx, regCancel := context.WithTimeout(sessionCtx, 24*time.Second)
+				defer regCancel()
+				res, err := warp.Register(regCtx, payload.Protocol, payload.License, payload.JWT)
+				ack := protocol.WARPRegisterAckPayload{
+					Success: err == nil,
+					Result:  res,
+				}
+				if err != nil {
+					ack.Error = err.Error()
+					log.Printf("[agent] WARP (%s) registration failed: %v", payload.Protocol, err)
+				} else {
+					log.Printf("[agent] WARP (%s) registered successfully", payload.Protocol)
+				}
+				_ = sendEnv(protocol.MsgWARPRegisterAck, id, ack)
 			}(p, reqID)
 		}
 	}

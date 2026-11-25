@@ -59,7 +59,7 @@ export function TagInput({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-ring/50">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-muted-foreground/30 bg-background/80 px-2.5 py-1.5 shadow-2xs transition-colors hover:border-muted-foreground/50 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:border-muted-foreground/35 dark:bg-background/50 dark:hover:border-muted-foreground/55">
         {value.map((tag) => (
           <Badge key={tag} variant="secondary" className="gap-1 pr-1 text-xs font-normal">
             <span>{tag}</span>

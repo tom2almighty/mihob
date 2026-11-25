@@ -14,6 +14,7 @@ import (
 
 	"github.com/mihob/mihob/internal/crypto"
 	"github.com/mihob/mihob/internal/model"
+	"github.com/mihob/mihob/internal/warp"
 )
 
 func TestGenerateWireGuardAndMASQUEKeyPairs(t *testing.T) {
@@ -57,21 +58,21 @@ func TestGenerateWireGuardAndMASQUEKeyPairs(t *testing.T) {
 }
 
 func TestWARPHelpers(t *testing.T) {
-	if got := formatCFClientIDToReserved("DB44"); got != "12, 30, 56" {
+	if got := warp.FormatClientIDToReserved("DB44"); got != "12, 30, 56" {
 		t.Fatalf("unexpected reserved: %q", got)
 	}
-	if host, port := splitCFEndpointHost("[2606:4700:103::1]:0", 443); host != "2606:4700:103::1" || port != 443 {
-		t.Fatalf("unexpected splitCFEndpointHost v6: %q %d", host, port)
+	if host, port := warp.SplitEndpointHost("[2606:4700:103::1]:0", 443); host != "2606:4700:103::1" || port != 443 {
+		t.Fatalf("unexpected SplitEndpointHost v6: %q %d", host, port)
 	}
-	if host, port := splitCFEndpointHost("162.159.192.1:2408", 2408); host != "162.159.192.1" || port != 2408 {
-		t.Fatalf("unexpected splitCFEndpointHost v4: %q %d", host, port)
+	if host, port := warp.SplitEndpointHost("162.159.192.1:2408", 2408); host != "162.159.192.1" || port != 2408 {
+		t.Fatalf("unexpected SplitEndpointHost v4: %q %d", host, port)
 	}
 	pemSample := "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n-----END PUBLIC KEY-----"
-	if got := stripPEMToBase64(pemSample); got == "" || got == pemSample {
+	if got := warp.StripPEMToBase64(pemSample); got == "" || got == pemSample {
 		t.Fatalf("expected stripped base64 from PEM, got %q", got)
 	}
 	longBody := []byte(strings.Repeat("error ", 100))
-	if got := truncateErrorBody(longBody, 32); len(got) != 35 || !strings.HasSuffix(got, "...") {
+	if got := warp.TruncateErrorBody(longBody, 32); len(got) != 35 || !strings.HasSuffix(got, "...") {
 		t.Fatalf("unexpected truncated body: %q (len %d)", got, len(got))
 	}
 }
@@ -136,7 +137,7 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "wireguard", "LIC-123", "")
+		res, err := warp.RegisterWithBase(context.Background(), srv.Client(), srv.URL, "wireguard", "LIC-123", "")
 		if err != nil {
 			t.Fatalf("wireguard register failed: %v", err)
 		}
@@ -179,7 +180,7 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", "")
+		res, err := warp.RegisterWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", "")
 		if err != nil {
 			t.Fatalf("masque register failed: %v", err)
 		}
@@ -221,7 +222,7 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "IGNORED-LIC", "eyJ.team.jwt")
+		res, err := warp.RegisterWithBase(context.Background(), srv.Client(), srv.URL, "masque", "IGNORED-LIC", "eyJ.team.jwt")
 		if err != nil {
 			t.Fatalf("zt masque register failed: %v", err)
 		}
@@ -234,8 +235,8 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 	})
 
 	t.Run("missing masque public key and invalid protocol", func(t *testing.T) {
-		if _, err := registerCloudflareWARPWithBase(context.Background(), http.DefaultClient, "http://127.0.0.1", "invalid", "", ""); !errors.Is(err, errInvalidWARPProtocol) {
-			t.Fatalf("expected errInvalidWARPProtocol, got %v", err)
+		if _, err := warp.RegisterWithBase(context.Background(), http.DefaultClient, "http://127.0.0.1", "invalid", "", ""); !errors.Is(err, warp.ErrInvalidProtocol) {
+			t.Fatalf("expected ErrInvalidProtocol, got %v", err)
 		}
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,18 +252,25 @@ func TestRegisterCloudflareWARPFlows(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		if _, err := registerCloudflareWARPWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", ""); err == nil {
+		if _, err := warp.RegisterWithBase(context.Background(), srv.Client(), srv.URL, "masque", "", ""); err == nil {
 			t.Fatalf("expected error when masque peer public_key is empty")
 		}
 	})
 
-	t.Run("handler returns 400 on invalid protocol", func(t *testing.T) {
+	t.Run("handler returns 400 on invalid protocol or source", func(t *testing.T) {
 		s := &Server{}
 		req := httptest.NewRequest(http.MethodPost, "/api/tools/warp-register", strings.NewReader(`{"protocol":"bogus"}`))
 		rec := httptest.NewRecorder()
 		s.handleWARPRegister(rec, req)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("expected HTTP 400, got %d (%s)", rec.Code, rec.Body.String())
+		}
+
+		req2 := httptest.NewRequest(http.MethodPost, "/api/tools/warp-register", strings.NewReader(`{"protocol":"masque","source":"agent"}`))
+		rec2 := httptest.NewRecorder()
+		s.handleWARPRegister(rec2, req2)
+		if rec2.Code != http.StatusBadRequest {
+			t.Fatalf("expected HTTP 400 when source=agent without node_id, got %d (%s)", rec2.Code, rec2.Body.String())
 		}
 	})
 }

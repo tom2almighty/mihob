@@ -1,7 +1,10 @@
 # Stage 1: Official multi-arch mihomo binary
 FROM metacubex/mihomo:latest AS mihomo-src
 
-# Stage 2: Cross-compile lightweight Go agent binary (no web UI / SQLite / ACME)
+# Stage 2: Official multi-arch cloudflared binary (used only by the `cf` variant)
+FROM cloudflare/cloudflared:latest AS cloudflared-src
+
+# Stage 3: Cross-compile lightweight Go agent binary (no web UI / SQLite / ACME)
 FROM --platform=$BUILDPLATFORM golang:alpine AS go-builder
 ARG TARGETOS
 ARG TARGETARCH
@@ -13,10 +16,11 @@ COPY cmd/mihob-agent/ ./cmd/mihob-agent/
 COPY internal/agent/ ./internal/agent/
 COPY internal/crypto/ ./internal/crypto/
 COPY internal/protocol/ ./internal/protocol/
+COPY internal/warp/ ./internal/warp/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" -o /out/mihob-agent ./cmd/mihob-agent
 
-# Stage 3: All-in-one Agent + Mihomo runtime image
-FROM alpine:3.21
+# Stage 4: Shared Agent + Mihomo runtime base
+FROM alpine:3.21 AS base
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=mihomo-src /mihomo /usr/local/bin/mihomo
 COPY --from=go-builder /out/mihob-agent /usr/local/bin/mihob-agent
@@ -24,3 +28,10 @@ ENV MIHOB_DATA_DIR=/data \
     MIHOB_MIHOMO_BIN=/usr/local/bin/mihomo
 VOLUME ["/data"]
 ENTRYPOINT ["/usr/local/bin/mihob-agent"]
+
+# Stage 5: CF Tunnel variant (`*-cf` image tags) with bundled cloudflared binary
+FROM base AS cf
+COPY --from=cloudflared-src /usr/local/bin/cloudflared /usr/local/bin/cloudflared
+
+# Stage 6: Default minimal standard Agent image (kept last as default build target)
+FROM base AS standard

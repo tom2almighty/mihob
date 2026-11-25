@@ -37,6 +37,8 @@ export function OutboundItemCard({
   availableNodes,
   inbounds,
   dialerCandidates,
+  canRegisterViaAgent,
+  registerSource,
   isRegistering,
   isKeygenPending,
   onToggleExpand,
@@ -45,6 +47,7 @@ export function OutboundItemCard({
   onRename,
   onChangeType,
   onRememberAddr,
+  onChangeRegisterSource,
   onRegisterWARP,
   onKeygen,
 }: {
@@ -54,6 +57,8 @@ export function OutboundItemCard({
   availableNodes: Node[]
   inbounds: Inbound[]
   dialerCandidates: DialerCandidate[]
+  canRegisterViaAgent: boolean
+  registerSource: "agent" | "hub"
   isRegistering: boolean
   isKeygenPending: boolean
   onToggleExpand: () => void
@@ -62,10 +67,12 @@ export function OutboundItemCard({
   onRename: (nextName: string) => void
   onChangeType: (nextType: OutboundType) => void
   onRememberAddr: (ip?: string, ipv6?: string) => void
+  onChangeRegisterSource: (source: "agent" | "hub") => void
   onRegisterWARP: (opts: {
     protocol: "wireguard" | "masque"
     license?: string
     jwt?: string
+    source: "agent" | "hub"
   }) => void
   onKeygen: (type: "wireguard" | "masque") => void
 }) {
@@ -298,10 +305,13 @@ export function OutboundItemCard({
               key={item.type}
               item={item}
               meta={meta}
+              canRegisterViaAgent={canRegisterViaAgent}
+              registerSource={registerSource}
               isRegistering={isRegistering}
               isKeygenPending={isKeygenPending}
               onPatch={onPatch}
               onRememberAddr={onRememberAddr}
+              onChangeRegisterSource={onChangeRegisterSource}
               onRegisterWARP={onRegisterWARP}
               onKeygen={onKeygen}
             />

@@ -294,15 +294,42 @@ jobs:
             type=semver,pattern={{major}},value=${{ needs.plan.outputs.version }}
             type=raw,value=latest,enable=${{ needs.plan.outputs.prerelease != 'true' }}
 
-      - name: Build and push multi-arch Docker image
+      - name: Build and push multi-arch Docker image (standard)
         uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/Dockerfile.agent
+          target: standard
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.plan.outputs.version }}
+          cache-from: type=gha,scope=release-agent
+          cache-to: type=gha,mode=max,scope=release-agent
+
+      - name: Extract Docker metadata (cf variant)
+        id: meta-cf
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/mihob-agent
+          tags: |
+            type=semver,pattern={{version}}-cf,value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}}-cf,value=${{ needs.plan.outputs.version }}
+            type=semver,pattern={{major}}-cf,value=${{ needs.plan.outputs.version }}
+            type=raw,value=latest-cf,enable=${{ needs.plan.outputs.prerelease != 'true' }}
+
+      - name: Build and push multi-arch Docker image (cf variant)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile.agent
+          target: cf
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-cf.outputs.tags }}
+          labels: ${{ steps.meta-cf.outputs.labels }}
           build-args: |
             VERSION=${{ needs.plan.outputs.version }}
           cache-from: type=gha,scope=release-agent

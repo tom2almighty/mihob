@@ -631,6 +631,7 @@ export function NodeFormDialog({
                     nodes={nodesQuery.data ?? []}
                     inbounds={inboundsQuery.data ?? []}
                     excludeNodeId={node?.id}
+                    currentNodeOnline={Boolean(node?.online)}
                     previewYAML={previewYAML}
                     previewPending={previewMutation.isPending}
                     onPreview={() => previewMutation.mutate()}

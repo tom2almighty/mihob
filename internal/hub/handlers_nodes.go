@@ -415,6 +415,7 @@ func (s *Server) handleNodeInstallCommands(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]string{
 		"hub_url":          pubURL,
 		"token":            node.Token,
+		"agent_image":      agentImg,
 		"docker_compose":   dockerCompose,
 		"docker_run":       dockerRun,
 		"binary_install":   binaryInstall,
@@ -848,6 +849,11 @@ MIHOB_REPO="${MIHOB_REPO:-tom2almighty/mihob}"
 MIHOB_VERSION="${MIHOB_VERSION:-latest}"
 MIHOB_BIN_URL="${MIHOB_BIN_URL:-}"
 MIHOMO_VERSION="${MIHOMO_VERSION:-latest}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-}"
+CF_TUNNEL_PROTOCOL="${CF_TUNNEL_PROTOCOL:-}"
+CF_TUNNEL_EDGE_IP="${CF_TUNNEL_EDGE_IP:-}"
+CF_TUNNEL_HA_CONNECTIONS="${CF_TUNNEL_HA_CONNECTIONS:-}"
+CF_TUNNEL_LOGLEVEL="${CF_TUNNEL_LOGLEVEL:-}"
 UNINSTALL=0
 UPDATE=0
 
@@ -857,6 +863,11 @@ while [[ $# -gt 0 ]]; do
     --token) NODE_TOKEN="$2"; shift 2 ;;
     --dir) INSTALL_DIR="$2"; shift 2 ;;
     --version) MIHOB_VERSION="$2"; shift 2 ;;
+    --cf-token) CF_TUNNEL_TOKEN="$2"; shift 2 ;;
+    --cf-protocol) CF_TUNNEL_PROTOCOL="$2"; shift 2 ;;
+    --cf-edge-ip) CF_TUNNEL_EDGE_IP="$2"; shift 2 ;;
+    --cf-ha-connections) CF_TUNNEL_HA_CONNECTIONS="$2"; shift 2 ;;
+    --cf-loglevel) CF_TUNNEL_LOGLEVEL="$2"; shift 2 ;;
     --update|update) UPDATE=1; shift ;;
     --uninstall|uninstall) UNINSTALL=1; shift ;;
     *) shift ;;
@@ -869,7 +880,7 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
   rm -f /etc/systemd/system/mihob-agent.service
   systemctl daemon-reload 2>/dev/null || true
   rm -rf "$INSTALL_DIR"
-  rm -f /usr/local/bin/mihob-agent /usr/local/bin/mihob /usr/local/bin/mihomo
+  rm -f /usr/local/bin/mihob-agent /usr/local/bin/mihob /usr/local/bin/mihomo /usr/local/bin/cloudflared
   echo "[mihob] mihob-agent uninstalled and cleaned up."
   exit 0
 fi
@@ -880,6 +891,17 @@ case "$ARCH" in
   aarch64|arm64) GO_ARCH="arm64" ;;
   *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
+
+download_cloudflared_bin() {
+  local target_bin="/usr/local/bin/cloudflared"
+  local tmp_file
+  tmp_file="$(mktemp)"
+  trap 'rm -f "$tmp_file"' RETURN
+  echo "[mihob] Downloading cloudflared (linux/${GO_ARCH})..."
+  curl -fL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${GO_ARCH}" -o "$tmp_file"
+  install -m 0755 "$tmp_file" "${target_bin}.new"
+  mv -f "${target_bin}.new" "$target_bin"
+}
 
 download_agent_bin() {
   local target_bin="/usr/local/bin/mihob-agent"
@@ -983,13 +1005,16 @@ download_agent_bin() {
 if [[ "$UPDATE" -eq 1 ]]; then
   echo "[mihob] Updating mihob-agent..."
   download_agent_bin
+  if [[ -x /usr/local/bin/cloudflared ]]; then
+    download_cloudflared_bin || echo "[mihob] Warning: failed to update cloudflared, keeping existing binary"
+  fi
   systemctl restart mihob-agent
   echo "[mihob] Updated successfully: $(/usr/local/bin/mihob-agent --version 2>/dev/null || true)"
   exit 0
 fi
 
 if [[ -z "$HUB_URL" || -z "$NODE_TOKEN" ]]; then
-  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN> | --update | --uninstall"
+  echo "Usage: install-agent.sh --hub <HUB_URL> --token <NODE_TOKEN> [--cf-token <CF_TOKEN>] | --update | --uninstall"
   exit 1
 fi
 
@@ -1012,13 +1037,24 @@ if [[ ! -x /usr/local/bin/mihob-agent ]]; then
   download_agent_bin
 fi
 
+if [[ -n "$CF_TUNNEL_TOKEN" ]] && ! command -v cloudflared >/dev/null 2>&1; then
+  download_cloudflared_bin
+fi
+
 (
   umask 077
-  cat >"${INSTALL_DIR}/agent.env" <<EOF
-MIHOB_HUB_URL=${HUB_URL}
-MIHOB_NODE_TOKEN=${NODE_TOKEN}
-MIHOB_DATA_DIR=${INSTALL_DIR}/data
-EOF
+  {
+    printf 'MIHOB_HUB_URL=%s\n' "$HUB_URL"
+    printf 'MIHOB_NODE_TOKEN=%s\n' "$NODE_TOKEN"
+    printf 'MIHOB_DATA_DIR=%s/data\n' "$INSTALL_DIR"
+    if [[ -n "$CF_TUNNEL_TOKEN" ]]; then
+      printf 'CF_TUNNEL_TOKEN=%s\n' "$CF_TUNNEL_TOKEN"
+      [[ -n "$CF_TUNNEL_PROTOCOL" && "$CF_TUNNEL_PROTOCOL" != "auto" ]] && printf 'CF_TUNNEL_PROTOCOL=%s\n' "$CF_TUNNEL_PROTOCOL"
+      [[ -n "$CF_TUNNEL_EDGE_IP" && "$CF_TUNNEL_EDGE_IP" != "auto" ]] && printf 'CF_TUNNEL_EDGE_IP=%s\n' "$CF_TUNNEL_EDGE_IP"
+      [[ -n "$CF_TUNNEL_HA_CONNECTIONS" && "$CF_TUNNEL_HA_CONNECTIONS" != "4" ]] && printf 'CF_TUNNEL_HA_CONNECTIONS=%s\n' "$CF_TUNNEL_HA_CONNECTIONS"
+      [[ -n "$CF_TUNNEL_LOGLEVEL" && "$CF_TUNNEL_LOGLEVEL" != "info" ]] && printf 'CF_TUNNEL_LOGLEVEL=%s\n' "$CF_TUNNEL_LOGLEVEL"
+    fi
+  } >"${INSTALL_DIR}/agent.env"
 )
 chmod 0600 "${INSTALL_DIR}/agent.env"
 

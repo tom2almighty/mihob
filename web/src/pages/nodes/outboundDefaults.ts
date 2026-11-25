@@ -63,84 +63,41 @@ export function nextUniqueName(existing: NodeOutbound[], base: string): string {
   return `${base}-${idx}`
 }
 
-export function createDefaultOutbound(
-  type: OutboundType,
-  existing: NodeOutbound[],
-  preset?: "warp"
-): NodeOutbound {
-  let baseName = DEFAULT_OUTBOUND_NAMES[type]
-  if (preset === "warp") {
-    baseName = type === "masque" ? "WARP-MASQUE" : "WARP"
-  }
-  const name = nextUniqueName(existing, baseName)
+export function createDefaultOutbound(type: OutboundType, existing: NodeOutbound[]): NodeOutbound {
+  const name = nextUniqueName(existing, DEFAULT_OUTBOUND_NAMES[type])
   switch (type) {
     case "wireguard":
-      return preset === "warp"
-        ? {
-            name,
-            type: "wireguard",
-            enabled: true,
-            server: DEFAULT_WARP_SERVER,
-            port: DEFAULT_WARP_PORT,
-            ip: DEFAULT_WARP_IP,
-            ipv6: "",
-            private_key: "",
-            public_key: DEFAULT_WARP_PUBLIC_KEY,
-            reserved: "",
-            mtu: DEFAULT_WARP_MTU,
-            udp: true,
-            remote_dns_resolve: true,
-            dns: ["1.1.1.1", "1.0.0.1"],
-          }
-        : {
-            name,
-            type: "wireguard",
-            enabled: true,
-            server: "",
-            port: 51820,
-            ip: "",
-            ipv6: "",
-            private_key: "",
-            public_key: "",
-            mtu: 1420,
-            udp: true,
-            remote_dns_resolve: false,
-          }
+      return {
+        name,
+        type: "wireguard",
+        enabled: true,
+        server: "",
+        port: 51820,
+        ip: "",
+        ipv6: "",
+        private_key: "",
+        public_key: "",
+        mtu: 1420,
+        udp: true,
+        remote_dns_resolve: false,
+      }
     case "masque":
-      return preset === "warp"
-        ? {
-            name,
-            type: "masque",
-            enabled: true,
-            server: DEFAULT_MASQUE_SERVER,
-            port: DEFAULT_MASQUE_PORT,
-            ip: DEFAULT_WARP_IP,
-            ipv6: "",
-            private_key: "",
-            public_key: "",
-            sni: DEFAULT_MASQUE_SNI,
-            network: "quic",
-            mtu: DEFAULT_MASQUE_MTU,
-            udp: true,
-            remote_dns_resolve: true,
-            dns: ["1.1.1.1", "1.0.0.1"],
-          }
-        : {
-            name,
-            type: "masque",
-            enabled: true,
-            server: "",
-            port: DEFAULT_MASQUE_PORT,
-            ip: "",
-            ipv6: "",
-            private_key: "",
-            public_key: "",
-            sni: "",
-            network: "quic",
-            mtu: DEFAULT_MASQUE_MTU,
-            udp: true,
-            remote_dns_resolve: false,
-          }
+      return {
+        name,
+        type: "masque",
+        enabled: true,
+        server: "",
+        port: DEFAULT_MASQUE_PORT,
+        ip: "",
+        ipv6: "",
+        private_key: "",
+        public_key: "",
+        sni: "",
+        network: "quic",
+        mtu: DEFAULT_MASQUE_MTU,
+        udp: true,
+        remote_dns_resolve: false,
+      }
     case "socks5":
       return {
         name,

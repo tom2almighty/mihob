@@ -192,11 +192,12 @@ func runAgent(args []string) {
 	defer stop()
 
 	ag := agent.New(agent.Config{
-		HubURL:    *hubURL,
-		NodeToken: *token,
-		DataDir:   *dataDir,
-		MihomoBin: *mihomoBin,
-		Version:   Version,
+		HubURL:      *hubURL,
+		NodeToken:   *token,
+		DataDir:     *dataDir,
+		MihomoBin:   *mihomoBin,
+		Version:     Version,
+		Cloudflared: agent.CloudflaredConfigFromEnv(),
 	})
 	if err := ag.Run(ctx); err != nil {
 		log.Fatalf("[agent] exited with error: %v", err)

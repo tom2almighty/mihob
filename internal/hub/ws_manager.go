@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"github.com/mihob/mihob/internal/model"
 	"github.com/mihob/mihob/internal/notify"
 	"github.com/mihob/mihob/internal/protocol"
+	"github.com/mihob/mihob/internal/warp"
 )
 
 type NodeRuntime struct {
@@ -56,19 +58,21 @@ func (a *AgentConn) Send(env *protocol.Envelope) error {
 }
 
 type WSManager struct {
-	store  *db.Store
-	notify *notify.Service
-	mu     sync.RWMutex
-	conns  map[int64]*AgentConn
+	store       *db.Store
+	notify      *notify.Service
+	mu          sync.RWMutex
+	conns       map[int64]*AgentConn
+	pendingWARP map[string]chan protocol.WARPRegisterAckPayload
 
 	upgrader websocket.Upgrader
 }
 
 func NewWSManager(store *db.Store, notifySvc *notify.Service) *WSManager {
 	return &WSManager{
-		store:  store,
-		notify: notifySvc,
-		conns:  make(map[int64]*AgentConn),
+		store:       store,
+		notify:      notifySvc,
+		conns:       make(map[int64]*AgentConn),
+		pendingWARP: make(map[string]chan protocol.WARPRegisterAckPayload),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  16 * 1024,
 			WriteBufferSize: 16 * 1024,
@@ -300,6 +304,23 @@ func (m *WSManager) handleMessage(ac *AgentConn, env *protocol.Envelope) {
 			if m.notify != nil {
 				if n, err := m.store.GetNode(ac.NodeID); err == nil {
 					m.notify.NotifyNodeUpgradeResult(n, p.Success, p.Version, p.Error)
+				}
+			}
+		}
+
+	case protocol.MsgWARPRegisterAck:
+		var p protocol.WARPRegisterAckPayload
+		if err := json.Unmarshal(env.Payload, &p); err == nil && env.RequestID != "" {
+			m.mu.Lock()
+			ch, ok := m.pendingWARP[env.RequestID]
+			if ok {
+				delete(m.pendingWARP, env.RequestID)
+			}
+			m.mu.Unlock()
+			if ok {
+				select {
+				case ch <- p:
+				default:
 				}
 			}
 		}
@@ -625,4 +646,66 @@ func (m *WSManager) UpgradeNodeMihomo(nodeID int64, version, downloadPath, sha25
 	}(ac, reqID)
 
 	return nil
+}
+
+func (m *WSManager) IsNodeOnline(nodeID int64) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	_, ok := m.conns[nodeID]
+	m.mu.RUnlock()
+	return ok
+}
+
+func (m *WSManager) RegisterWARPOnNode(ctx context.Context, nodeID int64, protocolName, license, jwt string) (*warp.Result, error) {
+	if m == nil {
+		return nil, fmt.Errorf("agent websocket manager unavailable")
+	}
+	reqID := crypto.RandomHex(8)
+	ch := make(chan protocol.WARPRegisterAckPayload, 1)
+
+	m.mu.Lock()
+	ac, online := m.conns[nodeID]
+	if !online {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("node is offline")
+	}
+	m.pendingWARP[reqID] = ch
+	m.mu.Unlock()
+
+	defer func() {
+		m.mu.Lock()
+		delete(m.pendingWARP, reqID)
+		m.mu.Unlock()
+	}()
+
+	env, err := protocol.NewEnvelope(protocol.MsgWARPRegister, reqID, protocol.WARPRegisterPayload{
+		Protocol: protocolName,
+		License:  license,
+		JWT:      jwt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := ac.Send(env); err != nil {
+		return nil, fmt.Errorf("send warp_register to agent: %w", err)
+	}
+
+	select {
+	case ack := <-ch:
+		if !ack.Success {
+			if ack.Error != "" {
+				return nil, fmt.Errorf("%s", ack.Error)
+			}
+			return nil, fmt.Errorf("agent WARP registration failed")
+		}
+		if ack.Result == nil {
+			return nil, fmt.Errorf("agent returned empty WARP registration result")
+		}
+		ack.Result.RegisteredBy = "agent"
+		return ack.Result, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timed out waiting for agent WARP registration (upgrade agent to v1.5+ if unsupported)")
+	}
 }

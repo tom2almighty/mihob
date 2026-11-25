@@ -88,6 +88,7 @@ export interface WARPRegisterResult {
   reserved?: string
   sni?: string
   mtu: number
+  registered_by?: "agent" | "hub"
 }
 
 export interface NodeOutboundRouting {
@@ -412,6 +413,7 @@ export interface DashboardData {
 export interface InstallCommands {
   hub_url: string
   token: string
+  agent_image?: string
   docker_compose: string
   docker_run: string
   binary_install: string

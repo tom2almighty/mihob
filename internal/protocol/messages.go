@@ -1,20 +1,26 @@
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/mihob/mihob/internal/warp"
+)
 
 const (
-	MsgHello         = "hello"
-	MsgHeartbeat     = "heartbeat"
-	MsgPushConfig    = "push_config"
-	MsgConfigAck     = "config_ack"
-	MsgKickUser      = "kick_user"
-	MsgRestartMihomo = "restart_mihomo"
-	MsgUpgradeMihomo = "upgrade_mihomo"
-	MsgUpgradeAck    = "upgrade_ack"
-	MsgTrafficReport = "traffic_report"
-	MsgCommandAck    = "command_ack"
-	MsgPing          = "ping"
-	MsgPong          = "pong"
+	MsgHello           = "hello"
+	MsgHeartbeat       = "heartbeat"
+	MsgPushConfig      = "push_config"
+	MsgConfigAck       = "config_ack"
+	MsgKickUser        = "kick_user"
+	MsgRestartMihomo   = "restart_mihomo"
+	MsgUpgradeMihomo   = "upgrade_mihomo"
+	MsgUpgradeAck      = "upgrade_ack"
+	MsgWARPRegister    = "warp_register"
+	MsgWARPRegisterAck = "warp_register_ack"
+	MsgTrafficReport   = "traffic_report"
+	MsgCommandAck      = "command_ack"
+	MsgPing            = "ping"
+	MsgPong            = "pong"
 )
 
 type Envelope struct {
@@ -111,4 +117,16 @@ type UpgradeAckPayload struct {
 	Success bool   `json:"success"`
 	Version string `json:"version,omitempty"`
 	Error   string `json:"error,omitempty"`
+}
+
+type WARPRegisterPayload struct {
+	Protocol string `json:"protocol"` // "wireguard" | "masque"
+	License  string `json:"license,omitempty"`
+	JWT      string `json:"jwt,omitempty"`
+}
+
+type WARPRegisterAckPayload struct {
+	Success bool         `json:"success"`
+	Result  *warp.Result `json:"result,omitempty"`
+	Error   string       `json:"error,omitempty"`
 }

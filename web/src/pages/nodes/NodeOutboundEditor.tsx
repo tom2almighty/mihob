@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { ChevronDown, Plus } from "lucide-react"
@@ -22,7 +22,7 @@ import type {
   NodeOutboundRouting,
   OutboundType,
 } from "@/lib/types"
-import { createDefaultOutbound } from "./outboundDefaults"
+import { createDefaultOutbound, nextUniqueName } from "./outboundDefaults"
 import { type DialerCandidate, OutboundItemCard } from "./OutboundItemCard"
 import { OutboundRoutingSection } from "./OutboundRoutingSection"
 import type { OutboundItemMeta } from "./OutboundTunnelFields"
@@ -66,6 +66,7 @@ export function NodeOutboundEditor({
   nodes,
   inbounds,
   excludeNodeId,
+  currentNodeOnline = false,
   previewYAML,
   previewPending,
   onPreview,
@@ -75,6 +76,7 @@ export function NodeOutboundEditor({
   nodes: Node[]
   inbounds: Inbound[]
   excludeNodeId?: number
+  currentNodeOnline?: boolean
   previewYAML?: string
   previewPending?: boolean
   onPreview?: () => void
@@ -82,6 +84,15 @@ export function NodeOutboundEditor({
   const { t } = useTranslation()
   const outbounds = value.outbounds ?? []
   const routing = value.routing ?? EMPTY_ROUTING
+
+  const canRegisterViaAgent = Boolean(excludeNodeId && currentNodeOnline)
+  const [registerSource, setRegisterSource] = useState<"agent" | "hub">(() =>
+    canRegisterViaAgent ? "agent" : "hub"
+  )
+
+  useEffect(() => {
+    setRegisterSource(canRegisterViaAgent ? "agent" : "hub")
+  }, [canRegisterViaAgent])
 
   // Stable per-item UIDs immune to index shifts and async mutation races
   const uidMapRef = useRef(new WeakMap<NodeOutbound, string>())
@@ -210,8 +221,8 @@ export function NodeOutboundEditor({
     })
   }
 
-  const addOutbound = (type: OutboundType, preset?: "warp") => {
-    const created = createDefaultOutbound(type, outbounds, preset)
+  const addOutbound = (type: OutboundType) => {
+    const created = createDefaultOutbound(type, outbounds)
     const uid = getItemUid(created)
     const next = [...outbounds, created]
     const nextRouting = { ...routing }
@@ -287,21 +298,45 @@ export function NodeOutboundEditor({
       protocol,
       license,
       jwt,
+      source,
     }: {
       uid: string
       protocol: "wireguard" | "masque"
       license?: string
       jwt?: string
-    }) => api.registerWARP({ protocol, license, jwt }).then((res) => ({ uid, res })),
+      source: "agent" | "hub"
+    }) =>
+      api
+        .registerWARP({
+          protocol,
+          license,
+          jwt,
+          node_id: source === "agent" ? excludeNodeId : undefined,
+          source,
+        })
+        .then((res) => ({ uid, res })),
     onSuccess: ({ uid, res }) => {
-      const exists = (latestValueRef.current.outbounds ?? []).some((o) => getItemUid(o) === uid)
-      if (!exists) return
+      const curList = latestValueRef.current.outbounds ?? []
+      const target = curList.find((o) => getItemUid(o) === uid)
+      if (!target) return
       patchMeta(uid, {
         cachedIp: res.ip?.trim() || undefined,
         cachedIpv6: res.ipv6?.trim() || undefined,
         registeredV4: res.server_v4?.trim() || undefined,
         registeredV6: res.server_v6?.trim() || undefined,
       })
+
+      // Auto-rename generic placeholder names to WARP / WARP-MASQUE on first registration
+      const isDefaultPlaceholder =
+        res.protocol === "masque"
+          ? /^MASQUE-OUT(-\d+)?$/i.test(target.name.trim())
+          : /^WG-OUT(-\d+)?$/i.test(target.name.trim())
+      if (isDefaultPlaceholder) {
+        const others = curList.filter((o) => getItemUid(o) !== uid)
+        const suggested = nextUniqueName(others, res.protocol === "masque" ? "WARP-MASQUE" : "WARP")
+        renameOutboundByUid(uid, suggested)
+      }
+
       patchOutboundByUid(uid, (current) => {
         const patch: Partial<NodeOutbound> = {
           private_key: res.private_key,
@@ -311,6 +346,8 @@ export function NodeOutboundEditor({
           server: res.server || current.server,
           port: res.port || current.port,
           mtu: res.mtu || current.mtu,
+          remote_dns_resolve: true,
+          dns: current.dns?.length ? current.dns : ["1.1.1.1", "1.0.0.1"],
         }
         if (res.protocol === "wireguard" && res.reserved) {
           patch.reserved = res.reserved
@@ -320,7 +357,11 @@ export function NodeOutboundEditor({
         }
         return patch
       })
-      toast.success(t("nodes.form.outbound.warpRegisterSuccess"))
+      toast.success(
+        res.registered_by === "agent"
+          ? t("nodes.form.outbound.warpRegisterSuccessAgent")
+          : t("nodes.form.outbound.warpRegisterSuccessHub")
+      )
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -346,22 +387,12 @@ export function NodeOutboundEditor({
             />
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuGroup>
-                <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupWarp")}</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => addOutbound("wireguard", "warp")}>
-                  {t("nodes.form.outbound.menuWarpWg")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => addOutbound("masque", "warp")}>
-                  {t("nodes.form.outbound.menuWarpMasque")}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
                 <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupProxy")}</DropdownMenuLabel>
                 <DropdownMenuItem onClick={() => addOutbound("wireguard")}>
-                  {t("nodes.form.outbound.types.wireguard")}
+                  {t("nodes.form.outbound.menuItemWireguard")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => addOutbound("masque")}>
-                  {t("nodes.form.outbound.types.masque")}
+                  {t("nodes.form.outbound.menuItemMasque")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => addOutbound("socks5")}>
                   {t("nodes.form.outbound.types.socks5")}
@@ -410,6 +441,8 @@ export function NodeOutboundEditor({
                   availableNodes={availableNodes}
                   inbounds={inbounds}
                   dialerCandidates={dialerCandidates}
+                  canRegisterViaAgent={canRegisterViaAgent}
+                  registerSource={registerSource}
                   isRegistering={
                     warpRegisterMutation.isPending && warpRegisterMutation.variables?.uid === uid
                   }
@@ -422,8 +455,9 @@ export function NodeOutboundEditor({
                   onRename={(nextName) => renameOutboundByUid(uid, nextName)}
                   onChangeType={(nextType) => changeTypeByUid(uid, nextType)}
                   onRememberAddr={(ip, ipv6) => rememberAddr(uid, ip, ipv6)}
-                  onRegisterWARP={({ protocol, license, jwt }) =>
-                    warpRegisterMutation.mutate({ uid, protocol, license, jwt })
+                  onChangeRegisterSource={setRegisterSource}
+                  onRegisterWARP={({ protocol, license, jwt, source }) =>
+                    warpRegisterMutation.mutate({ uid, protocol, license, jwt, source })
                   }
                   onKeygen={(type) => keygenMutation.mutate({ uid, type })}
                 />
