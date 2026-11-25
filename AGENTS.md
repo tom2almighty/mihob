@@ -49,6 +49,7 @@ deploy/                 `Dockerfile.hub`, `Dockerfile.agent`, and `docker-compos
 cd web
 pnpm install --frozen-lockfile
 pnpm dev          # Vite dev server on :5173 (proxies /api, /sub, /install, /ws to :8080)
+pnpm check        # Biome lint & format check (`pnpm check:fix` to auto-fix, `pnpm format` to format)
 pnpm build        # Runs `tsc -b && vite build` -> outputs to web/dist
 ```
 
@@ -114,7 +115,9 @@ Before finishing any task that touches code:
 
 1. **i18n parity check** (if locales or UI text changed):
    Verify `zh-CN.json` and `en-US.json` have identical keys and no untranslated CJK characters exist in `web/src` outside `locales/`.
-2. **Frontend typecheck & build**:
+2. **Frontend lint & format (Biome)**:
+   Run `pnpm check` in `web/` (use `pnpm check:fix` or `pnpm format` to auto-fix formatting/lint issues) and ensure zero Biome errors.
+3. **Frontend typecheck & build**:
    Run `pnpm build` in `web/` and confirm zero TypeScript errors and zero Vite chunk size warnings.
-3. **Backend checks**:
+4. **Backend checks**:
    Run `go vet ./...` and `go test ./...` at the repository root.
