@@ -6,6 +6,9 @@ import type {
   DashboardData,
   DashboardRange,
   DashboardTrafficSeriesResponse,
+  DatabaseCleanupResult,
+  DatabaseStatsResponse,
+  DatabaseVacuumResult,
   Inbound,
   InstallCommands,
   MihomoReleaseInfo,
@@ -102,6 +105,7 @@ export const queryKeys = {
   users: ["users"] as const,
   templates: ["templates"] as const,
   settings: ["settings"] as const,
+  databaseStats: ["settings", "database", "stats"] as const,
   themes: ["themes"] as const,
   publicTheme: ["public", "theme"] as const,
   publicSub: (path: string) => ["public", "sub", path] as const,
@@ -287,6 +291,17 @@ export const api = {
   getSettings: () => request<SystemSettings>("/api/settings"),
   updateSettings: (body: SystemSettings) =>
     request<SystemSettings>("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
+  getDatabaseStats: () => request<DatabaseStatsResponse>("/api/settings/database/stats"),
+  vacuumDatabase: () =>
+    request<DatabaseVacuumResult>("/api/settings/database/vacuum", { method: "POST" }),
+  cleanupDatabase: (body: {
+    traffic_older_than_days?: number
+    clear_notification_logs?: boolean
+  }) =>
+    request<DatabaseCleanupResult>("/api/settings/database/cleanup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   downloadDatabaseBackup: async (): Promise<{ blob: Blob; filename: string }> => {
     const headers = new Headers()
     const token = getStoredToken()

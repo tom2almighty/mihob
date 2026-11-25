@@ -79,12 +79,15 @@
 - Node.js 24+
 - pnpm 12+
 
-### Environment Variables
+### Configuration File & Environment Variables
+
+On first boot, Hub automatically generates `{data_dir}/config.yaml` (override with `--config` or `MIHOB_CONFIG`) for bootstrap and runtime settings such as listen address, security flags, and traffic retention. Precedence is **CLI flags > Environment variables > `config.yaml` > Defaults**. Dynamic settings (public URL, subscription sub-path, themes, etc.) remain hot-reloaded in the Web UI.
 
 Hub environment variables:
 
 | Variable | Description | Default |
 | --- | --- | --- |
+| `MIHOB_CONFIG` | Path to Hub YAML config file | `<data_dir>/config.yaml` |
 | `MIHOB_HOST` | HTTP listen host (e.g. `127.0.0.1` or `0.0.0.0`) | `0.0.0.0` |
 | `MIHOB_PORT` | HTTP listen port | `8080` |
 | `MIHOB_DATA_DIR` | Data directory for SQLite and ACME state | `./data` |

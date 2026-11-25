@@ -62,8 +62,14 @@ export function nextUniqueName(existing: NodeOutbound[], base: string): string {
   return `${base}-${idx}`
 }
 
-export function createDefaultOutbound(type: OutboundType, existing: NodeOutbound[]): NodeOutbound {
-  const name = nextUniqueName(existing, DEFAULT_OUTBOUND_NAMES[type])
+export function createDefaultOutbound(
+  type: OutboundType,
+  existing: NodeOutbound[],
+  preset?: "warp"
+): NodeOutbound {
+  const baseName =
+    type === "masque" && preset !== "warp" ? "MASQUE-OUT" : DEFAULT_OUTBOUND_NAMES[type]
+  const name = nextUniqueName(existing, baseName)
   switch (type) {
     case "warp":
       return {
@@ -83,23 +89,40 @@ export function createDefaultOutbound(type: OutboundType, existing: NodeOutbound
         dns: ["1.1.1.1", "1.0.0.1"],
       }
     case "masque":
-      return {
-        name,
-        type: "masque",
-        enabled: true,
-        server: DEFAULT_MASQUE_SERVER,
-        port: DEFAULT_MASQUE_PORT,
-        ip: DEFAULT_WARP_IP,
-        ipv6: "",
-        private_key: "",
-        public_key: "",
-        sni: DEFAULT_MASQUE_SNI,
-        network: "quic",
-        mtu: DEFAULT_MASQUE_MTU,
-        udp: true,
-        remote_dns_resolve: true,
-        dns: ["1.1.1.1", "1.0.0.1"],
-      }
+      return preset === "warp"
+        ? {
+            name,
+            type: "masque",
+            enabled: true,
+            server: DEFAULT_MASQUE_SERVER,
+            port: DEFAULT_MASQUE_PORT,
+            ip: DEFAULT_WARP_IP,
+            ipv6: "",
+            private_key: "",
+            public_key: "",
+            sni: DEFAULT_MASQUE_SNI,
+            network: "quic",
+            mtu: DEFAULT_MASQUE_MTU,
+            udp: true,
+            remote_dns_resolve: true,
+            dns: ["1.1.1.1", "1.0.0.1"],
+          }
+        : {
+            name,
+            type: "masque",
+            enabled: true,
+            server: "",
+            port: DEFAULT_MASQUE_PORT,
+            ip: "",
+            ipv6: "",
+            private_key: "",
+            public_key: "",
+            sni: "",
+            network: "quic",
+            mtu: DEFAULT_MASQUE_MTU,
+            udp: true,
+            remote_dns_resolve: false,
+          }
     case "wireguard":
       return {
         name,

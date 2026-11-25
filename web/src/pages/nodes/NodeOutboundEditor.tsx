@@ -1,9 +1,18 @@
 import { useMemo, useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Plus } from "lucide-react"
+import { ChevronDown, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { api } from "@/lib/api"
 import type {
   Inbound,
@@ -13,7 +22,7 @@ import type {
   NodeOutboundRouting,
   OutboundType,
 } from "@/lib/types"
-import { createDefaultOutbound, OUTBOUND_TYPES } from "./outboundDefaults"
+import { createDefaultOutbound } from "./outboundDefaults"
 import { OutboundItemCard } from "./OutboundItemCard"
 import { OutboundRoutingSection } from "./OutboundRoutingSection"
 import type { OutboundItemMeta } from "./OutboundTunnelFields"
@@ -174,8 +183,8 @@ export function NodeOutboundEditor({
     })
   }
 
-  const addOutbound = (type: OutboundType) => {
-    const created = createDefaultOutbound(type, outbounds)
+  const addOutbound = (type: OutboundType, preset?: "warp") => {
+    const created = createDefaultOutbound(type, outbounds, preset)
     const uid = getItemUid(created)
     const next = [...outbounds, created]
     const nextRouting = { ...routing }
@@ -288,21 +297,51 @@ export function NodeOutboundEditor({
             <div className="text-sm font-medium">{t("nodes.form.outbound.listTitle")}</div>
             <p className="text-xs text-muted-foreground">{t("nodes.form.outbound.listDesc")}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {OUTBOUND_TYPES.map((type) => (
-              <Button
-                key={type}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => addOutbound(type)}
-              >
-                <Plus className="mr-1 size-3" />
-                {t(`nodes.form.outbound.types.${type}`)}
-              </Button>
-            ))}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button type="button" variant="outline" size="sm">
+                  <Plus className="mr-1.5 size-3.5" />
+                  {t("nodes.form.outbound.addOutboundBtn")}
+                  <ChevronDown className="ml-1.5 size-3.5 text-muted-foreground" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupWarp")}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => addOutbound("warp", "warp")}>
+                  {t("nodes.form.outbound.menuWarpWg")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addOutbound("masque", "warp")}>
+                  {t("nodes.form.outbound.menuWarpMasque")}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupProxy")}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => addOutbound("wireguard")}>
+                  {t("nodes.form.outbound.types.wireguard")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addOutbound("masque")}>
+                  {t("nodes.form.outbound.types.masque")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addOutbound("socks5")}>
+                  {t("nodes.form.outbound.types.socks5")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => addOutbound("http")}>
+                  {t("nodes.form.outbound.types.http")}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t("nodes.form.outbound.menuGroupRelay")}</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => addOutbound("mihob-node")}>
+                  {t("nodes.form.outbound.types.mihob-node")}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {outbounds.length === 0 ? (

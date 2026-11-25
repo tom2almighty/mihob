@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mihob/mihob/internal/agent"
+	"github.com/mihob/mihob/internal/config"
 	"github.com/mihob/mihob/internal/db"
 	"github.com/mihob/mihob/internal/hub"
 	"github.com/mihob/mihob/web"
@@ -84,14 +85,40 @@ func envOr(key, fallback string) string {
 
 func runHub(args []string) {
 	fs := flag.NewFlagSet("hub", flag.ExitOnError)
-	host := fs.String("host", envOr("MIHOB_HOST", "0.0.0.0"), "HTTP listen host")
-	port := fs.String("port", envOr("MIHOB_PORT", "8080"), "HTTP listen port")
-	dataDir := fs.String("data", envOr("MIHOB_DATA_DIR", "./data"), "Data directory for SQLite and ACME")
+	configPath := fs.String("config", envOr("MIHOB_CONFIG", ""), "Path to Hub YAML config file (default: <data>/config.yaml)")
+	host := fs.String("host", "", "HTTP listen host")
+	port := fs.String("port", "", "HTTP listen port")
+	dataDir := fs.String("data", envOr("MIHOB_DATA_DIR", "./data"), "Data directory for SQLite, config.yaml, and ACME")
 	adminUser := fs.String("admin-user", envOr("MIHOB_ADMIN_USER", "admin"), "Initial admin username")
 	adminPass := fs.String("admin-pass", envOr("MIHOB_ADMIN_PASS", ""), "Initial admin password")
 	_ = fs.Parse(args)
 
-	listenAddr := net.JoinHostPort(*host, *port)
+	visitedFlags := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) {
+		visitedFlags[f.Name] = true
+	})
+
+	resolvedConfigPath := *configPath
+	if resolvedConfigPath == "" {
+		resolvedConfigPath = filepath.Join(*dataDir, "config.yaml")
+	}
+	hubCfg, cfgCreated, err := config.LoadOrInitHub(resolvedConfigPath)
+	if err != nil {
+		log.Fatalf("[hub] load config: %v", err)
+	}
+	if cfgCreated {
+		log.Printf("[hub] generated default config file at %s", resolvedConfigPath)
+	}
+	hubCfg.ApplyEnv()
+	if visitedFlags["host"] && *host != "" {
+		hubCfg.Server.Host = *host
+	}
+	if visitedFlags["port"] && *port != "" {
+		hubCfg.Server.Port = *port
+	}
+	hubCfg.Normalize()
+
+	listenAddr := net.JoinHostPort(hubCfg.Server.Host, hubCfg.Server.Port)
 
 	store, err := db.Open(filepath.Join(*dataDir, "mihob.db"))
 	if err != nil {
@@ -113,10 +140,12 @@ func runHub(args []string) {
 	}
 
 	srv, err := hub.NewServer(hub.Config{
-		Store:   store,
-		DataDir: *dataDir,
-		WebFS:   webFS,
-		Version: Version,
+		Store:         store,
+		DataDir:       *dataDir,
+		ConfigPath:    resolvedConfigPath,
+		RuntimeConfig: hubCfg,
+		WebFS:         webFS,
+		Version:       Version,
 	})
 	if err != nil {
 		log.Fatalf("[hub] init server: %v", err)

@@ -19,8 +19,9 @@ cmd/mihob/              CLI entrypoint (`mihob hub` / `mihob agent`)
 internal/
   acme/                 ACME issuance & renewal (Cloudflare / AliDNS / DNSPod DNS-01, HTTP-01)
   agent/                Agent runtime, mihomo process supervisor, Unix-socket traffic collector
+  config/               Hub bootstrap YAML config (`config.yaml` auto-init + env/flag precedence)
   crypto/               Bcrypt, JWT, Reality X25519 keypair, SS-2022 PSK, self-signed cert helpers
-  db/                   SQLite schema, migrations, CRUD for nodes/inbounds/users/certs/templates/settings
+  db/                   SQLite schema, migrations, maintenance, CRUD for nodes/inbounds/users/certs/templates/settings
   hub/                  HTTP API, Agent WebSocket manager, scheduler, public subscription endpoints
   mihomogen/            Server `listeners:` config generator & client template renderer
   model/                Shared domain structs & JSON tags
@@ -30,10 +31,11 @@ web/
   src/
     components/ui/      shadcn/ui primitives (DropdownMenu defaults to `modal = false`)
     components/layout/  `AppShell.tsx` (collapsible sidebar, top bar, Language & Theme switchers)
-    components/common/  `PageHeader`, `EmptyState`, `ErrorState`, `CopyButton`, `TrafficProgress`
+    components/common/  `PageHeader`, `EmptyState`, `ErrorState`, `CopyButton`, `TrafficProgress`, `FormControls`
+    features/mihomo/    Mihomo protocol registry (`registry.ts`) & modular security/transport form sections
     lib/                `api.ts` (fetch client + query keys), `auth.tsx`, `theme.tsx`, `i18n.ts`, `types.ts`
     locales/            `zh-CN.json` and `en-US.json` (must always have identical key trees)
-    pages/              Route-level lazy pages + feature subdialogs (`nodes/`, `users/`, `certificates/`)
+    pages/              Route-level lazy pages + feature subdialogs (`nodes/`, `users/`, `certificates/`, `settings/`)
 deploy/                 `Dockerfile.hub`, `Dockerfile.agent`, and `docker-compose.*.yml`
 .github/workflows/      `ci.yml` and `release.yml` (triggered on `v*` tags)
 ```

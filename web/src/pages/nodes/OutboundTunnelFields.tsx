@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ClipboardPaste, KeyRound, Loader2, Sparkles } from "lucide-react"
+import { ChevronDown, ClipboardPaste, KeyRound, Loader2, Sparkles, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { CopyButton } from "@/components/common/CommonUI"
+import { FormSwitchCard } from "@/components/common/FormControls"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -13,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { MASQUENetwork, NodeOutbound } from "@/lib/types"
 import {
@@ -132,72 +139,84 @@ export function OutboundTunnelFields({
 
   return (
     <div className="space-y-3">
-      {/* Quick generate / register / import action bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-2.5 py-2">
+      {/* Compact quick actions bar: primary register button + single tools dropdown */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-3 py-2">
         <span className="text-xs text-muted-foreground">
           {item.type === "masque"
             ? t("nodes.form.outbound.masqueImportHint")
             : t("nodes.form.outbound.wgImportHint")}
         </span>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           {isWARPFamily && (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 px-2 text-xs"
-                disabled={isRegistering}
-                onClick={() => onRegisterWARP(item.type === "masque" ? "masque" : "wireguard")}
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              disabled={isRegistering}
+              onClick={() => onRegisterWARP(item.type === "masque" ? "masque" : "wireguard")}
+            >
+              {isRegistering ? (
+                <Loader2 className="mr-1.5 size-3 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 size-3" />
+              )}
+              {t("nodes.form.outbound.warpRegisterBtn")}
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={isKeygenPending || isRegistering}
+                >
+                  {isKeygenPending ? (
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                  ) : (
+                    <Wrench className="mr-1 size-3" />
+                  )}
+                  {t("nodes.form.outbound.toolsMenuBtn")}
+                  <ChevronDown className="ml-1 size-3 text-muted-foreground" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-52">
+              {isWARPFamily && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setLicenseOpen((v) => !v)
+                      setImportOpen(false)
+                      setWarpLicense("")
+                    }}
+                  >
+                    <Sparkles className="mr-2 size-3.5" />
+                    {t("nodes.form.outbound.warpRegisterWithLicenseBtn")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={() => onKeygen(item.type === "masque" ? "masque" : "wireguard")}
               >
-                {isRegistering ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-1 size-3" />
-                )}
-                {t("nodes.form.outbound.warpRegisterBtn")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs"
+                <KeyRound className="mr-2 size-3.5" />
+                {t("nodes.form.outbound.keygenBtn")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onClick={() => {
-                  setLicenseOpen((v) => !v)
-                  setWarpLicense("")
+                  setImportOpen((v) => !v)
+                  setLicenseOpen(false)
+                  setImportText("")
                 }}
               >
-                WARP+
-              </Button>
-            </>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            disabled={isKeygenPending}
-            onClick={() => onKeygen(item.type === "masque" ? "masque" : "wireguard")}
-          >
-            {isKeygenPending ? (
-              <Loader2 className="mr-1 size-3 animate-spin" />
-            ) : (
-              <KeyRound className="mr-1 size-3" />
-            )}
-            {t("nodes.form.outbound.keygenBtn")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => {
-              setImportOpen((v) => !v)
-              setImportText("")
-            }}
-          >
-            <ClipboardPaste className="mr-1 size-3" />
-            {t("nodes.form.outbound.importBtn")}
-          </Button>
+                <ClipboardPaste className="mr-2 size-3.5" />
+                {t("nodes.form.outbound.importBtn")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -209,6 +228,18 @@ export function OutboundTunnelFields({
             placeholder={t("nodes.form.outbound.warpLicensePlaceholder")}
             className="h-8 flex-1 font-mono text-xs"
           />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => {
+              setLicenseOpen(false)
+              setWarpLicense("")
+            }}
+          >
+            {t("common.cancel")}
+          </Button>
           <Button
             type="button"
             size="sm"
@@ -284,7 +315,7 @@ export function OutboundTunnelFields({
             value={item.private_key ?? ""}
             onChange={(e) => onPatch({ private_key: e.target.value })}
             placeholder="base64..."
-            className="h-8 font-mono text-xs"
+            className="h-8 bg-background font-mono text-xs"
           />
         </div>
         <div className="space-y-1">
@@ -293,7 +324,7 @@ export function OutboundTunnelFields({
             value={item.public_key ?? ""}
             onChange={(e) => onPatch({ public_key: e.target.value })}
             placeholder={item.type === "warp" ? DEFAULT_WARP_PUBLIC_KEY : "base64..."}
-            className="h-8 font-mono text-xs"
+            className="h-8 bg-background font-mono text-xs"
           />
         </div>
       </div>
@@ -304,34 +335,27 @@ export function OutboundTunnelFields({
             <span className="text-xs text-muted-foreground">
               {t("nodes.form.outbound.tunnelStackLabel")}
             </span>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant={item.ip && item.ipv6 ? "secondary" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => handleTunnelStackMode("dual")}
-              >
-                {t("nodes.form.outbound.stackDual")}
-              </Button>
-              <Button
-                type="button"
-                variant={item.ip && !item.ipv6 ? "secondary" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => handleTunnelStackMode("v4")}
-              >
-                {t("nodes.form.outbound.stackV4Only")}
-              </Button>
-              <Button
-                type="button"
-                variant={!item.ip && item.ipv6 ? "secondary" : "outline"}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => handleTunnelStackMode("v6")}
-              >
-                {t("nodes.form.outbound.stackV6Only")}
-              </Button>
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+              {(
+                [
+                  { id: "dual", active: Boolean(item.ip && item.ipv6), key: "stackDual" },
+                  { id: "v4", active: Boolean(item.ip && !item.ipv6), key: "stackV4Only" },
+                  { id: "v6", active: Boolean(!item.ip && item.ipv6), key: "stackV6Only" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleTunnelStackMode(opt.id)}
+                  className={
+                    opt.active
+                      ? "rounded-sm bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+                      : "rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  }
+                >
+                  {t(`nodes.form.outbound.${opt.key}`)}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -349,7 +373,7 @@ export function OutboundTunnelFields({
                   onPatch({ ip: e.target.value })
                 }}
                 placeholder={DEFAULT_WARP_IP}
-                className="h-8 font-mono text-xs"
+                className="h-8 bg-background font-mono text-xs"
               />
             </div>
             <div className="space-y-1">
@@ -362,7 +386,7 @@ export function OutboundTunnelFields({
                   onPatch({ ipv6: e.target.value })
                 }}
                 placeholder="2606:4700:110::2/128"
-                className="h-8 font-mono text-xs"
+                className="h-8 bg-background font-mono text-xs"
               />
             </div>
             {item.type !== "masque" && (
@@ -372,7 +396,7 @@ export function OutboundTunnelFields({
                   value={item.reserved ?? ""}
                   onChange={(e) => onPatch({ reserved: e.target.value })}
                   placeholder={t("nodes.form.outbound.reservedPlaceholder")}
-                  className="h-8 font-mono text-xs"
+                  className="h-8 bg-background font-mono text-xs"
                 />
               </div>
             )}
@@ -380,32 +404,43 @@ export function OutboundTunnelFields({
         </div>
       )}
 
-      {isWARPFamily && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">
-            {t("nodes.form.outbound.endpointPresetsLabel")}
-          </span>
-          {endpointPresets.map((ep) => {
-            const active = item.server === ep.server
-            return (
-              <Button
-                key={ep.key}
-                type="button"
-                variant={active ? "secondary" : "outline"}
-                size="sm"
-                className="h-6 px-2 font-mono text-xs"
-                onClick={() => onPatch({ server: ep.server, port: ep.port })}
-              >
-                {t(`nodes.form.outbound.endpointPresets.${ep.key}`)}
-              </Button>
-            )
-          })}
-        </div>
-      )}
-
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label className="text-xs">{t("nodes.form.outbound.server")}</Label>
+          <div className="flex items-center justify-between gap-1">
+            <Label className="text-xs">{t("nodes.form.outbound.server")}</Label>
+            {isWARPFamily && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <span>{t("nodes.form.outbound.endpointPresetsShort")}</span>
+                      <ChevronDown className="size-3" />
+                    </button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-60">
+                  {endpointPresets.map((ep) => (
+                    <DropdownMenuItem
+                      key={ep.key}
+                      onClick={() => onPatch({ server: ep.server, port: ep.port })}
+                    >
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span className="text-xs">
+                          {t(`nodes.form.outbound.endpointPresets.${ep.key}`)}
+                        </span>
+                        <span className="truncate font-mono text-xs text-muted-foreground">
+                          {ep.server}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
           <Input
             value={item.server ?? ""}
             onChange={(e) => onPatch({ server: e.target.value })}
@@ -416,7 +451,7 @@ export function OutboundTunnelFields({
                   ? DEFAULT_MASQUE_SERVER
                   : "wg.example.com"
             }
-            className="h-8 font-mono text-xs"
+            className="h-8 bg-background font-mono text-xs"
           />
         </div>
         <div className="space-y-1">
@@ -438,7 +473,7 @@ export function OutboundTunnelFields({
                   ? String(DEFAULT_MASQUE_PORT)
                   : "51820"
             }
-            className="h-8 font-mono text-xs tabular-nums"
+            className="h-8 bg-background font-mono text-xs tabular-nums"
           />
         </div>
         <div className="space-y-1">
@@ -454,7 +489,7 @@ export function OutboundTunnelFields({
               })
             }
             placeholder={isWARPFamily ? "1280" : "1420"}
-            className="h-8 font-mono text-xs tabular-nums"
+            className="h-8 bg-background font-mono text-xs tabular-nums"
           />
         </div>
       </div>
@@ -489,7 +524,7 @@ export function OutboundTunnelFields({
               value={item.sni ?? ""}
               onChange={(e) => onPatch({ sni: e.target.value })}
               placeholder={DEFAULT_MASQUE_SNI}
-              className="h-8 font-mono text-xs"
+              className="h-8 bg-background font-mono text-xs"
             />
           </div>
           <div className="space-y-1">
@@ -514,51 +549,48 @@ export function OutboundTunnelFields({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs">{t("nodes.form.outbound.dns")}</Label>
-          <Input
-            value={dnsText}
-            onChange={(e) => {
-              const raw = e.target.value
-              setDnsText(raw)
-              const parsed = raw
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-              lastCommittedDnsRef.current = parsed.join(", ")
-              onPatch({ dns: parsed })
-            }}
-            placeholder="1.1.1.1, 1.0.0.1"
-            className="h-8 font-mono text-xs"
+      <div className="space-y-1">
+        <Label className="text-xs">{t("nodes.form.outbound.dns")}</Label>
+        <Input
+          value={dnsText}
+          onChange={(e) => {
+            const raw = e.target.value
+            setDnsText(raw)
+            const parsed = raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+            lastCommittedDnsRef.current = parsed.join(", ")
+            onPatch({ dns: parsed })
+          }}
+          placeholder="1.1.1.1, 1.0.0.1"
+          className="h-8 bg-background font-mono text-xs"
+        />
+      </div>
+
+      <div
+        className={
+          item.type === "masque" ? "grid gap-2.5 sm:grid-cols-3" : "grid gap-2.5 sm:grid-cols-2"
+        }
+      >
+        <FormSwitchCard
+          label={t("nodes.form.outbound.remoteDnsResolve")}
+          checked={Boolean(item.remote_dns_resolve)}
+          onCheckedChange={(checked) => onPatch({ remote_dns_resolve: checked })}
+        />
+        <FormSwitchCard
+          label={t("nodes.form.outbound.enableUdp")}
+          disabled={isL4Proxy}
+          checked={!isL4Proxy && item.udp !== false}
+          onCheckedChange={(checked) => onPatch({ udp: checked })}
+        />
+        {item.type === "masque" && (
+          <FormSwitchCard
+            label={t("nodes.form.outbound.skipCertVerify")}
+            checked={Boolean(item.skip_cert_verify)}
+            onCheckedChange={(checked) => onPatch({ skip_cert_verify: checked })}
           />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background/60 px-3 py-1.5">
-          <label className="flex items-center gap-2 text-xs">
-            <Switch
-              checked={Boolean(item.remote_dns_resolve)}
-              onCheckedChange={(checked) => onPatch({ remote_dns_resolve: checked })}
-            />
-            <span>{t("nodes.form.outbound.remoteDnsResolve")}</span>
-          </label>
-          <label className="flex items-center gap-2 text-xs">
-            <Switch
-              disabled={isL4Proxy}
-              checked={!isL4Proxy && item.udp !== false}
-              onCheckedChange={(checked) => onPatch({ udp: checked })}
-            />
-            <span>{t("nodes.form.outbound.enableUdp")}</span>
-          </label>
-          {item.type === "masque" && (
-            <label className="flex items-center gap-2 text-xs">
-              <Switch
-                checked={Boolean(item.skip_cert_verify)}
-                onCheckedChange={(checked) => onPatch({ skip_cert_verify: checked })}
-              />
-              <span>{t("nodes.form.outbound.skipCertVerify")}</span>
-            </label>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

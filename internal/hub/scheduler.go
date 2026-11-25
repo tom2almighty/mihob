@@ -17,10 +17,11 @@ import (
 const defaultTrafficRetentionDays = 365
 
 type Scheduler struct {
-	store  *db.Store
-	ws     *WSManager
-	acme   *acme.Manager
-	notify *notify.Service
+	store         *db.Store
+	ws            *WSManager
+	acme          *acme.Manager
+	notify        *notify.Service
+	retentionDays func() int
 
 	// Tracks which users were last known active so expiration triggers exactly one push+kick.
 	knownActive map[int64]bool
@@ -28,11 +29,18 @@ type Scheduler struct {
 
 func NewScheduler(store *db.Store, ws *WSManager, acmeMgr *acme.Manager, notifySvc *notify.Service) *Scheduler {
 	return &Scheduler{
-		store:       store,
-		ws:          ws,
-		acme:        acmeMgr,
-		notify:      notifySvc,
-		knownActive: make(map[int64]bool),
+		store:         store,
+		ws:            ws,
+		acme:          acmeMgr,
+		notify:        notifySvc,
+		retentionDays: trafficRetentionDays,
+		knownActive:   make(map[int64]bool),
+	}
+}
+
+func (s *Scheduler) SetRetentionDaysProvider(fn func() int) {
+	if fn != nil {
+		s.retentionDays = fn
 	}
 }
 
@@ -77,7 +85,10 @@ func trafficRetentionDays() int {
 }
 
 func (s *Scheduler) tickTrafficPrune() {
-	keepDays := trafficRetentionDays()
+	keepDays := defaultTrafficRetentionDays
+	if s.retentionDays != nil {
+		keepDays = s.retentionDays()
+	}
 	if keepDays <= 0 {
 		return
 	}

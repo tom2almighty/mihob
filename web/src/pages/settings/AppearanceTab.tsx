@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -311,146 +310,141 @@ export function AppearanceTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Theme Presets & Custom tweakcn Themes Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Palette className="size-4 text-muted-foreground" />
-                {t("settings.appearance.themeCardTitle")}
-              </CardTitle>
-              <CardDescription>{t("settings.appearance.themeCardDesc")}</CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {currentActiveId !== "default" && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={saveMutation.isPending}
-                  onClick={() => handleSelectTheme("default")}
-                >
-                  <RotateCcw className="mr-1.5 size-3.5" />
-                  {t("settings.appearance.resetDefault")}
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                render={
-                  <a href="https://tweakcn.com/editor/theme" target="_blank" rel="noreferrer" />
-                }
-                nativeButton={false}
-              >
-                {t("settings.appearance.openTweakcn")}
-                <ExternalLink className="ml-1 size-3 text-muted-foreground" />
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setEditingTheme(null)
-                  setDialogOpen(true)
-                }}
-              >
-                <Plus className="mr-1.5 size-3.5" />
-                {t("settings.appearance.addTheme")}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-foreground">
+            {t("settings.appearance.themeCardTitle")}
+          </h2>
+          <p className="text-sm text-muted-foreground">{t("settings.appearance.themeCardDesc")}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {currentActiveId !== "default" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={saveMutation.isPending}
+              onClick={() => handleSelectTheme("default")}
+            >
+              <RotateCcw className="mr-1.5 size-3.5" />
+              {t("settings.appearance.resetDefault")}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            render={<a href="https://tweakcn.com/editor/theme" target="_blank" rel="noreferrer" />}
+            nativeButton={false}
+          >
+            {t("settings.appearance.openTweakcn")}
+            <ExternalLink className="ml-1 size-3 text-muted-foreground" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setEditingTheme(null)
+              setDialogOpen(true)
+            }}
+          >
+            <Plus className="mr-1.5 size-3.5" />
+            {t("settings.appearance.addTheme")}
+          </Button>
+        </div>
+      </div>
 
-        <CardContent className="space-y-5">
-          {themesQuery.isError ? (
-            <ErrorState message={themesQuery.error.message} onRetry={() => themesQuery.refetch()} />
-          ) : themesQuery.isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Skeleton key={n} className="h-32 w-full rounded-lg" />
-              ))}
+      <Separator />
+
+      <div className="space-y-5">
+        {themesQuery.isError ? (
+          <ErrorState message={themesQuery.error.message} onRetry={() => themesQuery.refetch()} />
+        ) : themesQuery.isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Skeleton key={n} className="h-32 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2.5">
+              <div className="text-xs font-medium text-muted-foreground">
+                {t("settings.appearance.builtinSection")}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {BUILTIN_THEME_PRESETS.map((preset) => (
+                  <ThemePresetCard
+                    key={preset.id}
+                    themeItem={preset}
+                    builtin
+                    active={currentActiveId === preset.id}
+                    resolvedMode={resolvedMode}
+                    disabled={saveMutation.isPending}
+                    onSelect={() => handleSelectTheme(preset.id)}
+                  />
+                ))}
+              </div>
             </div>
-          ) : (
-            <>
-              <div className="space-y-2.5">
-                <div className="text-xs font-medium text-muted-foreground">
-                  {t("settings.appearance.builtinSection")}
+
+            <Separator />
+
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("settings.appearance.customSection", { count: customThemes.length })}
+                </span>
+              </div>
+
+              {customThemes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+                  <Palette className="mb-2 size-5 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">
+                    {t("settings.appearance.customEmptyTitle")}
+                  </p>
+                  <p className="mt-1 max-w-md text-xs text-muted-foreground">
+                    {t("settings.appearance.customEmptyDesc")}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => {
+                      setEditingTheme(null)
+                      setDialogOpen(true)
+                    }}
+                  >
+                    <Plus className="mr-1.5 size-3.5" />
+                    {t("settings.appearance.addTheme")}
+                  </Button>
                 </div>
+              ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {BUILTIN_THEME_PRESETS.map((preset) => (
+                  {customThemes.map((item) => (
                     <ThemePresetCard
-                      key={preset.id}
-                      themeItem={preset}
-                      builtin
-                      active={currentActiveId === preset.id}
+                      key={item.id}
+                      themeItem={item}
+                      builtin={false}
+                      active={currentActiveId === item.id}
                       resolvedMode={resolvedMode}
                       disabled={saveMutation.isPending}
-                      onSelect={() => handleSelectTheme(preset.id)}
+                      onSelect={() => handleSelectTheme(item.id)}
+                      onCopyCss={() => void handleCopyCss(item)}
+                      onEdit={() => {
+                        setEditingTheme(item)
+                        setDialogOpen(true)
+                      }}
+                      onDelete={() => setDeleteTarget(item)}
                     />
                   ))}
                 </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t("settings.appearance.customSection", { count: customThemes.length })}
-                  </span>
-                </div>
-
-                {customThemes.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-                    <Palette className="mb-2 size-5 text-muted-foreground" />
-                    <p className="text-sm font-medium text-foreground">
-                      {t("settings.appearance.customEmptyTitle")}
-                    </p>
-                    <p className="mt-1 max-w-md text-xs text-muted-foreground">
-                      {t("settings.appearance.customEmptyDesc")}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => {
-                        setEditingTheme(null)
-                        setDialogOpen(true)
-                      }}
-                    >
-                      <Plus className="mr-1.5 size-3.5" />
-                      {t("settings.appearance.addTheme")}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {customThemes.map((item) => (
-                      <ThemePresetCard
-                        key={item.id}
-                        themeItem={item}
-                        builtin={false}
-                        active={currentActiveId === item.id}
-                        resolvedMode={resolvedMode}
-                        disabled={saveMutation.isPending}
-                        onSelect={() => handleSelectTheme(item.id)}
-                        onCopyCss={() => void handleCopyCss(item)}
-                        onEdit={() => {
-                          setEditingTheme(item)
-                          setDialogOpen(true)
-                        }}
-                        onDelete={() => setDeleteTarget(item)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       <ThemeImportDialog
         open={dialogOpen}

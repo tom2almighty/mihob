@@ -501,6 +501,17 @@ export function NodesPage() {
                         <Terminal className="mr-1.5 size-3.5" />
                         {t("nodes.btnDeploy")}
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingNode(n)
+                          setFormOpen(true)
+                        }}
+                      >
+                        <Pencil className="mr-1.5 size-3.5" />
+                        {t("common.edit")}
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={
@@ -515,15 +526,6 @@ export function NodesPage() {
                           }
                         />
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingNode(n)
-                              setFormOpen(true)
-                            }}
-                          >
-                            <Pencil className="mr-2 size-4" />
-                            {t("nodes.editNode")}
-                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => pushMutation.mutate(n.id)}>
                             <Send className="mr-2 size-4" />
                             {t("nodes.pushConfig")}

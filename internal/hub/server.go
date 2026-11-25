@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/mihob/mihob/internal/acme"
+	"github.com/mihob/mihob/internal/config"
 	"github.com/mihob/mihob/internal/crypto"
 	"github.com/mihob/mihob/internal/db"
 	"github.com/mihob/mihob/internal/notify"
@@ -33,13 +34,18 @@ type Server struct {
 	jwtSecret    string
 	webFS        fs.FS
 	version      string
+	dataDir      string
+	configPath   string
+	runtimeCfg   *config.HubConfig
 }
 
 type Config struct {
-	Store   *db.Store
-	DataDir string
-	WebFS   fs.FS
-	Version string
+	Store         *db.Store
+	DataDir       string
+	ConfigPath    string
+	RuntimeConfig *config.HubConfig
+	WebFS         fs.FS
+	Version       string
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -50,10 +56,13 @@ func NewServer(cfg Config) (*Server, error) {
 	acmeMgr := acme.NewManager(cfg.DataDir)
 	mihomoMgr := NewMihomoReleaseManager(cfg.Store, cfg.DataDir)
 	notifySvc := notify.NewService(cfg.Store)
+	if cfg.RuntimeConfig != nil && cfg.RuntimeConfig.Security.AllowPrivateWebhook {
+		notify.SetDefaultAllowPrivateWebhook(true)
+	}
 	wsMgr := NewWSManager(cfg.Store, notifySvc)
 	sched := NewScheduler(cfg.Store, wsMgr, acmeMgr, notifySvc)
 
-	return &Server{
+	srv := &Server{
 		store:        cfg.Store,
 		ws:           wsMgr,
 		acme:         acmeMgr,
@@ -64,7 +73,54 @@ func NewServer(cfg Config) (*Server, error) {
 		jwtSecret:    jwtSecret,
 		webFS:        cfg.WebFS,
 		version:      cfg.Version,
-	}, nil
+		dataDir:      cfg.DataDir,
+		configPath:   cfg.ConfigPath,
+		runtimeCfg:   cfg.RuntimeConfig,
+	}
+	sched.SetRetentionDaysProvider(srv.effectiveTrafficRetentionDays)
+	return srv, nil
+}
+
+func (s *Server) effectiveTrustProxy() bool {
+	if v := strings.TrimSpace(os.Getenv("MIHOB_TRUST_PROXY")); v != "" {
+		return strings.EqualFold(v, "true") || v == "1"
+	}
+	return s.runtimeCfg != nil && s.runtimeCfg.Security.TrustProxy
+}
+
+func (s *Server) effectiveAllowPrivateWebhook() bool {
+	if v := strings.TrimSpace(os.Getenv("MIHOB_ALLOW_PRIVATE_WEBHOOK")); v != "" {
+		return strings.EqualFold(v, "true") || v == "1"
+	}
+	return s.runtimeCfg != nil && s.runtimeCfg.Security.AllowPrivateWebhook
+}
+
+func (s *Server) effectiveTrafficRetentionDays() int {
+	if strings.TrimSpace(os.Getenv("MIHOB_TRAFFIC_RETENTION_DAYS")) != "" {
+		return trafficRetentionDays()
+	}
+	if s.runtimeCfg != nil {
+		return s.runtimeCfg.Storage.TrafficRetentionDays
+	}
+	return defaultTrafficRetentionDays
+}
+
+func (s *Server) effectiveCORSOrigins() []string {
+	if rawEnv := strings.TrimSpace(os.Getenv("MIHOB_CORS_ORIGINS")); rawEnv != "" {
+		out := make([]string, 0)
+		for item := range strings.SplitSeq(rawEnv, ",") {
+			if trimmed := strings.TrimRight(strings.TrimSpace(item), "/"); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	}
+	if s.runtimeCfg != nil && len(s.runtimeCfg.Security.CORSOrigins) > 0 {
+		out := make([]string, len(s.runtimeCfg.Security.CORSOrigins))
+		copy(out, s.runtimeCfg.Security.CORSOrigins)
+		return out
+	}
+	return []string{}
 }
 
 func (s *Server) getJWTSecret() string {
@@ -98,7 +154,7 @@ func (s *Server) Shutdown() {
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
-	r.Use(trustedRealIPMiddleware)
+	r.Use(trustedRealIPMiddlewareWithFlag(s.effectiveTrustProxy()))
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeadersMiddleware)
 	r.Use(s.corsMiddleware)
@@ -189,6 +245,9 @@ func (s *Server) Router() http.Handler {
 			pr.Get("/settings", s.handleGetSettings)
 			pr.Put("/settings", s.handleUpdateSettings)
 			pr.Get("/settings/backup", s.handleBackupDatabase)
+			pr.Get("/settings/database/stats", s.handleGetDatabaseStats)
+			pr.Post("/settings/database/vacuum", s.handleVacuumDatabase)
+			pr.Post("/settings/database/cleanup", s.handleCleanupDatabase)
 
 			// Themes
 			pr.Get("/themes", s.handleGetThemes)
@@ -309,13 +368,10 @@ func (s *Server) isAllowedCORSOrigin(origin string, r *http.Request) bool {
 	if origin == "" {
 		return false
 	}
-	// Check explicit env allowlist first (supports "*" if explicitly opted in)
-	if rawEnv := strings.TrimSpace(os.Getenv("MIHOB_CORS_ORIGINS")); rawEnv != "" {
-		for item := range strings.SplitSeq(rawEnv, ",") {
-			trimmed := strings.TrimRight(strings.TrimSpace(item), "/")
-			if trimmed == "*" || strings.EqualFold(trimmed, origin) {
-				return true
-			}
+	// Check explicit env / config.yaml allowlist first (supports "*" if explicitly opted in)
+	for _, item := range s.effectiveCORSOrigins() {
+		if item == "*" || strings.EqualFold(item, origin) {
+			return true
 		}
 	}
 	// Allow same-origin requests matching request Host

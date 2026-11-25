@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react"
+import { FormSwitchCard, PasswordInput } from "@/components/common/FormControls"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -273,41 +274,34 @@ export function OutboundItemCard({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">{t("nodes.form.outbound.password")}</Label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     value={item.password ?? ""}
                     onChange={(e) => onPatch({ password: e.target.value })}
                     placeholder={t("nodes.form.outbound.optionalPlaceholder")}
-                    className="h-8 font-mono text-xs"
+                    className="h-8 bg-background font-mono text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-xs">
-                  <Switch
-                    checked={Boolean(item.tls)}
-                    onCheckedChange={(checked) => onPatch({ tls: checked })}
-                  />
-                  <span>{t("nodes.form.outbound.enableTls")}</span>
-                </label>
-                {item.tls && (
-                  <label className="flex items-center gap-2 text-xs">
-                    <Switch
-                      checked={Boolean(item.skip_cert_verify)}
-                      onCheckedChange={(checked) => onPatch({ skip_cert_verify: checked })}
-                    />
-                    <span>{t("nodes.form.outbound.skipCertVerify")}</span>
-                  </label>
-                )}
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <FormSwitchCard
+                  label={t("nodes.form.outbound.enableTls")}
+                  checked={Boolean(item.tls)}
+                  onCheckedChange={(checked) => onPatch({ tls: checked })}
+                />
                 {item.type === "socks5" && (
-                  <label className="flex items-center gap-2 text-xs">
-                    <Switch
-                      checked={item.udp !== false}
-                      onCheckedChange={(checked) => onPatch({ udp: checked })}
-                    />
-                    <span>{t("nodes.form.outbound.enableUdp")}</span>
-                  </label>
+                  <FormSwitchCard
+                    label={t("nodes.form.outbound.enableUdp")}
+                    checked={item.udp !== false}
+                    onCheckedChange={(checked) => onPatch({ udp: checked })}
+                  />
+                )}
+                {item.tls && (
+                  <FormSwitchCard
+                    label={t("nodes.form.outbound.skipCertVerify")}
+                    checked={Boolean(item.skip_cert_verify)}
+                    onCheckedChange={(checked) => onPatch({ skip_cert_verify: checked })}
+                  />
                 )}
               </div>
             </div>

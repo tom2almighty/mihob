@@ -356,6 +356,17 @@ export function UsersPage() {
                           <Link2 className="mr-1.5 size-3.5" />
                           {t("users.btnSub")}
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditing(u)
+                            setFormOpen(true)
+                          }}
+                        >
+                          <Pencil className="mr-1.5 size-3.5" />
+                          {t("common.edit")}
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={
@@ -370,15 +381,6 @@ export function UsersPage() {
                             }
                           />
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditing(u)
-                                setFormOpen(true)
-                              }}
-                            >
-                              <Pencil className="mr-2 size-4" />
-                              {t("users.editUser")}
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => resetTrafficMutation.mutate(u.id)}>
                               <RotateCcw className="mr-2 size-4" />
                               {t("users.resetTraffic")}

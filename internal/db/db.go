@@ -16,7 +16,8 @@ import (
 )
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 }
 
 func Open(dbPath string) (*Store, error) {
@@ -33,7 +34,7 @@ func Open(dbPath string) (*Store, error) {
 		_ = sqlDB.Close()
 		return nil, err
 	}
-	s := &Store{db: sqlDB}
+	s := &Store{db: sqlDB, path: dbPath}
 	if err := s.migrate(); err != nil {
 		_ = sqlDB.Close()
 		return nil, err

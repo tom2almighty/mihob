@@ -429,6 +429,48 @@ export interface SystemSettings {
   clear_github_token?: boolean
 }
 
+export interface DatabaseStats {
+  db_path: string
+  db_size_bytes: number
+  wal_size_bytes: number
+  shm_size_bytes: number
+  total_size_bytes: number
+  page_size: number
+  page_count: number
+  freelist_count: number
+  reclaimable_bytes: number
+  journal_mode: string
+  table_counts: Record<string, number>
+}
+
+export interface RuntimeConfigInfo {
+  config_path: string
+  data_dir: string
+  version: string
+  traffic_retention_days: number
+  trust_proxy: boolean
+  allow_private_webhook: boolean
+  cors_origins: string[]
+}
+
+export interface DatabaseStatsResponse {
+  stats: DatabaseStats
+  runtime: RuntimeConfigInfo
+}
+
+export interface DatabaseVacuumResult {
+  before_bytes: number
+  after_bytes: number
+  reclaimed_bytes: number
+  stats: DatabaseStats
+}
+
+export interface DatabaseCleanupResult {
+  traffic_deleted: number
+  logs_deleted: number
+  stats: DatabaseStats
+}
+
 export interface MihomoReleaseInfo {
   version: string
   published_at?: string

@@ -69,8 +69,15 @@ func isDisallowedRemoteIP(ip net.IP) bool {
 }
 
 // isTrustedProxyIP reports whether a direct TCP peer is a local/private reverse proxy
-// (or MIHOB_TRUST_PROXY=true is configured).
+// (or MIHOB_TRUST_PROXY=true / config security.trust_proxy is configured).
 func isTrustedProxyIP(remoteAddr string) bool {
+	return isTrustedProxyIPWithFlag(remoteAddr, false)
+}
+
+func isTrustedProxyIPWithFlag(remoteAddr string, forceTrust bool) bool {
+	if forceTrust {
+		return true
+	}
 	if v := strings.TrimSpace(os.Getenv("MIHOB_TRUST_PROXY")); strings.EqualFold(v, "true") || v == "1" {
 		return true
 	}
@@ -88,22 +95,24 @@ func isTrustedProxyIP(remoteAddr string) bool {
 
 // trustedRealIPMiddleware replaces unconditional middleware.RealIP so public direct clients
 // cannot spoof X-Forwarded-For / X-Real-IP, while reverse-proxied deployments keep working.
-func trustedRealIPMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isTrustedProxyIP(r.RemoteAddr) {
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				first := strings.TrimSpace(strings.Split(xff, ",")[0])
-				if ip := net.ParseIP(first); ip != nil {
-					r.RemoteAddr = first
-				}
-			} else if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" {
-				if ip := net.ParseIP(xri); ip != nil {
-					r.RemoteAddr = xri
+func trustedRealIPMiddlewareWithFlag(forceTrust bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isTrustedProxyIPWithFlag(r.RemoteAddr, forceTrust) {
+				if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+					first := strings.TrimSpace(strings.Split(xff, ",")[0])
+					if ip := net.ParseIP(first); ip != nil {
+						r.RemoteAddr = first
+					}
+				} else if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" {
+					if ip := net.ParseIP(xri); ip != nil {
+						r.RemoteAddr = xri
+					}
 				}
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func clientIPKey(r *http.Request) string {

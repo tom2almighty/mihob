@@ -79,12 +79,15 @@
 - Node.js 24+
 - pnpm 12+
 
-### 环境变量
+### 配置文件与环境变量
+
+Hub 首次启动时会在数据目录自动生成 `{data_dir}/config.yaml`（可通过 `--config` 或 `MIHOB_CONFIG` 指定路径），用于管理监听地址、安全策略与流量保留期等基础运行参数；配置优先级为 **命令行参数 > 环境变量 > `config.yaml` > 默认值**。动态业务参数（公网地址、订阅路径、主题等）仍在 Web 控制台内热更新。
 
 Hub 常用环境变量：
 
 | 变量名 | 说明 | 默认值 |
 | --- | --- | --- |
+| `MIHOB_CONFIG` | Hub YAML 配置文件路径 | `<data_dir>/config.yaml` |
 | `MIHOB_HOST` | HTTP 监听主机地址（如 `127.0.0.1` 或 `0.0.0.0`） | `0.0.0.0` |
 | `MIHOB_PORT` | HTTP 监听端口 | `8080` |
 | `MIHOB_DATA_DIR` | SQLite 数据库与 ACME 证书存储目录 | `./data` |

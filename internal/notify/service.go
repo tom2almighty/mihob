@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	_ "time/tzdata"
 
@@ -147,9 +148,19 @@ var disallowedWebhookPrefixes = func() []netip.Prefix {
 	return out
 }()
 
+var defaultAllowPrivateWebhook atomic.Bool
+
+// SetDefaultAllowPrivateWebhook configures the fallback SSRF private-webhook policy loaded from config.yaml.
+// Environment variable MIHOB_ALLOW_PRIVATE_WEBHOOK still takes precedence when explicitly set.
+func SetDefaultAllowPrivateWebhook(allow bool) {
+	defaultAllowPrivateWebhook.Store(allow)
+}
+
 func allowPrivateWebhook() bool {
-	v := strings.TrimSpace(os.Getenv("MIHOB_ALLOW_PRIVATE_WEBHOOK"))
-	return strings.EqualFold(v, "true") || v == "1"
+	if v := strings.TrimSpace(os.Getenv("MIHOB_ALLOW_PRIVATE_WEBHOOK")); v != "" {
+		return strings.EqualFold(v, "true") || v == "1"
+	}
+	return defaultAllowPrivateWebhook.Load()
 }
 
 func isDisallowedWebhookIP(ip net.IP) bool {
