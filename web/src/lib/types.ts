@@ -155,6 +155,9 @@ export interface ClientEndpointSource {
   name?: string
   count?: number
   port?: number
+  match_mode?: "keyword" | "regex"
+  include_filter?: string
+  exclude_filter?: string
   enabled: boolean
 }
 
@@ -166,6 +169,7 @@ export interface ResolvedEndpoint {
 
 export interface ClientEndpointTestResult {
   total: number
+  matched: number
   applied: number
   endpoints: ResolvedEndpoint[]
 }

@@ -49,9 +49,6 @@ export function InboundAdvancedTab({
                 <FormControl>
                   <Input placeholder="200,302,401-429" className="font-mono text-xs" {...field} />
                 </FormControl>
-                <FormDescription className="text-[11px]">
-                  {t("nodes.inbound.advanced.portRangeDesc")}
-                </FormDescription>
               </FormItem>
             )}
           />
@@ -70,9 +67,6 @@ export function InboundAdvancedTab({
                     {...field}
                   />
                 </FormControl>
-                <FormDescription className="text-[11px]">
-                  {t("nodes.inbound.advanced.routingMarkDesc")}
-                </FormDescription>
               </FormItem>
             )}
           />
@@ -184,13 +178,8 @@ export function InboundAdvancedTab({
       {/* Live Merged YAML Preview */}
       <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-xs font-medium text-foreground">
-              {t("nodes.inbound.advanced.previewTitle")}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {t("nodes.inbound.advanced.previewDesc")}
-            </p>
+          <div className="text-xs font-medium text-foreground">
+            {t("nodes.inbound.advanced.previewTitle")}
           </div>
           <Button
             type="button"

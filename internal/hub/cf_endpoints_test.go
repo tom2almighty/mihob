@@ -38,6 +38,35 @@ cf.090227.xyz:443
 	if eps[6].Host != "104.16.1.5" || eps[6].Port != 2083 || eps[6].Label != "SG" {
 		t.Fatalf("unexpected eps[6]: %+v", eps[6])
 	}
+
+	// Keyword include + exclude filter
+	kwFiltered, err := FilterResolvedEndpoints(eps, "keyword", "香港, 日本, SG", "联通")
+	if err != nil {
+		t.Fatalf("keyword filter error: %v", err)
+	}
+	if len(kwFiltered) != 2 || kwFiltered[0].Host != "104.16.1.1" || kwFiltered[1].Host != "104.16.1.5" {
+		t.Fatalf("unexpected keyword filtered endpoints: %+v", kwFiltered)
+	}
+
+	// Regex include + exclude filter
+	reFiltered, err := FilterResolvedEndpoints(eps, "regex", `:(443|8443)#`, `IPV6`)
+	if err != nil {
+		t.Fatalf("regex filter error: %v", err)
+	}
+	if len(reFiltered) != 2 || reFiltered[0].Host != "104.16.1.1" || reFiltered[1].Host != "104.16.1.3" {
+		t.Fatalf("unexpected regex filtered endpoints: %+v", reFiltered)
+	}
+
+	// Invalid regex returns error
+	if _, err := FilterResolvedEndpoints(eps, "regex", `[unclosed`, ""); err == nil {
+		t.Fatalf("expected error for invalid regex")
+	}
+
+	// Comma-separated manual optimal IPs on one line
+	manual := ParseClientEndpointLines("104.16.1.1, 104.16.1.2:2053#JP, cf.example.com", 443)
+	if len(manual) != 3 || manual[0].Host != "104.16.1.1" || manual[1].Port != 2053 || manual[1].Label != "JP" || manual[2].Host != "cf.example.com" {
+		t.Fatalf("unexpected comma-separated manual endpoints: %+v", manual)
+	}
 }
 
 func TestRenderUserSubscriptionWithResolvedEndpoints(t *testing.T) {

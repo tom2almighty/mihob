@@ -257,7 +257,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  testClientEndpointAPI: (body: { url: string; name?: string; count?: number; port?: number }) =>
+  testClientEndpointAPI: (body: {
+    url: string
+    name?: string
+    count?: number
+    port?: number
+    match_mode?: "keyword" | "regex"
+    include_filter?: string
+    exclude_filter?: string
+  }) =>
     request<ClientEndpointTestResult>("/api/tools/cf-endpoints/test", {
       method: "POST",
       body: JSON.stringify(body),

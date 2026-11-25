@@ -17,6 +17,9 @@ export function createInboundSchema(t: TFunction) {
           name: z.string().trim().optional(),
           count: z.coerce.number().int().min(0).max(50).optional(),
           port: z.coerce.number().int().min(0).max(65535).optional(),
+          match_mode: z.enum(["keyword", "regex"]).optional(),
+          include_filter: z.string().trim().optional(),
+          exclude_filter: z.string().trim().optional(),
           enabled: z.boolean(),
         })
       )

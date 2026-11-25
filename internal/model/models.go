@@ -125,11 +125,14 @@ type Node struct {
 }
 
 type ClientEndpointSource struct {
-	URL     string `json:"url"`
-	Name    string `json:"name,omitempty"`
-	Count   int    `json:"count,omitempty"`
-	Port    int    `json:"port,omitempty"`
-	Enabled bool   `json:"enabled"`
+	URL           string `json:"url"`
+	Name          string `json:"name,omitempty"`
+	Count         int    `json:"count,omitempty"`
+	Port          int    `json:"port,omitempty"`
+	MatchMode     string `json:"match_mode,omitempty"`     // "keyword" (default) | "regex"
+	IncludeFilter string `json:"include_filter,omitempty"` // keyword list or RE2 regex
+	ExcludeFilter string `json:"exclude_filter,omitempty"` // keyword list or RE2 regex
+	Enabled       bool   `json:"enabled"`
 }
 
 type ResolvedEndpoint struct {

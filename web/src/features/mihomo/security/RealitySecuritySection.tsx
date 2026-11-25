@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import type { Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
 import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
@@ -76,7 +77,7 @@ export function NoneSecuritySection({
 
           {clientTls && (
             <div className="space-y-3 pt-1">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <FormField
                   control={form.control}
                   name="sni"
@@ -86,22 +87,6 @@ export function NoneSecuritySection({
                       <FormControl>
                         <Input
                           placeholder="tunnel.example.com"
-                          className="bg-background font-mono text-xs"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="client_server"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
                           className="bg-background font-mono text-xs"
                           {...field}
                         />
@@ -145,6 +130,24 @@ export function NoneSecuritySection({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="client_server"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={2}
+                        placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
+                        className="min-h-15 bg-background font-mono text-xs"
+                        {...field}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
               <ClientEndpointApisEditor form={form} />
 

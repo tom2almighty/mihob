@@ -1,6 +1,8 @@
 import type { UseFormReturn } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { Shuffle } from "lucide-react"
 import { FormSwitchCard } from "@/components/common/FormControls"
+import { Button } from "@/components/ui/button"
 import { FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
@@ -10,8 +12,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
+
+function randomToken(length: number): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+  const bytes = new Uint8Array(length)
+  crypto.getRandomValues(bytes)
+  let out = ""
+  for (let i = 0; i < length; i++) {
+    out += alphabet[bytes[i] % alphabet.length]
+  }
+  return out
+}
 
 export function StreamTransportSection({
   form,
@@ -84,9 +98,28 @@ export function StreamTransportSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("nodes.inbound.fields.wsPath")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="/ws" {...field} />
-                </FormControl>
+                <div className="flex items-center gap-1.5">
+                  <FormControl>
+                    <Input placeholder="/ws" className="font-mono text-xs" {...field} />
+                  </FormControl>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="size-9 shrink-0"
+                          aria-label={t("nodes.inbound.fields.randomPathAria")}
+                          onClick={() => field.onChange(`/${randomToken(12)}`)}
+                        >
+                          <Shuffle className="size-3.5" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>{t("nodes.inbound.fields.randomPathTooltip")}</TooltipContent>
+                  </Tooltip>
+                </div>
               </FormItem>
             )}
           />
@@ -116,9 +149,28 @@ export function StreamTransportSection({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t("nodes.inbound.fields.grpcService")}</FormLabel>
-              <FormControl>
-                <Input placeholder="GunService" {...field} />
-              </FormControl>
+              <div className="flex items-center gap-1.5">
+                <FormControl>
+                  <Input placeholder="GunService" className="font-mono text-xs" {...field} />
+                </FormControl>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="size-9 shrink-0"
+                        aria-label={t("nodes.inbound.fields.randomPathAria")}
+                        onClick={() => field.onChange(`svc_${randomToken(10)}`)}
+                      >
+                        <Shuffle className="size-3.5" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t("nodes.inbound.fields.randomPathTooltip")}</TooltipContent>
+                </Tooltip>
+              </div>
             </FormItem>
           )}
         />
@@ -133,9 +185,28 @@ export function StreamTransportSection({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("nodes.inbound.fields.xhttpPath")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="/xhttp" {...field} />
-                  </FormControl>
+                  <div className="flex items-center gap-1.5">
+                    <FormControl>
+                      <Input placeholder="/xhttp" className="font-mono text-xs" {...field} />
+                    </FormControl>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="size-9 shrink-0"
+                            aria-label={t("nodes.inbound.fields.randomPathAria")}
+                            onClick={() => field.onChange(`/${randomToken(12)}`)}
+                          >
+                            <Shuffle className="size-3.5" />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>{t("nodes.inbound.fields.randomPathTooltip")}</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </FormItem>
               )}
             />

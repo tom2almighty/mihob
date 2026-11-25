@@ -534,10 +534,18 @@ export function ClusterTrafficTrendCard({
               onValueChange={(v) => handleDimensionChange((v as TrendDimension) || "cluster")}
             >
               <TabsList size="xs">
-                <TabsTrigger value="cluster">{t("dashboard.trend.dimCluster")}</TabsTrigger>
-                <TabsTrigger value="node">{t("dashboard.trend.dimNode")}</TabsTrigger>
-                <TabsTrigger value="user">{t("dashboard.trend.dimUser")}</TabsTrigger>
-                <TabsTrigger value="user_node">{t("dashboard.trend.dimUserNode")}</TabsTrigger>
+                <TabsTrigger value="cluster" className="whitespace-nowrap">
+                  {t("dashboard.trend.dimCluster")}
+                </TabsTrigger>
+                <TabsTrigger value="node" className="whitespace-nowrap">
+                  {t("dashboard.trend.dimNode")}
+                </TabsTrigger>
+                <TabsTrigger value="user" className="whitespace-nowrap">
+                  {t("dashboard.trend.dimUser")}
+                </TabsTrigger>
+                <TabsTrigger value="user_node" className="whitespace-nowrap">
+                  {t("dashboard.trend.dimUserNode")}
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -592,79 +600,10 @@ export function ClusterTrafficTrendCard({
           </div>
         </div>
 
-        {/* Bidirectional Pivot Controls for User×Node Dimension */}
-        {!loading && dimension === "user_node" && (
-          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-            <Tabs
-              value={pivot}
-              onValueChange={(v) => handlePivotChange((v as UserNodePivot) || "by_user")}
-            >
-              <TabsList size="xs">
-                <TabsTrigger value="by_user">{t("dashboard.trend.pivotByUser")}</TabsTrigger>
-                <TabsTrigger value="by_node">{t("dashboard.trend.pivotByNode")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {pivot === "by_user" ? (
-              <Select
-                value={String(pivotUserId)}
-                onValueChange={(v) => {
-                  setPivotUserId(Number(v) || 0)
-                  setPivotFilterNodeIds([])
-                  setHiddenKeys(new Set())
-                }}
-              >
-                <SelectTrigger className="h-7 w-48 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">{t("dashboard.trend.allUsersTop5")}</SelectItem>
-                  {userOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={String(opt.id)}>
-                      <span className="truncate">{opt.name}</span>
-                      {opt.traffic > 0 && (
-                        <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                          ({formatBytesCompact(opt.traffic)})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Select
-                value={String(pivotNodeId)}
-                onValueChange={(v) => {
-                  setPivotNodeId(Number(v) || 0)
-                  setPivotFilterUserIds([])
-                  setHiddenKeys(new Set())
-                }}
-              >
-                <SelectTrigger className="h-7 w-48 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">{t("dashboard.trend.allNodesTop5")}</SelectItem>
-                  {nodeOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={String(opt.id)}>
-                      <span className="truncate">{opt.name}</span>
-                      {opt.traffic > 0 && (
-                        <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                          ({formatBytesCompact(opt.traffic)})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        )}
-
-        {/* Interactive Legend + Large-Cluster Filter Bar */}
+        {/* Interactive Legend + Inline Pivot / Filter Controls (fixed min-height prevents layout jump) */}
         {!loading && (
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               {seriesDescriptors.map((item) => {
                 const isHidden = hiddenKeys.has(item.key)
                 return (
@@ -693,118 +632,192 @@ export function ClusterTrafficTrendCard({
               })}
             </div>
 
-            {filterTargetKind !== null && (
-              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      className="h-6.5 gap-1.5 px-2 text-[11px]"
-                    />
-                  }
-                >
-                  <SlidersHorizontal className="size-3 text-muted-foreground" />
-                  <span>
-                    {activeSelectedIds.length > 0
-                      ? filterTargetKind === "node"
-                        ? t("dashboard.trend.selectedNodes", { count: activeSelectedIds.length })
-                        : t("dashboard.trend.selectedUsers", { count: activeSelectedIds.length })
-                      : t("dashboard.trend.top5Default")}
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-68 gap-2 p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-foreground">
-                      {filterTargetKind === "node"
-                        ? t("dashboard.trend.filterNodesTitle")
-                        : t("dashboard.trend.filterUsersTitle")}
-                    </span>
-                    {activeSelectedIds.length > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              {dimension === "user_node" && (
+                <>
+                  <Tabs
+                    value={pivot}
+                    onValueChange={(v) => handlePivotChange((v as UserNodePivot) || "by_user")}
+                  >
+                    <TabsList size="xs">
+                      <TabsTrigger value="by_user" className="whitespace-nowrap">
+                        {t("dashboard.trend.pivotByUser")}
+                      </TabsTrigger>
+                      <TabsTrigger value="by_node" className="whitespace-nowrap">
+                        {t("dashboard.trend.pivotByNode")}
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+
+                  {pivot === "by_user" ? (
+                    <Select
+                      value={String(pivotUserId)}
+                      onValueChange={(v) => {
+                        setPivotUserId(Number(v) || 0)
+                        setPivotFilterNodeIds([])
+                        setHiddenKeys(new Set())
+                      }}
+                    >
+                      <SelectTrigger className="h-6.5 w-40 text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">{t("dashboard.trend.allUsersTop5")}</SelectItem>
+                        {userOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={String(opt.id)}>
+                            <span className="truncate">{opt.name}</span>
+                            {opt.traffic > 0 && (
+                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                                ({formatBytesCompact(opt.traffic)})
+                              </span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Select
+                      value={String(pivotNodeId)}
+                      onValueChange={(v) => {
+                        setPivotNodeId(Number(v) || 0)
+                        setPivotFilterUserIds([])
+                        setHiddenKeys(new Set())
+                      }}
+                    >
+                      <SelectTrigger className="h-6.5 w-40 text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">{t("dashboard.trend.allNodesTop5")}</SelectItem>
+                        {nodeOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={String(opt.id)}>
+                            <span className="truncate">{opt.name}</span>
+                            {opt.traffic > 0 && (
+                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                                ({formatBytesCompact(opt.traffic)})
+                              </span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </>
+              )}
+
+              {filterTargetKind !== null && (
+                <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                  <PopoverTrigger
+                    render={
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="xs"
-                        className="h-6 px-1.5 text-[11px] text-muted-foreground"
-                        onClick={resetEntitySelection}
-                      >
-                        <RotateCcw className="mr-1 size-3" />
-                        {t("dashboard.trend.resetTop5")}
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={filterSearch}
-                      onChange={(e) => setFilterSearch(e.target.value)}
-                      placeholder={
-                        filterTargetKind === "node"
-                          ? t("dashboard.trend.searchNodesPlaceholder")
-                          : t("dashboard.trend.searchUsersPlaceholder")
-                      }
-                      className="h-7 pr-7 pl-8 text-xs"
-                    />
-                    {filterSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setFilterSearch("")}
-                        aria-label={t("common.clearSearch")}
-                        className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="max-h-52 space-y-0.5 overflow-y-auto pr-0.5">
-                    {filteredPickerOptions.length === 0 ? (
-                      <div className="py-5 text-center text-xs text-muted-foreground">
-                        {t("dashboard.trend.noMatchOptions")}
-                      </div>
-                    ) : (
-                      filteredPickerOptions.map((opt) => {
-                        const checked = activeSelectedIds.includes(opt.id)
-                        const disabled =
-                          !checked && activeSelectedIds.length >= MAX_SELECTED_ENTITIES
-                        return (
-                          <label
-                            key={opt.id}
-                            className={cn(
-                              "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/60",
-                              disabled && "cursor-not-allowed opacity-50"
-                            )}
-                          >
-                            <div className="flex min-w-0 items-center gap-2">
-                              <Checkbox
-                                checked={checked}
-                                disabled={disabled}
-                                onCheckedChange={() => toggleEntitySelection(opt.id)}
-                              />
-                              <span className="truncate text-foreground">{opt.name}</span>
-                            </div>
-                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                              {opt.traffic > 0 ? formatBytesCompact(opt.traffic) : "0 B"}
-                            </span>
-                          </label>
-                        )
-                      })
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-border/70 pt-1.5 text-[11px] text-muted-foreground">
+                        className="h-6.5 gap-1.5 px-2 text-[11px]"
+                      />
+                    }
+                  >
+                    <SlidersHorizontal className="size-3 text-muted-foreground" />
                     <span>
-                      {t("dashboard.trend.filterLimitHint", { max: MAX_SELECTED_ENTITIES })}
+                      {activeSelectedIds.length > 0
+                        ? filterTargetKind === "node"
+                          ? t("dashboard.trend.selectedNodes", { count: activeSelectedIds.length })
+                          : t("dashboard.trend.selectedUsers", { count: activeSelectedIds.length })
+                        : t("dashboard.trend.top5Default")}
                     </span>
-                    <span className="tabular-nums">
-                      {activeSelectedIds.length} / {MAX_SELECTED_ENTITIES}
-                    </span>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-68 gap-2 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">
+                        {filterTargetKind === "node"
+                          ? t("dashboard.trend.filterNodesTitle")
+                          : t("dashboard.trend.filterUsersTitle")}
+                      </span>
+                      {activeSelectedIds.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="h-6 px-1.5 text-[11px] text-muted-foreground"
+                          onClick={resetEntitySelection}
+                        >
+                          <RotateCcw className="mr-1 size-3" />
+                          {t("dashboard.trend.resetTop5")}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={filterSearch}
+                        onChange={(e) => setFilterSearch(e.target.value)}
+                        placeholder={
+                          filterTargetKind === "node"
+                            ? t("dashboard.trend.searchNodesPlaceholder")
+                            : t("dashboard.trend.searchUsersPlaceholder")
+                        }
+                        className="h-7 pr-7 pl-8 text-xs"
+                      />
+                      {filterSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterSearch("")}
+                          aria-label={t("common.clearSearch")}
+                          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-52 space-y-0.5 overflow-y-auto pr-0.5">
+                      {filteredPickerOptions.length === 0 ? (
+                        <div className="py-5 text-center text-xs text-muted-foreground">
+                          {t("dashboard.trend.noMatchOptions")}
+                        </div>
+                      ) : (
+                        filteredPickerOptions.map((opt) => {
+                          const checked = activeSelectedIds.includes(opt.id)
+                          const disabled =
+                            !checked && activeSelectedIds.length >= MAX_SELECTED_ENTITIES
+                          return (
+                            <label
+                              key={opt.id}
+                              className={cn(
+                                "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/60",
+                                disabled && "cursor-not-allowed opacity-50"
+                              )}
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onCheckedChange={() => toggleEntitySelection(opt.id)}
+                                />
+                                <span className="truncate text-foreground">{opt.name}</span>
+                              </div>
+                              <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                                {opt.traffic > 0 ? formatBytesCompact(opt.traffic) : "0 B"}
+                              </span>
+                            </label>
+                          )
+                        })
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-border/70 pt-1.5 text-[11px] text-muted-foreground">
+                      <span>
+                        {t("dashboard.trend.filterLimitHint", { max: MAX_SELECTED_ENTITIES })}
+                      </span>
+                      <span className="tabular-nums">
+                        {activeSelectedIds.length} / {MAX_SELECTED_ENTITIES}
+                      </span>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
           </div>
         )}
       </CardHeader>

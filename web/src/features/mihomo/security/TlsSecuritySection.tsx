@@ -144,17 +144,18 @@ export function TlsSecuritySection({
 
       {SUPPORTS_REALITY.includes(protocol) && security === "tls" && (
         <div className="space-y-3 border-t border-border pt-3">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <FormField
               control={form.control}
               name="client_server"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="sm:col-span-2">
                   <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
                   <FormControl>
-                    <Input
+                    <Textarea
+                      rows={2}
                       placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
-                      className="bg-background font-mono text-xs"
+                      className="min-h-15 bg-background font-mono text-xs"
                       {...field}
                     />
                   </FormControl>
