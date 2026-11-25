@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch"
 import { YamlEditor } from "@/components/common/YamlEditor"
 import { api, queryKeys } from "@/lib/api"
 import type { Template, TemplateKind } from "@/lib/types"
+import { TemplateRuleHelper } from "./TemplateRuleHelper"
 
 type TemplateFormValues = {
   name: string
@@ -413,7 +414,19 @@ export function TemplateFormDialog({
               name="content"
               render={({ field }) => (
                 <FormItem className="flex flex-1 flex-col">
-                  <FormLabel>{t("templates.form.content")}</FormLabel>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <FormLabel>{t("templates.form.content")}</FormLabel>
+                    <TemplateRuleHelper
+                      yamlValue={field.value || ""}
+                      isServer={isServer}
+                      onChange={(nextYaml) =>
+                        form.setValue("content", nextYaml, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        })
+                      }
+                    />
+                  </div>
                   <FormControl>
                     <YamlEditor
                       name={field.name}

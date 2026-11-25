@@ -11,6 +11,8 @@ import type {
   DatabaseCleanupResult,
   DatabaseStatsResponse,
   DatabaseVacuumResult,
+  GeoDataFileStatus,
+  GeoDataTagsResponse,
   Inbound,
   InstallCommands,
   MihomoReleaseInfo,
@@ -22,6 +24,7 @@ import type {
   NotificationSchedule,
   PublicSubInfo,
   PublicThemeResponse,
+  RuleSet,
   ScheduleRunResult,
   SystemSettings,
   Template,
@@ -111,6 +114,9 @@ export const queryKeys = {
   certificates: ["certificates"] as const,
   users: ["users"] as const,
   templates: ["templates"] as const,
+  ruleSets: ["rulesets"] as const,
+  geodataStatus: ["geodata", "status"] as const,
+  geodataTags: (kind: "geosite" | "geoip", q: string) => ["geodata", "tags", kind, q] as const,
   settings: ["settings"] as const,
   databaseStats: ["settings", "database", "stats"] as const,
   themes: ["themes"] as const,
@@ -338,6 +344,50 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // GeoData & Custom MRS Rule Sets
+  getGeoDataStatus: () => request<{ files: GeoDataFileStatus[] }>("/api/geodata/status"),
+  updateGeoData: (kinds?: string[]) =>
+    request<{ files: GeoDataFileStatus[]; errors?: Record<string, string> }>(
+      "/api/geodata/update",
+      {
+        method: "POST",
+        body: JSON.stringify({ kinds: kinds ?? [] }),
+      }
+    ),
+  searchGeoDataTags: (kind: "geosite" | "geoip", q = "", limit = 80) => {
+    const params = new URLSearchParams({ kind, limit: String(limit) })
+    if (q.trim()) params.set("q", q.trim())
+    return request<GeoDataTagsResponse>(`/api/geodata/tags?${params.toString()}`)
+  },
+  listRuleSets: () => request<RuleSet[]>("/api/rulesets"),
+  createRuleSet: (body: {
+    name: string
+    behavior: "domain" | "ipcidr"
+    description?: string
+    rules_text: string
+  }) =>
+    request<RuleSet>("/api/rulesets", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateRuleSet: (
+    id: number,
+    body: {
+      name: string
+      behavior: "domain" | "ipcidr"
+      description?: string
+      rules_text: string
+    }
+  ) =>
+    request<RuleSet>(`/api/rulesets/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  compileRuleSet: (id: number) =>
+    request<RuleSet>(`/api/rulesets/${id}/compile`, { method: "POST" }),
+  deleteRuleSet: (id: number) =>
+    request<{ status: string }>(`/api/rulesets/${id}`, { method: "DELETE" }),
 
   // Settings
   getSettings: () => request<SystemSettings>("/api/settings"),

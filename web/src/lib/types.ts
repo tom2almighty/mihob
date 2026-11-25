@@ -448,6 +448,13 @@ export interface InstallCommands {
   binary_uninstall?: string
 }
 
+export interface GeoXURLs {
+  geosite: string
+  geoip: string
+  mmdb: string
+  asn: string
+}
+
 export interface SystemSettings {
   hub_public_url: string
   acme_email: string
@@ -457,6 +464,43 @@ export interface SystemSettings {
   github_token_masked?: string
   has_github_token?: boolean
   clear_github_token?: boolean
+  github_proxy?: string
+  geox_url?: GeoXURLs
+}
+
+export interface GeoTagItem {
+  tag: string
+  count: number
+}
+
+export interface GeoDataFileStatus {
+  kind: "geosite" | "geoip" | "mmdb" | "asn"
+  url: string
+  downloaded: boolean
+  size_bytes: number
+  updated_at: string | null
+  tag_count: number
+}
+
+export interface GeoDataTagsResponse {
+  kind: "geosite" | "geoip"
+  source: "local" | "builtin"
+  total: number
+  tags: GeoTagItem[]
+}
+
+export interface RuleSet {
+  id: number
+  name: string
+  behavior: "domain" | "ipcidr"
+  description: string
+  rules_text: string
+  rule_count: number
+  mrs_size: number
+  compiled_at: string | null
+  last_error: string
+  created_at: string
+  updated_at: string
 }
 
 export interface DatabaseStats {

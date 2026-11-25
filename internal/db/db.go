@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -255,6 +256,20 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 	status TEXT NOT NULL DEFAULT 'success',
 	error TEXT NOT NULL DEFAULT '',
 	created_at DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rule_sets (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL UNIQUE,
+	behavior TEXT NOT NULL DEFAULT 'domain',
+	description TEXT NOT NULL DEFAULT '',
+	rules_text TEXT NOT NULL DEFAULT '',
+	rule_count INTEGER NOT NULL DEFAULT 0,
+	mrs_size INTEGER NOT NULL DEFAULT 0,
+	compiled_at DATETIME,
+	last_error TEXT NOT NULL DEFAULT '',
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_inbounds_node ON inbounds(node_id);
@@ -546,6 +561,7 @@ func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 	out := &model.SystemSettings{
 		AgentImage: "ghcr.io/tom2almighty/mihob-agent:latest",
 		SubPath:    "sub",
+		GeoXURLs:   model.DefaultGeoXURLs(),
 	}
 	if v, err := s.GetSetting("hub_public_url"); err == nil {
 		out.HubPublicURL = v
@@ -561,6 +577,35 @@ func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 	}
 	if v, err := s.GetSetting("github_token"); err == nil {
 		out.GitHubToken = v
+	}
+	if v, err := s.GetSetting("github_proxy"); err == nil {
+		out.GitHubProxy = v
+	}
+	if raw, err := s.GetSetting("geox_urls"); err == nil && raw != "" {
+		var parsed model.GeoXURLs
+		if json.Unmarshal([]byte(raw), &parsed) == nil {
+			def := model.DefaultGeoXURLs()
+			if strings.TrimSpace(parsed.GeoSite) != "" {
+				out.GeoXURLs.GeoSite = strings.TrimSpace(parsed.GeoSite)
+			} else {
+				out.GeoXURLs.GeoSite = def.GeoSite
+			}
+			if strings.TrimSpace(parsed.GeoIP) != "" {
+				out.GeoXURLs.GeoIP = strings.TrimSpace(parsed.GeoIP)
+			} else {
+				out.GeoXURLs.GeoIP = def.GeoIP
+			}
+			if strings.TrimSpace(parsed.MMDB) != "" {
+				out.GeoXURLs.MMDB = strings.TrimSpace(parsed.MMDB)
+			} else {
+				out.GeoXURLs.MMDB = def.MMDB
+			}
+			if strings.TrimSpace(parsed.ASN) != "" {
+				out.GeoXURLs.ASN = strings.TrimSpace(parsed.ASN)
+			} else {
+				out.GeoXURLs.ASN = def.ASN
+			}
+		}
 	}
 	return out, nil
 }
@@ -586,6 +631,28 @@ func (s *Store) SaveSystemSettings(st *model.SystemSettings) error {
 	}
 	if err := s.SetSetting("github_token", st.GitHubToken); err != nil {
 		return err
+	}
+	if err := s.SetSetting("github_proxy", st.GitHubProxy); err != nil {
+		return err
+	}
+	def := model.DefaultGeoXURLs()
+	geo := st.GeoXURLs
+	if strings.TrimSpace(geo.GeoSite) == "" {
+		geo.GeoSite = def.GeoSite
+	}
+	if strings.TrimSpace(geo.GeoIP) == "" {
+		geo.GeoIP = def.GeoIP
+	}
+	if strings.TrimSpace(geo.MMDB) == "" {
+		geo.MMDB = def.MMDB
+	}
+	if strings.TrimSpace(geo.ASN) == "" {
+		geo.ASN = def.ASN
+	}
+	if raw, err := json.Marshal(geo); err == nil {
+		if err := s.SetSetting("geox_urls", string(raw)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -81,6 +81,8 @@ export function DeploymentTab() {
         acme_email: v.acme_email || "",
         github_token: clearGithubToken ? "" : v.github_token?.trim() || "",
         clear_github_token: clearGithubToken,
+        github_proxy: query.data?.github_proxy || "",
+        geox_url: query.data?.geox_url,
       }),
     onSuccess: (updated) => {
       setClearGithubToken(false)

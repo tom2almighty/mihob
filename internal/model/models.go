@@ -397,15 +397,61 @@ type ProtocolTrafficStat struct {
 	Total    int64  `json:"total"`
 }
 
+type GeoXURLs struct {
+	GeoSite string `json:"geosite"`
+	GeoIP   string `json:"geoip"`
+	MMDB    string `json:"mmdb"`
+	ASN     string `json:"asn"`
+}
+
+func DefaultGeoXURLs() GeoXURLs {
+	return GeoXURLs{
+		GeoSite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat",
+		GeoIP:   "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat",
+		MMDB:    "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb",
+		ASN:     "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb",
+	}
+}
+
 type SystemSettings struct {
-	HubPublicURL      string `json:"hub_public_url"`
-	ACMEEmail         string `json:"acme_email"`
-	AgentImage        string `json:"agent_image"`
-	SubPath           string `json:"sub_path"`
-	GitHubToken       string `json:"github_token,omitempty"`
-	GitHubTokenMasked string `json:"github_token_masked,omitempty"`
-	HasGitHubToken    bool   `json:"has_github_token,omitempty"`
-	ClearGitHubToken  bool   `json:"clear_github_token,omitempty"`
+	HubPublicURL      string   `json:"hub_public_url"`
+	ACMEEmail         string   `json:"acme_email"`
+	AgentImage        string   `json:"agent_image"`
+	SubPath           string   `json:"sub_path"`
+	GitHubToken       string   `json:"github_token,omitempty"`
+	GitHubTokenMasked string   `json:"github_token_masked,omitempty"`
+	HasGitHubToken    bool     `json:"has_github_token,omitempty"`
+	ClearGitHubToken  bool     `json:"clear_github_token,omitempty"`
+	GitHubProxy       string   `json:"github_proxy"`
+	GeoXURLs          GeoXURLs `json:"geox_url"`
+}
+
+type GeoTagItem struct {
+	Tag   string `json:"tag"`
+	Count int    `json:"count"`
+}
+
+type GeoDataFileStatus struct {
+	Kind       string     `json:"kind"`
+	URL        string     `json:"url"`
+	Downloaded bool       `json:"downloaded"`
+	SizeBytes  int64      `json:"size_bytes"`
+	UpdatedAt  *time.Time `json:"updated_at"`
+	TagCount   int        `json:"tag_count"`
+}
+
+type RuleSet struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Behavior    string     `json:"behavior"` // "domain" | "ipcidr"
+	Description string     `json:"description"`
+	RulesText   string     `json:"rules_text"`
+	RuleCount   int        `json:"rule_count"`
+	MRSSize     int64      `json:"mrs_size"`
+	CompiledAt  *time.Time `json:"compiled_at"`
+	LastError   string     `json:"last_error"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type MihomoReleaseInfo struct {

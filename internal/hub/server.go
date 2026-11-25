@@ -30,6 +30,8 @@ type Server struct {
 	notify       *notify.Service
 	scheduler    *Scheduler
 	endpoints    *EndpointResolver
+	geodata      *GeoDataManager
+	rulesets     *RuleSetManager
 	loginLimiter *loginRateLimiter
 	jwtMu        sync.RWMutex
 	jwtSecret    string
@@ -71,6 +73,8 @@ func NewServer(cfg Config) (*Server, error) {
 		notify:       notifySvc,
 		scheduler:    sched,
 		endpoints:    NewEndpointResolver(),
+		geodata:      NewGeoDataManager(cfg.Store, cfg.DataDir),
+		rulesets:     NewRuleSetManager(cfg.Store, mihomoMgr, cfg.DataDir),
 		loginLimiter: newLoginRateLimiter(),
 		jwtSecret:    jwtSecret,
 		webFS:        cfg.WebFS,
@@ -179,6 +183,8 @@ func (s *Server) Router() http.Handler {
 		api.Get("/public/sub", s.handlePublicSubInfo)
 		// Public active theme endpoint for login / subscription / initial render
 		api.Get("/public/theme", s.handlePublicTheme)
+		// Public compiled MRS rule-set hosting for Mihomo clients & nodes
+		api.Get("/public/rules/{filename}", s.handleServePublicRuleSetMRS)
 		// Agent-authenticated mihomo binary download endpoint (X-Node-Token)
 		api.Get("/agent/mihomo-binary", s.handleAgentMihomoBinary)
 
@@ -246,6 +252,16 @@ func (s *Server) Router() http.Handler {
 			pr.Delete("/templates/{id}", s.handleDeleteTemplate)
 			pr.Post("/templates/preview", s.handlePreviewTemplate)
 			pr.Post("/templates/preview-server", s.handlePreviewServerConfig)
+
+			// GeoData & Custom MRS Rule Sets
+			pr.Get("/geodata/status", s.handleGetGeoDataStatus)
+			pr.Post("/geodata/update", s.handleUpdateGeoData)
+			pr.Get("/geodata/tags", s.handleSearchGeoDataTags)
+			pr.Get("/rulesets", s.handleListRuleSets)
+			pr.Post("/rulesets", s.handleCreateRuleSet)
+			pr.Put("/rulesets/{id}", s.handleUpdateRuleSet)
+			pr.Post("/rulesets/{id}/compile", s.handleCompileRuleSet)
+			pr.Delete("/rulesets/{id}", s.handleDeleteRuleSet)
 
 			// Settings
 			pr.Get("/settings", s.handleGetSettings)

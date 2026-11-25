@@ -96,6 +96,8 @@ export function GeneralTab() {
         sub_path: v.sub_path.trim().replace(/^\/+|\/+$/g, "") || "sub",
         acme_email: query.data?.acme_email || "",
         agent_image: query.data?.agent_image || "ghcr.io/tom2almighty/mihob-agent:latest",
+        github_proxy: query.data?.github_proxy || "",
+        geox_url: query.data?.geox_url,
       }),
     onSuccess: (updated) => {
       qc.setQueryData(queryKeys.settings, updated)

@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Eye, FileCode2, Loader2, Pencil, Plus, Server, Smartphone, Trash2 } from "lucide-react"
+import {
+  Eye,
+  FileArchive,
+  FileCode2,
+  Loader2,
+  Pencil,
+  Plus,
+  Server,
+  Smartphone,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   ConfirmDeleteDialog,
@@ -33,16 +43,22 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { api, queryKeys } from "@/lib/api"
 import { formatDateShort } from "@/lib/format"
-import type { Template, TemplateKind } from "@/lib/types"
+import type { RuleSet, Template, TemplateKind } from "@/lib/types"
+import { RuleSetFormDialog } from "./templates/RuleSetFormDialog"
+import { RuleSetsTab } from "./templates/RuleSetsTab"
 import { TemplateFormDialog } from "./templates/TemplateFormDialog"
+
+type TemplatesPageTab = TemplateKind | "rulesets"
 
 export function TemplatesPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
-  const [activeKind, setActiveKind] = useState<TemplateKind>("client")
+  const [activeTab, setActiveTab] = useState<TemplatesPageTab>("client")
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Template | null>(null)
   const [deleting, setDeleting] = useState<Template | null>(null)
+  const [ruleSetFormOpen, setRuleSetFormOpen] = useState(false)
+  const [editingRuleSet, setEditingRuleSet] = useState<RuleSet | null>(null)
   const [previewTmpl, setPreviewTmpl] = useState<Template | null>(null)
   const [previewUserId, setPreviewUserId] = useState<string>("")
   const [previewNodeId, setPreviewNodeId] = useState<string>("none")
@@ -73,7 +89,7 @@ export function TemplatesPage() {
     () => (query.data ?? []).filter((tmpl) => tmpl.kind === "server"),
     [query.data]
   )
-  const visibleTemplates = activeKind === "server" ? serverTemplates : clientTemplates
+  const visibleTemplates = activeTab === "server" ? serverTemplates : clientTemplates
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.deleteTemplate(id),
@@ -114,19 +130,26 @@ export function TemplatesPage() {
           <Button
             size="sm"
             onClick={() => {
-              setEditing(null)
-              setFormOpen(true)
+              if (activeTab === "rulesets") {
+                setEditingRuleSet(null)
+                setRuleSetFormOpen(true)
+              } else {
+                setEditing(null)
+                setFormOpen(true)
+              }
             }}
           >
             <Plus className="mr-1.5 size-4" />
-            {activeKind === "server"
-              ? t("templates.createServerTemplate")
-              : t("templates.createClientTemplate")}
+            {activeTab === "rulesets"
+              ? t("templates.rulesets.createBtn")
+              : activeTab === "server"
+                ? t("templates.createServerTemplate")
+                : t("templates.createClientTemplate")}
           </Button>
         }
       />
 
-      <Tabs value={activeKind} onValueChange={(v) => setActiveKind(v as TemplateKind)}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TemplatesPageTab)}>
         <TabsList className="h-auto max-w-full flex-wrap">
           <TabsTrigger value="client">
             <Smartphone className="size-3.5 shrink-0" />
@@ -136,10 +159,21 @@ export function TemplatesPage() {
             <Server className="size-3.5 shrink-0" />
             <span>{t("templates.tabServer")}</span>
           </TabsTrigger>
+          <TabsTrigger value="rulesets">
+            <FileArchive className="size-3.5 shrink-0" />
+            <span>{t("templates.tabRuleSets")}</span>
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
-      {query.isError ? (
+      {activeTab === "rulesets" ? (
+        <RuleSetsTab
+          onEdit={(rs) => {
+            setEditingRuleSet(rs)
+            setRuleSetFormOpen(true)
+          }}
+        />
+      ) : query.isError ? (
         <ErrorState message={query.error.message} onRetry={() => query.refetch()} />
       ) : query.isLoading ? (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -151,10 +185,10 @@ export function TemplatesPage() {
         <EmptyState
           icon={<FileCode2 className="size-5" />}
           title={
-            activeKind === "server" ? t("templates.emptyServerTitle") : t("templates.emptyTitle")
+            activeTab === "server" ? t("templates.emptyServerTitle") : t("templates.emptyTitle")
           }
           description={
-            activeKind === "server" ? t("templates.emptyServerDesc") : t("templates.emptyDesc")
+            activeTab === "server" ? t("templates.emptyServerDesc") : t("templates.emptyDesc")
           }
         />
       ) : (
@@ -258,7 +292,13 @@ export function TemplatesPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         template={editing}
-        defaultKind={activeKind}
+        defaultKind={activeTab === "server" ? "server" : "client"}
+      />
+
+      <RuleSetFormDialog
+        open={ruleSetFormOpen}
+        onOpenChange={setRuleSetFormOpen}
+        ruleSet={editingRuleSet}
       />
 
       <Dialog open={Boolean(previewTmpl)} onOpenChange={(o) => !o && setPreviewTmpl(null)}>

@@ -895,7 +895,14 @@ func (s *Server) renderSubscriptionForUser(u *model.User, templateYAML string) (
 		})
 	}
 	resolved := s.endpoints.ResolveForInbounds(context.Background(), nodesWithInbounds)
-	return mihomogen.RenderUserSubscriptionWithEndpoints(u, nodesWithInbounds, certsMap, templateYAML, resolved)
+	rendered, err := mihomogen.RenderUserSubscriptionWithEndpoints(u, nodesWithInbounds, certsMap, templateYAML, resolved)
+	if err != nil {
+		return "", err
+	}
+	if st, sErr := s.store.GetSystemSettings(); sErr == nil && strings.TrimSpace(st.GitHubProxy) != "" {
+		rendered = ApplyGitHubProxyToYAML(rendered, st.GitHubProxy)
+	}
+	return rendered, nil
 }
 
 // --- Settings ---
@@ -940,6 +947,8 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	existing, _ := s.store.GetSystemSettings()
+
 	req.HubPublicURL = strings.TrimRight(strings.TrimSpace(req.HubPublicURL), "/")
 	req.ACMEEmail = strings.TrimSpace(req.ACMEEmail)
 	req.AgentImage = strings.TrimSpace(req.AgentImage)
@@ -947,10 +956,45 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 	if req.ClearGitHubToken {
 		req.GitHubToken = ""
-	} else if req.GitHubToken == "" {
+	} else if req.GitHubToken == "" && existing != nil {
 		// Preserve existing GitHub token when omitted in update payload
-		if existing, err := s.store.GetSystemSettings(); err == nil {
-			req.GitHubToken = existing.GitHubToken
+		req.GitHubToken = existing.GitHubToken
+	}
+
+	req.GitHubProxy = normalizeGitHubProxy(req.GitHubProxy)
+	if req.GitHubProxy != "" {
+		if _, err := validateThemeFetchURL(req.GitHubProxy); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid github_proxy URL: "+err.Error())
+			return
+		}
+	}
+
+	// Preserve existing GeoX URLs when a partial settings tab omits them
+	if existing != nil && req.GeoXURLs == (model.GeoXURLs{}) {
+		req.GeoXURLs = existing.GeoXURLs
+	} else {
+		def := model.DefaultGeoXURLs()
+		req.GeoXURLs.GeoSite = strings.TrimSpace(req.GeoXURLs.GeoSite)
+		req.GeoXURLs.GeoIP = strings.TrimSpace(req.GeoXURLs.GeoIP)
+		req.GeoXURLs.MMDB = strings.TrimSpace(req.GeoXURLs.MMDB)
+		req.GeoXURLs.ASN = strings.TrimSpace(req.GeoXURLs.ASN)
+		if req.GeoXURLs.GeoSite == "" {
+			req.GeoXURLs.GeoSite = def.GeoSite
+		}
+		if req.GeoXURLs.GeoIP == "" {
+			req.GeoXURLs.GeoIP = def.GeoIP
+		}
+		if req.GeoXURLs.MMDB == "" {
+			req.GeoXURLs.MMDB = def.MMDB
+		}
+		if req.GeoXURLs.ASN == "" {
+			req.GeoXURLs.ASN = def.ASN
+		}
+		for _, u := range []string{req.GeoXURLs.GeoSite, req.GeoXURLs.GeoIP, req.GeoXURLs.MMDB, req.GeoXURLs.ASN} {
+			if _, err := validateThemeFetchURL(u); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid geox_url: "+err.Error())
+				return
+			}
 		}
 	}
 

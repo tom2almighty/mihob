@@ -1,21 +1,30 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router-dom"
-import { Container, Database, FolderGit2, Globe, Palette, ShieldCheck } from "lucide-react"
+import { Container, Database, FolderGit2, Globe, Globe2, Palette, ShieldCheck } from "lucide-react"
 import { PageHeader } from "@/components/common/CommonUI"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AppearanceTab } from "./settings/AppearanceTab"
 import { DatabaseTab } from "./settings/DatabaseTab"
 import { DeploymentTab } from "./settings/DeploymentTab"
 import { GeneralTab } from "./settings/GeneralTab"
+import { GeoDataTab } from "./settings/GeoDataTab"
 import { ProjectsTab } from "./settings/ProjectsTab"
 import { SecurityTab } from "./settings/SecurityTab"
 
-type SettingsTab = "general" | "deployment" | "appearance" | "security" | "database" | "projects"
+type SettingsTab =
+  | "general"
+  | "deployment"
+  | "geodata"
+  | "appearance"
+  | "security"
+  | "database"
+  | "projects"
 
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   "general",
   "deployment",
+  "geodata",
   "appearance",
   "security",
   "database",
@@ -65,6 +74,10 @@ export function SettingsPage() {
             <Container className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.deployment")}</span>
           </TabsTrigger>
+          <TabsTrigger value="geodata">
+            <Globe2 className="size-3.5 shrink-0" />
+            <span className="truncate">{t("settings.tabs.geodata")}</span>
+          </TabsTrigger>
           <TabsTrigger value="appearance">
             <Palette className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.appearance")}</span>
@@ -88,6 +101,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="deployment" className="mt-0">
           <DeploymentTab />
+        </TabsContent>
+        <TabsContent value="geodata" className="mt-0">
+          <GeoDataTab />
         </TabsContent>
         <TabsContent value="appearance" className="mt-0">
           <AppearanceTab />
