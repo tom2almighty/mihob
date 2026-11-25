@@ -40,14 +40,14 @@ type NodeOutboundConfig struct {
 
 type NodeOutbound struct {
 	Name    string `json:"name"`
-	Type    string `json:"type"` // "warp" | "wireguard" | "socks5" | "http" | "mihob-node"
+	Type    string `json:"type"` // "warp" | "masque" | "wireguard" | "socks5" | "http" | "mihob-node"
 	Enabled bool   `json:"enabled"`
 
-	// Shared proxy server fields (warp / wireguard / socks5 / http)
+	// Shared proxy server fields (warp / masque / wireguard / socks5 / http)
 	Server string `json:"server,omitempty"`
 	Port   int    `json:"port,omitempty"`
 
-	// SOCKS5 / HTTP auth & TLS
+	// SOCKS5 / HTTP auth & TLS (skip_cert_verify also applies to MASQUE)
 	Username       string `json:"username,omitempty"`
 	Password       string `json:"password,omitempty"`
 	TLS            bool   `json:"tls,omitempty"`
@@ -67,11 +67,8 @@ type NodeOutbound struct {
 
 	// MASQUE specific fields
 	SNI                  string `json:"sni,omitempty"`
-	Network              string `json:"network,omitempty"` // "" | "quic" | "h2" | "h3-l4proxy"
-	CongestionController string `json:"congestion_controller,omitempty"`
-	BBRProfile           string `json:"bbr_profile,omitempty"`
-	HandshakeTimeout     int    `json:"handshake_timeout,omitempty"`
-	URI                  string `json:"uri,omitempty"`
+	Network              string `json:"network,omitempty"`               // "" | "quic" | "h2" | "h3-l4proxy"
+	CongestionController string `json:"congestion_controller,omitempty"` // "" | "bbr"
 
 	// Cluster node reference (type: "mihob-node")
 	NodeRef    string `json:"node_ref,omitempty"`
@@ -122,6 +119,24 @@ func IsValidMASQUENetwork(n string) bool {
 	default:
 		return false
 	}
+}
+
+func IsValidMASQUECongestionController(cc string) bool {
+	switch cc {
+	case "", "bbr":
+		return true
+	default:
+		return false
+	}
+}
+
+// EnsureCIDR appends suffix (e.g. "/32" or "/128") when addr is non-empty and lacks a prefix length.
+func EnsureCIDR(addr, suffix string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" || strings.Contains(addr, "/") {
+		return addr
+	}
+	return addr + suffix
 }
 
 func IsValidOutboundRouteMode(m string) bool {
@@ -188,8 +203,6 @@ func (c *NodeOutboundConfig) Normalize() {
 		o.SNI = strings.TrimSpace(o.SNI)
 		o.Network = strings.ToLower(strings.TrimSpace(o.Network))
 		o.CongestionController = strings.ToLower(strings.TrimSpace(o.CongestionController))
-		o.BBRProfile = strings.ToLower(strings.TrimSpace(o.BBRProfile))
-		o.URI = strings.TrimSpace(o.URI)
 		o.NodeRef = strings.TrimSpace(o.NodeRef)
 		o.InboundRef = strings.TrimSpace(o.InboundRef)
 		o.IPVersion = strings.ToLower(strings.TrimSpace(o.IPVersion))
@@ -302,7 +315,7 @@ func (c *NodeOutboundConfig) Validate() error {
 			if o.Server == "" {
 				return fmt.Errorf("outbound %q: MASQUE server is required", o.Name)
 			}
-			if o.Port < 1 || o.Port > 65535 {
+			if o.Port != 0 && (o.Port < 1 || o.Port > 65535) {
 				return fmt.Errorf("outbound %q: MASQUE port must be between 1 and 65535", o.Name)
 			}
 			if o.PrivateKey == "" || o.PublicKey == "" {
@@ -310,6 +323,9 @@ func (c *NodeOutboundConfig) Validate() error {
 			}
 			if !IsValidMASQUENetwork(o.Network) {
 				return fmt.Errorf("outbound %q: unsupported MASQUE network %q", o.Name, o.Network)
+			}
+			if !IsValidMASQUECongestionController(o.CongestionController) {
+				return fmt.Errorf("outbound %q: unsupported MASQUE congestion controller %q", o.Name, o.CongestionController)
 			}
 			if o.Network != "h3-l4proxy" && o.IP == "" && o.IPv6 == "" {
 				return fmt.Errorf("outbound %q: MASQUE IPv4 or IPv6 address is required", o.Name)

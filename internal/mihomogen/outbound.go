@@ -83,6 +83,26 @@ func stripCIDR(addr string) string {
 	return addr
 }
 
+func boolOrDefault(v *bool, fallback bool) bool {
+	if v != nil {
+		return *v
+	}
+	return fallback
+}
+
+func attachOutboundDNS(p map[string]any, remoteDNS bool, dnsList []string) {
+	if remoteDNS {
+		p["remote-dns-resolve"] = true
+		if len(dnsList) > 0 {
+			p["dns"] = dnsList
+		} else {
+			p["dns"] = []string{"1.1.1.1", "1.0.0.1"}
+		}
+	} else if len(dnsList) > 0 {
+		p["dns"] = dnsList
+	}
+}
+
 // buildNodeOutboundProxy converts a structured NodeOutbound into a Mihomo proxy map.
 // For `mihob-node`, it emits a directive map expanded later by ExpandServerProxyRefs.
 func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
@@ -153,21 +173,8 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		if mtu > 0 {
 			p["mtu"] = mtu
 		}
-		udp := true
-		if o.UDP != nil {
-			udp = *o.UDP
-		}
-		p["udp"] = udp
-		if remoteDNS {
-			p["remote-dns-resolve"] = true
-			if len(dnsList) > 0 {
-				p["dns"] = dnsList
-			} else {
-				p["dns"] = []string{"1.1.1.1", "1.0.0.1"}
-			}
-		} else if len(dnsList) > 0 {
-			p["dns"] = dnsList
-		}
+		p["udp"] = boolOrDefault(o.UDP, true)
+		attachOutboundDNS(p, remoteDNS, dnsList)
 		return attachCommon(p), nil
 
 	case model.OutboundTypeMASQUE:
@@ -187,11 +194,11 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 			p["network"] = o.Network
 		}
 		if o.Network != "h3-l4proxy" {
-			if o.IP != "" {
-				p["ip"] = o.IP
+			if ip := model.EnsureCIDR(o.IP, "/32"); ip != "" {
+				p["ip"] = ip
 			}
-			if o.IPv6 != "" {
-				p["ipv6"] = o.IPv6
+			if ipv6 := model.EnsureCIDR(o.IPv6, "/128"); ipv6 != "" {
+				p["ipv6"] = ipv6
 			}
 		}
 		if o.SNI != "" {
@@ -203,11 +210,7 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		if o.Network == "h3-l4proxy" {
 			p["udp"] = false
 		} else {
-			udp := true
-			if o.UDP != nil {
-				udp = *o.UDP
-			}
-			p["udp"] = udp
+			p["udp"] = boolOrDefault(o.UDP, true)
 		}
 		if o.SkipCertVerify {
 			p["skip-cert-verify"] = true
@@ -215,38 +218,16 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		if o.CongestionController != "" {
 			p["congestion-controller"] = o.CongestionController
 		}
-		if o.BBRProfile != "" {
-			p["bbr-profile"] = o.BBRProfile
-		}
-		if o.HandshakeTimeout > 0 {
-			p["handshake-timeout"] = o.HandshakeTimeout
-		}
-		if o.URI != "" {
-			p["uri"] = o.URI
-		}
-		if o.RemoteDNSResolve {
-			p["remote-dns-resolve"] = true
-			if len(o.DNS) > 0 {
-				p["dns"] = o.DNS
-			} else {
-				p["dns"] = []string{"1.1.1.1", "1.0.0.1"}
-			}
-		} else if len(o.DNS) > 0 {
-			p["dns"] = o.DNS
-		}
+		attachOutboundDNS(p, o.RemoteDNSResolve, o.DNS)
 		return attachCommon(p), nil
 
 	case model.OutboundTypeSocks5:
-		udp := true
-		if o.UDP != nil {
-			udp = *o.UDP
-		}
 		p := map[string]any{
 			"name":   o.Name,
 			"type":   "socks5",
 			"server": o.Server,
 			"port":   o.Port,
-			"udp":    udp,
+			"udp":    boolOrDefault(o.UDP, true),
 		}
 		if o.Username != "" {
 			p["username"] = o.Username

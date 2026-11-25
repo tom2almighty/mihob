@@ -68,9 +68,6 @@ export interface NodeOutbound {
   sni?: string
   network?: MASQUENetwork
   congestion_controller?: string
-  bbr_profile?: string
-  handshake_timeout?: number
-  uri?: string
   node_ref?: string
   inbound_ref?: string
   ip_version?: OutboundIPVersion

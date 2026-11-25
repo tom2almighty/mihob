@@ -5,12 +5,11 @@ import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format } from "date-fns"
 import { z } from "zod"
-import { Eye, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { CopyButton } from "@/components/common/CommonUI"
 import { DatePickerWithPresets } from "@/components/common/DatePickerWithPresets"
 import { TagInput } from "@/components/common/TagInput"
-import { YamlCodeBlock, YamlEditor } from "@/components/common/YamlEditor"
+import { YamlEditor } from "@/components/common/YamlEditor"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -43,6 +42,7 @@ import { api, queryKeys } from "@/lib/api"
 import { bytesToGB, gbToBytes } from "@/lib/format"
 import type { Node, NodeOutboundConfig } from "@/lib/types"
 import { NodeOutboundEditor } from "./NodeOutboundEditor"
+import { ServerConfigPreviewCard } from "./ServerConfigPreviewCard"
 
 type NodeFormValues = {
   name: string
@@ -755,43 +755,11 @@ export function NodeFormDialog({
                     )}
                   />
 
-                  <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">{t("nodes.form.previewTitle")}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {t("nodes.form.previewDesc")}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {previewYAML && (
-                          <CopyButton
-                            value={previewYAML}
-                            label={t("templates.copyYaml")}
-                            size="sm"
-                            variant="outline"
-                          />
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={previewMutation.isPending}
-                          onClick={() => previewMutation.mutate()}
-                        >
-                          {previewMutation.isPending ? (
-                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                          ) : (
-                            <Eye className="mr-1.5 size-3.5" />
-                          )}
-                          {previewYAML
-                            ? t("nodes.form.refreshPreview")
-                            : t("nodes.form.previewBtn")}
-                        </Button>
-                      </div>
-                    </div>
-                    {previewYAML && <YamlCodeBlock value={previewYAML} className="max-h-64" />}
-                  </div>
+                  <ServerConfigPreviewCard
+                    previewYAML={previewYAML}
+                    previewPending={previewMutation.isPending}
+                    onPreview={() => previewMutation.mutate()}
+                  />
                 </TabsContent>
               </div>
             </Tabs>

@@ -1,4 +1,46 @@
 import type { MASQUENetwork, NodeOutbound } from "@/lib/types"
+import { DEFAULT_MASQUE_PORT, DEFAULT_MASQUE_SNI } from "./outboundDefaults"
+
+function stripInlineComment(raw: string): string {
+  const hashIdx = raw.indexOf("#")
+  if (hashIdx === -1) return raw.trim()
+  return raw.slice(0, hashIdx).trim()
+}
+
+function splitHostPort(raw: string): { host: string; port?: number } {
+  const trimmed = raw.trim()
+  if (!trimmed) return { host: "" }
+
+  // Bracketed IPv6 with optional port: [2606:4700::1]:443 or [2606:4700::1]
+  const bracketMatch = trimmed.match(/^\[([^\]]+)\](?::(\d+))?$/)
+  if (bracketMatch) {
+    const port = bracketMatch[2] ? Number.parseInt(bracketMatch[2], 10) : undefined
+    return {
+      host: bracketMatch[1].trim(),
+      port: port && port > 0 && port <= 65535 ? port : undefined,
+    }
+  }
+
+  // Bare IPv6 address (contains multiple colons without brackets) — do not split on last colon
+  const firstColon = trimmed.indexOf(":")
+  const lastColon = trimmed.lastIndexOf(":")
+  if (firstColon !== -1 && firstColon !== lastColon) {
+    return { host: trimmed }
+  }
+
+  if (lastColon > 0) {
+    const portStr = trimmed.slice(lastColon + 1).trim()
+    if (/^\d+$/.test(portStr)) {
+      const p = Number.parseInt(portStr, 10)
+      return {
+        host: trimmed.slice(0, lastColon).trim(),
+        port: p > 0 && p <= 65535 ? p : undefined,
+      }
+    }
+  }
+
+  return { host: trimmed }
+}
 
 export function parseWireGuardConf(raw: string): Partial<NodeOutbound> {
   const patch: Partial<NodeOutbound> = {}
@@ -9,7 +51,7 @@ export function parseWireGuardConf(raw: string): Partial<NodeOutbound> {
     const eqIdx = trimmed.indexOf("=")
     if (eqIdx <= 0) continue
     const key = trimmed.slice(0, eqIdx).trim().toLowerCase()
-    const val = trimmed.slice(eqIdx + 1).trim()
+    const val = stripInlineComment(trimmed.slice(eqIdx + 1))
     if (!val) continue
 
     switch (key) {
@@ -53,18 +95,9 @@ export function parseWireGuardConf(raw: string): Partial<NodeOutbound> {
         break
       }
       case "endpoint": {
-        const bracketMatch = val.match(/^\[([^\]]+)\]:(\d+)$/)
-        if (bracketMatch) {
-          patch.server = bracketMatch[1]
-          patch.port = Number.parseInt(bracketMatch[2], 10)
-        } else {
-          const lastColon = val.lastIndexOf(":")
-          if (lastColon > 0) {
-            patch.server = val.slice(0, lastColon).trim()
-            const p = Number.parseInt(val.slice(lastColon + 1).trim(), 10)
-            if (!Number.isNaN(p) && p > 0) patch.port = p
-          }
-        }
+        const { host, port } = splitHostPort(val)
+        if (host) patch.server = host
+        if (port) patch.port = port
         break
       }
     }
@@ -99,29 +132,42 @@ export function parseMASQUEConfig(raw: string): Partial<NodeOutbound> {
         patch.public_key = stripPEMHeaders(obj.public_key)
       }
       if (typeof obj.ipv4 === "string" && obj.ipv4.trim()) {
-        patch.ip = obj.ipv4.includes("/") ? obj.ipv4.trim() : `${obj.ipv4.trim()}/32`
+        const v4 = obj.ipv4.trim()
+        patch.ip = v4.includes("/") ? v4 : `${v4}/32`
       } else if (typeof obj.ip === "string" && obj.ip.trim()) {
-        patch.ip = obj.ip.trim()
+        const ip = obj.ip.trim()
+        patch.ip = ip.includes("/") ? ip : `${ip}/32`
       }
       if (typeof obj.ipv6 === "string" && obj.ipv6.trim()) {
-        patch.ipv6 = obj.ipv6.includes("/") ? obj.ipv6.trim() : `${obj.ipv6.trim()}/128`
+        const v6 = obj.ipv6.trim()
+        patch.ipv6 = v6.includes("/") ? v6 : `${v6}/128`
       }
       const v4Ep = typeof obj.endpoint_v4 === "string" ? obj.endpoint_v4.trim() : ""
       const v6Ep = typeof obj.endpoint_v6 === "string" ? obj.endpoint_v6.trim() : ""
       const srv = typeof obj.server === "string" ? obj.server.trim() : ""
       if (v4Ep) {
-        patch.server = v4Ep
-        patch.port = 443
+        const parsed = splitHostPort(v4Ep)
+        if (parsed.host) patch.server = parsed.host
+        patch.port = parsed.port ?? DEFAULT_MASQUE_PORT
       } else if (v6Ep) {
-        patch.server = v6Ep.replace(/^\[|\]$/g, "")
-        patch.port = 443
+        const parsed = splitHostPort(v6Ep)
+        if (parsed.host) patch.server = parsed.host
+        patch.port = parsed.port ?? DEFAULT_MASQUE_PORT
       } else if (srv) {
-        patch.server = srv
+        const parsed = splitHostPort(srv)
+        if (parsed.host) patch.server = parsed.host
+        if (parsed.port) patch.port = parsed.port
+      }
+      if (typeof obj.port === "number" && obj.port > 0 && obj.port <= 65535) {
+        patch.port = obj.port
+      }
+      if (typeof obj.mtu === "number" && obj.mtu > 0) {
+        patch.mtu = obj.mtu
       }
       if (typeof obj.sni === "string" && obj.sni.trim()) {
         patch.sni = obj.sni.trim()
       } else if (patch.public_key && !patch.sni) {
-        patch.sni = "consumer-masque.cloudflareclient.com"
+        patch.sni = DEFAULT_MASQUE_SNI
       }
       return patch
     } catch {
@@ -137,10 +183,7 @@ export function parseMASQUEConfig(raw: string): Partial<NodeOutbound> {
     const idx = clean.indexOf(":")
     if (idx <= 0) continue
     const key = clean.slice(0, idx).trim().toLowerCase()
-    const val = clean
-      .slice(idx + 1)
-      .trim()
-      .replace(/^["']|["']$/g, "")
+    const val = stripInlineComment(clean.slice(idx + 1)).replace(/^["']|["']$/g, "")
     if (!val) continue
 
     switch (key) {
@@ -149,7 +192,7 @@ export function parseMASQUEConfig(raw: string): Partial<NodeOutbound> {
         break
       case "port": {
         const n = Number.parseInt(val, 10)
-        if (!Number.isNaN(n) && n > 0) patch.port = n
+        if (!Number.isNaN(n) && n > 0 && n <= 65535) patch.port = n
         break
       }
       case "private-key":
@@ -178,6 +221,15 @@ export function parseMASQUEConfig(raw: string): Partial<NodeOutbound> {
         if (val === "quic" || val === "h2" || val === "h3-l4proxy") {
           patch.network = val as MASQUENetwork
         }
+        break
+      case "skip-cert-verify":
+      case "skip_cert_verify":
+        if (val.toLowerCase() === "true") patch.skip_cert_verify = true
+        else if (val.toLowerCase() === "false") patch.skip_cert_verify = false
+        break
+      case "congestion-controller":
+      case "congestion_controller":
+        if (val.toLowerCase() === "bbr") patch.congestion_controller = "bbr"
         break
     }
   }

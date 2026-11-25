@@ -909,14 +909,15 @@ func TestNodeMASQUEOutboundAndIPVersion(t *testing.T) {
 					Type:                 model.OutboundTypeMASQUE,
 					Enabled:              true,
 					Server:               "162.159.198.1",
-					Port:                 443,
+					Port:                 0, // falls back to DefaultWARPMASQUEPort (443)
 					PrivateKey:           "ec-private-b64",
 					PublicKey:            "ec-public-b64",
-					IP:                   "172.16.0.2/32",
-					IPv6:                 "2606:4700:110::2/128",
+					IP:                   "172.16.0.2",
+					IPv6:                 "2606:4700:110::2",
 					SNI:                  model.DefaultWARPMASQUESNI,
 					Network:              "quic",
 					CongestionController: "bbr",
+					SkipCertVerify:       true,
 					MTU:                  1280,
 					IPVersion:            "ipv4-prefer",
 					RemoteDNSResolve:     true,
@@ -969,8 +970,11 @@ func TestNodeMASQUEOutboundAndIPVersion(t *testing.T) {
 		t.Fatalf("expected 2 masque proxies, got %+v", proxies)
 	}
 	p0 := proxies[0].(map[string]any)
-	if p0["type"] != "masque" || p0["sni"] != model.DefaultWARPMASQUESNI || p0["ip-version"] != "ipv4-prefer" || p0["congestion-controller"] != "bbr" || p0["udp"] != true {
+	if p0["type"] != "masque" || p0["port"] != model.DefaultWARPMASQUEPort || p0["sni"] != model.DefaultWARPMASQUESNI || p0["ip-version"] != "ipv4-prefer" || p0["congestion-controller"] != "bbr" || p0["udp"] != true || p0["skip-cert-verify"] != true {
 		t.Fatalf("unexpected masque proxy[0]: %+v", p0)
+	}
+	if p0["ip"] != "172.16.0.2/32" || p0["ipv6"] != "2606:4700:110::2/128" {
+		t.Fatalf("expected CIDR normalized masque IPs, got ip=%v ipv6=%v", p0["ip"], p0["ipv6"])
 	}
 	if _, hasNet := p0["network"]; hasNet {
 		t.Fatalf("expected default quic network omitted, got %v", p0["network"])
@@ -978,5 +982,23 @@ func TestNodeMASQUEOutboundAndIPVersion(t *testing.T) {
 	p1 := proxies[1].(map[string]any)
 	if p1["network"] != "h3-l4proxy" || p1["udp"] != false || p1["ip-version"] != "ipv6" {
 		t.Fatalf("unexpected h3-l4proxy masque proxy[1]: %+v", p1)
+	}
+
+	invalidCC := model.NodeOutboundConfig{
+		Outbounds: []model.NodeOutbound{
+			{
+				Name:                 "BAD-MASQUE",
+				Type:                 model.OutboundTypeMASQUE,
+				Enabled:              true,
+				Server:               "162.159.198.1",
+				PrivateKey:           "k1",
+				PublicKey:            "k2",
+				IP:                   "172.16.0.2/32",
+				CongestionController: "cubic",
+			},
+		},
+	}
+	if err := invalidCC.Validate(); err == nil {
+		t.Fatalf("expected invalid MASQUE congestion_controller to fail validation")
 	}
 }

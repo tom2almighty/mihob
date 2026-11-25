@@ -350,7 +350,6 @@
         "generatedLocalPubKey": "本地公钥（供对端 Peer 配置）：",
         "importBtn": "导入配置",
         "wgImportHint": "支持一键注册 WARP、生成 WireGuard 密钥对或粘贴 .conf 导入",
-        "wgImportBtn": "导入 WireGuard 配置",
         "wgImportPlaceholder": "[Interface]\nPrivateKey = ...\nAddress = 172.16.0.2/32, 2606:4700:...\n[Peer]\nPublicKey = ...\nEndpoint = engage.cloudflareclient.com:2408",
         "masqueImportHint": "支持一键注册 CF MASQUE、生成 P-256 密钥对或粘贴 usque config.json / YAML 导入",
         "masqueImportPlaceholder": "粘贴 usque config.json 或 Mihomo masque YAML 片段",
@@ -363,6 +362,7 @@
         "stackDual": "双栈",
         "stackV4Only": "仅 IPv4",
         "stackV6Only": "仅 IPv6",
+        "stackV6Missing": "请先填写或一键注册获取隧道 IPv6 地址",
         "endpointPresetsLabel": "Endpoint 预设：",
         "endpointPresets": {
           "auto": "域名自动",

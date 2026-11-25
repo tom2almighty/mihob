@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,11 +20,14 @@ import (
 )
 
 const (
-	cfWARPAPIBase     = "https://api.cloudflareclient.com/v0a4471"
-	cfWARPUserAgent   = "WARP for Android"
-	cfWARPClientVer   = "a-6.81-4616"
-	cfWARPHTTPTimeout = 20 * time.Second
+	cfWARPAPIBase          = "https://api.cloudflareclient.com/v0a4471"
+	cfWARPUserAgent        = "WARP for Android"
+	cfWARPClientVer        = "a-6.81-4616"
+	cfWARPHTTPTimeout      = 20 * time.Second
+	cfWARPErrorBodyMaxByte = 256
 )
+
+var errInvalidWARPProtocol = errors.New("unsupported WARP protocol")
 
 type warpRegisterResult struct {
 	Protocol   string `json:"protocol"` // "wireguard" | "masque"
@@ -93,6 +97,14 @@ func cfDoJSON(ctx context.Context, client *http.Client, method, url, bearer stri
 	return raw, resp.StatusCode, nil
 }
 
+func truncateErrorBody(raw []byte, maxLen int) string {
+	s := strings.Join(strings.Fields(string(raw)), " ")
+	if maxLen <= 0 || len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
 func splitCFEndpointHost(raw string, defaultPort int) (string, int) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -120,14 +132,6 @@ func stripPEMToBase64(raw string) string {
 	return trimmed
 }
 
-func ensureCIDR(addr, suffix string) string {
-	addr = strings.TrimSpace(addr)
-	if addr == "" || strings.Contains(addr, "/") {
-		return addr
-	}
-	return addr + suffix
-}
-
 func formatCFClientIDToReserved(clientID string) string {
 	clientID = strings.TrimSpace(clientID)
 	if clientID == "" {
@@ -144,20 +148,25 @@ func formatCFClientIDToReserved(clientID string) string {
 }
 
 func registerCloudflareWARP(ctx context.Context, protocol, license string) (*warpRegisterResult, error) {
+	client := &http.Client{Timeout: cfWARPHTTPTimeout}
+	return registerCloudflareWARPWithBase(ctx, client, cfWARPAPIBase, protocol, license)
+}
+
+func registerCloudflareWARPWithBase(ctx context.Context, client *http.Client, apiBase, protocol, license string) (*warpRegisterResult, error) {
 	protocol = strings.ToLower(strings.TrimSpace(protocol))
 	if protocol == "" {
 		protocol = "wireguard"
 	}
 	if protocol != "wireguard" && protocol != "masque" {
-		return nil, fmt.Errorf("unsupported WARP protocol %q", protocol)
+		return nil, fmt.Errorf("%w %q", errInvalidWARPProtocol, protocol)
 	}
+	apiBase = strings.TrimRight(apiBase, "/")
 
 	wgPriv, wgPub, err := crypto.GenerateWireGuardKeyPair()
 	if err != nil {
 		return nil, fmt.Errorf("generate wireguard keypair: %w", err)
 	}
 
-	client := &http.Client{Timeout: cfWARPHTTPTimeout}
 	regPayload := map[string]any{
 		"key":        wgPub,
 		"install_id": "",
@@ -168,12 +177,12 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 		"locale":     "en_US",
 	}
 
-	raw, status, err := cfDoJSON(ctx, client, http.MethodPost, cfWARPAPIBase+"/reg", "", regPayload)
+	raw, status, err := cfDoJSON(ctx, client, http.MethodPost, apiBase+"/reg", "", regPayload)
 	if err != nil {
 		return nil, fmt.Errorf("cloudflare register request failed: %w", err)
 	}
 	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("cloudflare register returned HTTP %d: %s", status, strings.TrimSpace(string(raw)))
+		return nil, fmt.Errorf("cloudflare register returned HTTP %d: %s", status, truncateErrorBody(raw, cfWARPErrorBodyMaxByte))
 	}
 
 	var account cfWARPResponse
@@ -186,17 +195,17 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 
 	license = strings.TrimSpace(license)
 	if license != "" {
-		licRaw, licStatus, err := cfDoJSON(ctx, client, http.MethodPut, fmt.Sprintf("%s/reg/%s/account", cfWARPAPIBase, account.ID), account.Token, map[string]string{
+		licRaw, licStatus, err := cfDoJSON(ctx, client, http.MethodPut, fmt.Sprintf("%s/reg/%s/account", apiBase, account.ID), account.Token, map[string]string{
 			"license": license,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("apply WARP+ license failed: %w", err)
 		}
 		if licStatus < 200 || licStatus >= 300 {
-			return nil, fmt.Errorf("apply WARP+ license returned HTTP %d: %s", licStatus, strings.TrimSpace(string(licRaw)))
+			return nil, fmt.Errorf("apply WARP+ license returned HTTP %d: %s", licStatus, truncateErrorBody(licRaw, cfWARPErrorBodyMaxByte))
 		}
 		if protocol == "wireguard" {
-			refRaw, refStatus, err := cfDoJSON(ctx, client, http.MethodGet, fmt.Sprintf("%s/reg/%s", cfWARPAPIBase, account.ID), account.Token, nil)
+			refRaw, refStatus, err := cfDoJSON(ctx, client, http.MethodGet, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, nil)
 			if err == nil && refStatus >= 200 && refStatus < 300 {
 				var refreshed cfWARPResponse
 				if json.Unmarshal(refRaw, &refreshed) == nil && len(refreshed.Config.Peers) > 0 {
@@ -211,18 +220,15 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 			return nil, fmt.Errorf("cloudflare response missing wireguard peer config")
 		}
 		peer := account.Config.Peers[0]
-		v4Host, port := splitCFEndpointHost(peer.Endpoint.V4, model.DefaultWARPPort)
-		v6Host, _ := splitCFEndpointHost(peer.Endpoint.V6, port)
-		hostDomain, hostPort := splitCFEndpointHost(peer.Endpoint.Host, port)
+		v4Host, v4Port := splitCFEndpointHost(peer.Endpoint.V4, model.DefaultWARPPort)
+		v6Host, _ := splitCFEndpointHost(peer.Endpoint.V6, v4Port)
+		hostDomain, port := splitCFEndpointHost(peer.Endpoint.Host, v4Port)
 		server := hostDomain
 		if server == "" {
 			server = v4Host
 		}
 		if server == "" {
 			server = model.DefaultWARPServer
-		}
-		if hostPort > 0 {
-			port = hostPort
 		}
 		pubKey := strings.TrimSpace(peer.PublicKey)
 		if pubKey == "" {
@@ -232,8 +238,8 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 			Protocol:   "wireguard",
 			PrivateKey: wgPriv,
 			PublicKey:  pubKey,
-			IP:         ensureCIDR(account.Config.Interface.Addresses.V4, "/32"),
-			IPv6:       ensureCIDR(account.Config.Interface.Addresses.V6, "/128"),
+			IP:         model.EnsureCIDR(account.Config.Interface.Addresses.V4, "/32"),
+			IPv6:       model.EnsureCIDR(account.Config.Interface.Addresses.V6, "/128"),
 			Server:     server,
 			ServerV4:   v4Host,
 			ServerV6:   v6Host,
@@ -248,7 +254,7 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 	if err != nil {
 		return nil, fmt.Errorf("generate masque keypair: %w", err)
 	}
-	enrollRaw, enrollStatus, err := cfDoJSON(ctx, client, http.MethodPatch, fmt.Sprintf("%s/reg/%s", cfWARPAPIBase, account.ID), account.Token, map[string]string{
+	enrollRaw, enrollStatus, err := cfDoJSON(ctx, client, http.MethodPatch, fmt.Sprintf("%s/reg/%s", apiBase, account.ID), account.Token, map[string]string{
 		"key":         ecPub,
 		"key_type":    "secp256r1",
 		"tunnel_type": "masque",
@@ -257,7 +263,7 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 		return nil, fmt.Errorf("cloudflare masque enroll failed: %w", err)
 	}
 	if enrollStatus < 200 || enrollStatus >= 300 {
-		return nil, fmt.Errorf("cloudflare masque enroll returned HTTP %d: %s", enrollStatus, strings.TrimSpace(string(enrollRaw)))
+		return nil, fmt.Errorf("cloudflare masque enroll returned HTTP %d: %s", enrollStatus, truncateErrorBody(enrollRaw, cfWARPErrorBodyMaxByte))
 	}
 
 	var enrolled cfWARPResponse
@@ -268,21 +274,25 @@ func registerCloudflareWARP(ctx context.Context, protocol, license string) (*war
 		return nil, fmt.Errorf("cloudflare masque response missing peer config")
 	}
 	peer := enrolled.Config.Peers[0]
-	v4Host, _ := splitCFEndpointHost(peer.Endpoint.V4, model.DefaultWARPMASQUEPort)
-	v6Host, _ := splitCFEndpointHost(peer.Endpoint.V6, model.DefaultWARPMASQUEPort)
+	pubKey := stripPEMToBase64(peer.PublicKey)
+	if pubKey == "" {
+		return nil, fmt.Errorf("cloudflare masque response missing peer public key")
+	}
+	v4Host, port := splitCFEndpointHost(peer.Endpoint.V4, model.DefaultWARPMASQUEPort)
+	v6Host, _ := splitCFEndpointHost(peer.Endpoint.V6, port)
 	if v4Host == "" {
 		v4Host = model.DefaultWARPMASQUEServer
 	}
 	return &warpRegisterResult{
 		Protocol:   "masque",
 		PrivateKey: ecPriv,
-		PublicKey:  stripPEMToBase64(peer.PublicKey),
-		IP:         ensureCIDR(enrolled.Config.Interface.Addresses.V4, "/32"),
-		IPv6:       ensureCIDR(enrolled.Config.Interface.Addresses.V6, "/128"),
+		PublicKey:  pubKey,
+		IP:         model.EnsureCIDR(enrolled.Config.Interface.Addresses.V4, "/32"),
+		IPv6:       model.EnsureCIDR(enrolled.Config.Interface.Addresses.V6, "/128"),
 		Server:     v4Host,
 		ServerV4:   v4Host,
 		ServerV6:   v6Host,
-		Port:       model.DefaultWARPMASQUEPort,
+		Port:       port,
 		SNI:        model.DefaultWARPMASQUESNI,
 		MTU:        model.DefaultWARPMASQUEMTU,
 	}, nil
@@ -302,6 +312,10 @@ func (s *Server) handleWARPRegister(w http.ResponseWriter, r *http.Request) {
 
 	res, err := registerCloudflareWARP(ctx, req.Protocol, req.License)
 	if err != nil {
+		if errors.Is(err, errInvalidWARPProtocol) {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}

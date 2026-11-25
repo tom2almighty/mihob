@@ -350,7 +350,6 @@
         "generatedLocalPubKey": "Local public key (for peer setup):",
         "importBtn": "Import",
         "wgImportHint": "One-click register WARP, generate WireGuard keys, or paste .conf",
-        "wgImportBtn": "Import WireGuard Conf",
         "wgImportPlaceholder": "[Interface]\nPrivateKey = ...\nAddress = 172.16.0.2/32, 2606:4700:...\n[Peer]\nPublicKey = ...\nEndpoint = engage.cloudflareclient.com:2408",
         "masqueImportHint": "One-click register CF MASQUE, generate P-256 keys, or paste usque config.json / YAML",
         "masqueImportPlaceholder": "Paste usque config.json or Mihomo masque YAML snippet",
@@ -363,6 +362,7 @@
         "stackDual": "Dual",
         "stackV4Only": "IPv4 Only",
         "stackV6Only": "IPv6 Only",
+        "stackV6Missing": "Enter or register a tunnel IPv6 address first",
         "endpointPresetsLabel": "Endpoint presets:",
         "endpointPresets": {
           "auto": "Auto Domain",
