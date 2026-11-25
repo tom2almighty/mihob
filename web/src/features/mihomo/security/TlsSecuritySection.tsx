@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { Certificate, Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
 import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
+import { ClientEndpointApisEditor } from "./ClientEndpointApisEditor"
 
 export function TlsSecuritySection({
   form,
@@ -142,42 +143,45 @@ export function TlsSecuritySection({
       />
 
       {SUPPORTS_REALITY.includes(protocol) && security === "tls" && (
-        <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="client_server"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
-                    className="bg-background font-mono text-xs"
-                    {...field}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="client_port"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("nodes.inbound.fields.clientPort")}</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={65535}
-                    placeholder="0"
-                    className="bg-background tabular-nums"
-                    {...field}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+        <div className="space-y-3 border-t border-border pt-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="client_server"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
+                      className="bg-background font-mono text-xs"
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="client_port"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.clientPort")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={65535}
+                      placeholder="0"
+                      className="bg-background tabular-nums"
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+          <ClientEndpointApisEditor form={form} />
         </div>
       )}
 

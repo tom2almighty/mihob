@@ -445,6 +445,7 @@ export function NodesPage() {
                 <TableHead>{t("nodes.colRate")}</TableHead>
                 <TableHead className="w-52">{t("nodes.colTraffic")}</TableHead>
                 <TableHead>{t("nodes.colMultiplier")}</TableHead>
+                <TableHead className="w-16 text-center">{t("nodes.colEnabled")}</TableHead>
                 <TableHead className="text-right">{t("nodes.colActions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -516,30 +517,33 @@ export function NodesPage() {
                     <NodeMetaSummary node={n} />
                   </TableCell>
 
+                  <TableCell className="text-center">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="inline-flex items-center justify-center">
+                            <Switch
+                              size="sm"
+                              checked={n.enabled}
+                              disabled={
+                                toggleMutation.isPending && toggleMutation.variables?.id === n.id
+                              }
+                              onCheckedChange={(checked) =>
+                                toggleMutation.mutate({ id: n.id, enabled: checked })
+                              }
+                              aria-label={t("nodes.toggleAria")}
+                            />
+                          </span>
+                        }
+                      />
+                      <TooltipContent>
+                        {n.enabled ? t("nodes.disableTooltip") : t("nodes.enableTooltip")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <span className="inline-flex items-center">
-                              <Switch
-                                size="sm"
-                                checked={n.enabled}
-                                disabled={
-                                  toggleMutation.isPending && toggleMutation.variables?.id === n.id
-                                }
-                                onCheckedChange={(checked) =>
-                                  toggleMutation.mutate({ id: n.id, enabled: checked })
-                                }
-                                aria-label={t("nodes.toggleAria")}
-                              />
-                            </span>
-                          }
-                        />
-                        <TooltipContent>
-                          {n.enabled ? t("nodes.disableTooltip") : t("nodes.enableTooltip")}
-                        </TooltipContent>
-                      </Tooltip>
                       <Button variant="outline" size="sm" onClick={() => setInboundNodeId(n.id)}>
                         <Radio className="mr-1.5 size-3.5" />
                         {t("nodes.btnProtocol")}
@@ -548,25 +552,17 @@ export function NodesPage() {
                         <Terminal className="mr-1.5 size-3.5" />
                         {t("nodes.btnDeploy")}
                       </Button>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8"
-                              aria-label={t("nodes.editNode")}
-                              onClick={() => {
-                                setEditingNode(n)
-                                setFormOpen(true)
-                              }}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>{t("nodes.editNode")}</TooltipContent>
-                      </Tooltip>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingNode(n)
+                          setFormOpen(true)
+                        }}
+                      >
+                        <Pencil className="mr-1.5 size-3.5" />
+                        {t("common.edit")}
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           render={

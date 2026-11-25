@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import {
   Activity,
   BarChart3,
+  Layers,
   RotateCcw,
   Search,
   Server,
@@ -29,6 +30,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -36,6 +44,7 @@ import { api, queryKeys } from "@/lib/api"
 import { formatBytes, formatBytesCompact } from "@/lib/format"
 import type {
   DashboardRange,
+  DashboardTrafficDimension,
   EntityTrafficSeries,
   Node,
   NodeTrafficStat,
@@ -46,7 +55,8 @@ import { cn } from "@/lib/utils"
 
 export type TrendTrafficMetric = "total" | "download" | "upload"
 type TrendChartType = "line" | "bar"
-type TrendDimension = "cluster" | "node" | "user"
+type TrendDimension = "cluster" | DashboardTrafficDimension
+type UserNodePivot = "by_user" | "by_node"
 
 const MAX_SELECTED_ENTITIES = 8
 
@@ -175,96 +185,127 @@ export function ClusterTrafficTrendCard({
   const [metric, setMetric] = useState<TrendTrafficMetric>("total")
   const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
+  const [pivot, setPivot] = useState<UserNodePivot>("by_user")
+  const [pivotUserId, setPivotUserId] = useState<number>(0)
+  const [pivotNodeId, setPivotNodeId] = useState<number>(0)
+  const [pivotFilterNodeIds, setPivotFilterNodeIds] = useState<number[]>([])
+  const [pivotFilterUserIds, setPivotFilterUserIds] = useState<number[]>([])
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterSearch, setFilterSearch] = useState("")
 
-  const activeSelectedIds = dimension === "node" ? selectedNodeIds : selectedUserIds
+  // Which entity kind the secondary multi-select filter targets
+  const filterTargetKind: "node" | "user" | null =
+    dimension === "node"
+      ? "node"
+      : dimension === "user"
+        ? "user"
+        : dimension === "user_node"
+          ? pivot === "by_user" && pivotUserId > 0
+            ? "node"
+            : pivot === "by_node" && pivotNodeId > 0
+              ? "user"
+              : null
+          : null
+
+  const activeSelectedIds =
+    dimension === "node"
+      ? selectedNodeIds
+      : dimension === "user"
+        ? selectedUserIds
+        : dimension === "user_node"
+          ? pivot === "by_user" && pivotUserId > 0
+            ? pivotFilterNodeIds
+            : pivot === "by_node" && pivotNodeId > 0
+              ? pivotFilterUserIds
+              : []
+          : []
+
   const sortedIdsKey = useMemo(
     () => [...activeSelectedIds].sort((a, b) => a - b).join(","),
     [activeSelectedIds]
   )
 
-  // Fetch full users list lazily when the user picker popover is opened
+  const queryUserId = dimension === "user_node" && pivot === "by_user" ? pivotUserId : 0
+  const queryNodeId = dimension === "user_node" && pivot === "by_node" ? pivotNodeId : 0
+  const apiDimension: DashboardTrafficDimension = dimension === "cluster" ? "node" : dimension
+
+  // Fetch full users list lazily when user picker or User×Node dimension is used
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users,
     queryFn: api.listUsers,
-    enabled: dimension === "user" && filterOpen,
+    enabled: dimension === "user_node" || (dimension === "user" && filterOpen),
     staleTime: 30_000,
   })
 
-  // Fetch custom filtered entity series only when the user explicitly selects specific nodes/users
+  // Fetch custom filtered entity series or User×Node series
   const customSeriesQuery = useQuery({
     queryKey: queryKeys.dashboardTrafficSeries(
       range,
-      dimension === "user" ? "user" : "node",
-      sortedIdsKey
+      apiDimension,
+      sortedIdsKey,
+      queryUserId,
+      queryNodeId
     ),
     queryFn: () =>
-      api.dashboardTrafficSeries(range, dimension === "user" ? "user" : "node", activeSelectedIds),
-    enabled: dimension !== "cluster" && activeSelectedIds.length > 0,
+      api.dashboardTrafficSeries(range, apiDimension, activeSelectedIds, {
+        userId: queryUserId,
+        nodeId: queryNodeId,
+      }),
+    enabled: dimension === "user_node" || (dimension !== "cluster" && activeSelectedIds.length > 0),
     refetchInterval: 10_000,
     placeholderData: (prev) => prev,
   })
 
-  // Build searchable options for Node / User filter popover (sorted by period traffic DESC)
-  const pickerOptions = useMemo(() => {
-    if (dimension === "node") {
-      const trafficMap = new Map<number, number>()
-      for (const item of nodeTraffic) {
-        trafficMap.set(item.node_id, item.total)
-      }
-      for (const item of nodeTrafficSeries) {
-        if (!item.is_other && item.id > 0 && !trafficMap.has(item.id)) {
-          trafficMap.set(item.id, item.total)
-        }
-      }
-      return nodes
-        .map((n) => ({
-          id: n.id,
-          name: n.name,
-          sub: n.region || "",
-          traffic: trafficMap.get(n.id) ?? 0,
-        }))
-        .sort((a, b) => b.traffic - a.traffic || a.name.localeCompare(b.name))
+  // Build searchable options for Nodes and Users (sorted by period traffic DESC)
+  const nodeOptions = useMemo(() => {
+    const trafficMap = new Map<number, number>()
+    for (const item of nodeTraffic) {
+      trafficMap.set(item.node_id, item.total)
     }
-
-    if (dimension === "user") {
-      const trafficMap = new Map<number, number>()
-      const nameMap = new Map<number, string>()
-      for (const item of userTraffic) {
-        trafficMap.set(item.user_id, item.total)
-        nameMap.set(item.user_id, item.username)
+    for (const item of nodeTrafficSeries) {
+      if (!item.is_other && item.id > 0 && !trafficMap.has(item.id)) {
+        trafficMap.set(item.id, item.total)
       }
-      for (const item of userTrafficSeries) {
-        if (!item.is_other && item.id > 0) {
-          if (!trafficMap.has(item.id)) trafficMap.set(item.id, item.total)
-          if (!nameMap.has(item.id)) nameMap.set(item.id, item.name)
-        }
-      }
-      for (const u of allUsersQuery.data ?? []) {
-        nameMap.set(u.id, u.username)
-      }
-      return Array.from(nameMap.entries())
-        .map(([id, name]) => ({
-          id,
-          name,
-          sub: "",
-          traffic: trafficMap.get(id) ?? 0,
-        }))
-        .sort((a, b) => b.traffic - a.traffic || a.name.localeCompare(b.name))
     }
+    return nodes
+      .map((n) => ({
+        id: n.id,
+        name: n.name,
+        sub: n.region || "",
+        traffic: trafficMap.get(n.id) ?? 0,
+      }))
+      .sort((a, b) => b.traffic - a.traffic || a.name.localeCompare(b.name))
+  }, [nodes, nodeTraffic, nodeTrafficSeries])
 
-    return []
-  }, [
-    dimension,
-    nodes,
-    nodeTraffic,
-    nodeTrafficSeries,
-    userTraffic,
-    userTrafficSeries,
-    allUsersQuery.data,
-  ])
+  const userOptions = useMemo(() => {
+    const trafficMap = new Map<number, number>()
+    const nameMap = new Map<number, string>()
+    for (const item of userTraffic) {
+      trafficMap.set(item.user_id, item.total)
+      nameMap.set(item.user_id, item.username)
+    }
+    for (const item of userTrafficSeries) {
+      if (!item.is_other && item.id > 0) {
+        if (!trafficMap.has(item.id)) trafficMap.set(item.id, item.total)
+        if (!nameMap.has(item.id)) nameMap.set(item.id, item.name)
+      }
+    }
+    for (const u of allUsersQuery.data ?? []) {
+      nameMap.set(u.id, u.username)
+    }
+    return Array.from(nameMap.entries())
+      .map(([id, name]) => ({
+        id,
+        name,
+        sub: "",
+        traffic: trafficMap.get(id) ?? 0,
+      }))
+      .sort((a, b) => b.traffic - a.traffic || a.name.localeCompare(b.name))
+  }, [userTraffic, userTrafficSeries, allUsersQuery.data])
+
+  const pickerOptions =
+    filterTargetKind === "node" ? nodeOptions : filterTargetKind === "user" ? userOptions : []
 
   const filteredPickerOptions = useMemo(() => {
     const q = filterSearch.trim().toLowerCase()
@@ -274,9 +315,12 @@ export function ClusterTrafficTrendCard({
     )
   }, [pickerOptions, filterSearch])
 
-  // Resolve active entity series (custom selection or default Top 5 + Others)
+  // Resolve active entity series (custom selection / User×Node or default Top 5 + Others)
   const activeEntitySeries: EntityTrafficSeries[] = useMemo(() => {
     if (dimension === "cluster") return []
+    if (dimension === "user_node") {
+      return customSeriesQuery.data?.series ?? []
+    }
     if (activeSelectedIds.length > 0 && customSeriesQuery.data?.series) {
       return customSeriesQuery.data.series
     }
@@ -319,9 +363,13 @@ export function ClusterTrafficTrendCard({
       const isOther = Boolean(s.is_other)
       const key = isOther ? "other" : `e_${s.id}`
       const label = isOther
-        ? dimension === "node"
+        ? dimension === "node" ||
+          (dimension === "user_node" && pivot === "by_user" && pivotUserId > 0)
           ? t("dashboard.trend.otherNodes", { count: s.other_count ?? 0 })
-          : t("dashboard.trend.otherUsers", { count: s.other_count ?? 0 })
+          : dimension === "user" ||
+              (dimension === "user_node" && pivot === "by_node" && pivotNodeId > 0)
+            ? t("dashboard.trend.otherUsers", { count: s.other_count ?? 0 })
+            : t("dashboard.trend.otherPairs", { count: s.other_count ?? 0 })
         : s.name
       const color = isOther
         ? "var(--muted-foreground)"
@@ -335,7 +383,7 @@ export function ClusterTrafficTrendCard({
         isOther,
       }
     })
-  }, [dimension, metric, trafficSeries, activeEntitySeries, t])
+  }, [dimension, pivot, pivotUserId, pivotNodeId, metric, trafficSeries, activeEntitySeries, t])
 
   const seriesMap = useMemo(() => {
     const map = new Map<string, SeriesDescriptor>()
@@ -430,6 +478,12 @@ export function ClusterTrafficTrendCard({
       setSelectedNodeIds(updater)
     } else if (dimension === "user") {
       setSelectedUserIds(updater)
+    } else if (dimension === "user_node") {
+      if (pivot === "by_user") {
+        setPivotFilterNodeIds(updater)
+      } else {
+        setPivotFilterUserIds(updater)
+      }
     }
   }
 
@@ -437,8 +491,20 @@ export function ClusterTrafficTrendCard({
     setHiddenKeys(new Set())
     if (dimension === "node") setSelectedNodeIds([])
     if (dimension === "user") setSelectedUserIds([])
+    if (dimension === "user_node") {
+      if (pivot === "by_user") setPivotFilterNodeIds([])
+      else setPivotFilterUserIds([])
+    }
   }
 
+  const handlePivotChange = (next: UserNodePivot) => {
+    setPivot(next)
+    setHiddenKeys(new Set())
+    setFilterSearch("")
+    setFilterOpen(false)
+  }
+
+  const chartLoading = loading || (dimension === "user_node" && customSeriesQuery.isLoading)
   const hasEntityData = dimension === "cluster" || seriesDescriptors.length > 0
 
   return (
@@ -455,12 +521,14 @@ export function ClusterTrafficTrendCard({
                 ? t("dashboard.trend.descByNode")
                 : dimension === "user"
                   ? t("dashboard.trend.descByUser")
-                  : t("dashboard.chartDescription")}
+                  : dimension === "user_node"
+                    ? t("dashboard.trend.descUserNode")
+                    : t("dashboard.chartDescription")}
             </CardDescription>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {/* Dimension Tabs: Cluster / By Node / By User */}
+            {/* Dimension Tabs: Cluster / By Node / By User / User×Node */}
             <Tabs
               value={dimension}
               onValueChange={(v) => handleDimensionChange((v as TrendDimension) || "cluster")}
@@ -469,6 +537,7 @@ export function ClusterTrafficTrendCard({
                 <TabsTrigger value="cluster">{t("dashboard.trend.dimCluster")}</TabsTrigger>
                 <TabsTrigger value="node">{t("dashboard.trend.dimNode")}</TabsTrigger>
                 <TabsTrigger value="user">{t("dashboard.trend.dimUser")}</TabsTrigger>
+                <TabsTrigger value="user_node">{t("dashboard.trend.dimUserNode")}</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -523,6 +592,75 @@ export function ClusterTrafficTrendCard({
           </div>
         </div>
 
+        {/* Bidirectional Pivot Controls for User×Node Dimension */}
+        {!loading && dimension === "user_node" && (
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <Tabs
+              value={pivot}
+              onValueChange={(v) => handlePivotChange((v as UserNodePivot) || "by_user")}
+            >
+              <TabsList size="xs">
+                <TabsTrigger value="by_user">{t("dashboard.trend.pivotByUser")}</TabsTrigger>
+                <TabsTrigger value="by_node">{t("dashboard.trend.pivotByNode")}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {pivot === "by_user" ? (
+              <Select
+                value={String(pivotUserId)}
+                onValueChange={(v) => {
+                  setPivotUserId(Number(v) || 0)
+                  setPivotFilterNodeIds([])
+                  setHiddenKeys(new Set())
+                }}
+              >
+                <SelectTrigger className="h-7 w-48 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">{t("dashboard.trend.allUsersTop5")}</SelectItem>
+                  {userOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={String(opt.id)}>
+                      <span className="truncate">{opt.name}</span>
+                      {opt.traffic > 0 && (
+                        <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                          ({formatBytesCompact(opt.traffic)})
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select
+                value={String(pivotNodeId)}
+                onValueChange={(v) => {
+                  setPivotNodeId(Number(v) || 0)
+                  setPivotFilterUserIds([])
+                  setHiddenKeys(new Set())
+                }}
+              >
+                <SelectTrigger className="h-7 w-48 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">{t("dashboard.trend.allNodesTop5")}</SelectItem>
+                  {nodeOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={String(opt.id)}>
+                      <span className="truncate">{opt.name}</span>
+                      {opt.traffic > 0 && (
+                        <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                          ({formatBytesCompact(opt.traffic)})
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        )}
+
         {/* Interactive Legend + Large-Cluster Filter Bar */}
         {!loading && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
@@ -555,7 +693,7 @@ export function ClusterTrafficTrendCard({
               })}
             </div>
 
-            {dimension !== "cluster" && (
+            {filterTargetKind !== null && (
               <Popover open={filterOpen} onOpenChange={setFilterOpen}>
                 <PopoverTrigger
                   render={
@@ -570,7 +708,7 @@ export function ClusterTrafficTrendCard({
                   <SlidersHorizontal className="size-3 text-muted-foreground" />
                   <span>
                     {activeSelectedIds.length > 0
-                      ? dimension === "node"
+                      ? filterTargetKind === "node"
                         ? t("dashboard.trend.selectedNodes", { count: activeSelectedIds.length })
                         : t("dashboard.trend.selectedUsers", { count: activeSelectedIds.length })
                       : t("dashboard.trend.top5Default")}
@@ -579,7 +717,7 @@ export function ClusterTrafficTrendCard({
                 <PopoverContent align="end" className="w-68 gap-2 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-foreground">
-                      {dimension === "node"
+                      {filterTargetKind === "node"
                         ? t("dashboard.trend.filterNodesTitle")
                         : t("dashboard.trend.filterUsersTitle")}
                     </span>
@@ -603,7 +741,7 @@ export function ClusterTrafficTrendCard({
                       value={filterSearch}
                       onChange={(e) => setFilterSearch(e.target.value)}
                       placeholder={
-                        dimension === "node"
+                        filterTargetKind === "node"
                           ? t("dashboard.trend.searchNodesPlaceholder")
                           : t("dashboard.trend.searchUsersPlaceholder")
                       }
@@ -672,17 +810,25 @@ export function ClusterTrafficTrendCard({
       </CardHeader>
 
       <CardContent className="px-5">
-        {loading ? (
+        {chartLoading ? (
           <Skeleton className="h-56 w-full" />
         ) : !hasEntityData ? (
           <div className="flex h-56 flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/20 px-4 text-center">
             <div className="mb-1.5 text-muted-foreground">
-              {dimension === "node" ? <Server className="size-4" /> : <Users className="size-4" />}
+              {dimension === "node" ? (
+                <Server className="size-4" />
+              ) : dimension === "user_node" ? (
+                <Layers className="size-4" />
+              ) : (
+                <Users className="size-4" />
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
               {dimension === "node"
                 ? t("dashboard.nodeTrafficEmpty")
-                : t("dashboard.userTrafficEmpty")}
+                : dimension === "user_node"
+                  ? t("dashboard.trend.userNodeEmpty")
+                  : t("dashboard.userTrafficEmpty")}
             </p>
           </div>
         ) : (

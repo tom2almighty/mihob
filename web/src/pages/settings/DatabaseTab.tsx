@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Download, HardDrive, Loader2, RefreshCw, Sparkles, Trash2 } from "lucide-react"
+import { Download, Loader2, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { ErrorState } from "@/components/common/CommonUI"
 import { FormSwitchCard } from "@/components/common/FormControls"
@@ -265,6 +265,19 @@ export function DatabaseTab() {
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
             {t("settings.database.cleanupDesc")}
+            {runtime && (
+              <>
+                {" "}
+                {t("settings.database.autoRetentionHint", {
+                  value:
+                    runtime.traffic_retention_days > 0
+                      ? t("settings.database.retentionDaysValue", {
+                          days: runtime.traffic_retention_days,
+                        })
+                      : t("settings.database.retentionForever"),
+                })}
+              </>
+            )}
           </p>
         </div>
 
@@ -314,64 +327,6 @@ export function DatabaseTab() {
           </Button>
         </div>
       </div>
-
-      {/* Runtime Bootstrap Config (Read-Only from config.yaml / env) */}
-      {runtime && (
-        <>
-          <Separator />
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <HardDrive className="size-4 text-muted-foreground" />
-                {t("settings.database.runtimeTitle")}
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t("settings.database.runtimeDesc")}
-              </p>
-            </div>
-
-            <div className="grid gap-2 rounded-lg border border-border bg-muted/25 p-3.5 text-xs sm:grid-cols-2">
-              <div className="space-y-0.5">
-                <div className="text-muted-foreground">
-                  {t("settings.database.runtimeConfigPath")}
-                </div>
-                <div className="break-all font-mono text-foreground">
-                  {runtime.config_path || "-"}
-                </div>
-              </div>
-              <div className="space-y-0.5">
-                <div className="text-muted-foreground">{t("settings.database.runtimeDataDir")}</div>
-                <div className="break-all font-mono text-foreground">{runtime.data_dir || "-"}</div>
-              </div>
-              <div className="space-y-0.5">
-                <div className="text-muted-foreground">
-                  {t("settings.database.runtimeRetention")}
-                </div>
-                <div className="font-mono text-foreground tabular-nums">
-                  {runtime.traffic_retention_days > 0
-                    ? t("settings.database.retentionDaysValue", {
-                        days: runtime.traffic_retention_days,
-                      })
-                    : t("settings.database.retentionForever")}
-                </div>
-              </div>
-              <div className="space-y-0.5">
-                <div className="text-muted-foreground">
-                  {t("settings.database.runtimeSecurityFlags")}
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  <Badge variant="outline" className="font-mono text-xs font-normal">
-                    trust_proxy: {String(runtime.trust_proxy)}
-                  </Badge>
-                  <Badge variant="outline" className="font-mono text-xs font-normal">
-                    private_webhook: {String(runtime.allow_private_webhook)}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Vacuum Confirm Dialog */}
       <AlertDialog open={vacuumConfirmOpen} onOpenChange={setVacuumConfirmOpen}>

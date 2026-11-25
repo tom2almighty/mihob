@@ -2,20 +2,16 @@
 
 # mihob
 
-## 项目简介
+**mihob** 是一个基于 Mihomo 服务端入站（`listeners`）的多节点、多用户代理部署与订阅管理控制平面，采用单二进制 **Hub + Agent** 反向 WebSocket 隧道架构，内置 React 管理控制台与用户自助订阅页。
 
-**mihob** 是一个基于 Mihomo 服务端入站（`listeners`）的多节点、多用户代理部署与订阅管理控制平面，采用单二进制 **Hub + Agent** 反向 WebSocket 隧道架构，内置现代化 React 管理控制台与用户自助订阅页。
+## 核心特性
 
-### 核心特性
-
-- **15 种 Mihomo 服务端入站协议**：完整支持 Mihomo 入站及 YAML 深度合并与实时预览。
-- **Hub + Agent 零端口暴露同步**：Agent 主动反向连接 Hub，配置下发前自动执行 `mihomo -t` 校验并在失败时回滚；支持一键检测与安全热升级全集群 Mihomo 内核（SHA-256 校验 + 探活回滚）。
-- **双模板引擎（客户端订阅 + 节点服务端配置）**：
-  - 客户端订阅模板动态渲染授权节点与策略组，支持自定义订阅路径与浏览器自助订阅页。
-  - 节点服务端模板支持防滥用审计（BT/SMTP 阻断）、流媒体 / AI 解锁分流、`type: mihob-node` 动态引用集群节点链式代理（自动注入内部中转凭证与防自环），以及单节点级覆盖（`log-level` / `ipv6` / 附加 YAML）+ 下发前实时预览。
-- **精细化用户授权与配额管控**：支持按地区、标签、协议与正则动态授权，实时统计流量并在到期或超额时自动剔除并踢断活跃连接。
-- **集中证书中心**：支持 ACME（Cloudflare / 阿里云 DNS / DNSPod / HTTP-01）自动签发与续期、自签与手动 PEM 导入，并自动同步至关联节点。
-- **现代控制台体验**：浅色 / 深色模式、内置与自定义 tweakcn 主题、中英文双语切换。
+- **15 种 Mihomo 服务端入站**：完整支持全部 Mihomo `listeners` 协议，提供表单配置、YAML 深度合并与实时预览。
+- **反向隧道与内核热升级**：Agent 主动连接 Hub，节点零管理端口暴露；下发前执行 `mihomo -t` 校验并自动回滚，支持全集群安全热升级。
+- **出站分流与 Cloudflare 集成**：支持节点级 WireGuard / MASQUE（内置节点端 WARP 与 Zero Trust JWT 注册）、SOCKS5 / HTTP / 自定义 YAML 与链式节点中转；内置 `cloudflared` 托管及 `-cf` 专属 Agent 镜像。
+- **双模板引擎**：支持客户端订阅模板（自定义路径 + 自助订阅页）与节点服务端模板（防滥用审计、解锁分流、`type: mihob-node` 链式代理）。
+- **细粒度授权与多维统计**：按地区、标签、协议与正则动态授权，到期或超额自动踢断；提供节点、用户及「用户×节点」流量趋势与多渠道通知告警。
+- **证书中心与多主题**：支持 ACME（Cloudflare / 阿里云 DNS / DNSPod / HTTP-01）自动签发续期、多套主题与中英文切换。
 
 ## 界面预览
 
@@ -71,98 +67,15 @@
 
 </details>
 
-## 开发环境配置
+## 快速部署
 
-### 依赖要求
+### Docker 镜像说明
 
-- Go 1.27+
-- Node.js 24+
-- pnpm 12+
-
-### 配置文件与环境变量
-
-Hub 首次启动时会在数据目录自动生成 `{data_dir}/config.yaml`（可通过 `--config` 或 `MIHOB_CONFIG` 指定路径），用于管理监听地址、安全策略与流量保留期等基础运行参数；配置优先级为 **命令行参数 > 环境变量 > `config.yaml` > 默认值**。动态业务参数（公网地址、订阅路径、主题等）仍在 Web 控制台内热更新。
-
-Hub 常用环境变量：
-
-| 变量名 | 说明 | 默认值 |
-| --- | --- | --- |
-| `MIHOB_CONFIG` | Hub YAML 配置文件路径 | `<data_dir>/config.yaml` |
-| `MIHOB_HOST` | HTTP 监听主机地址（如 `127.0.0.1` 或 `0.0.0.0`） | `0.0.0.0` |
-| `MIHOB_PORT` | HTTP 监听端口 | `8080` |
-| `MIHOB_DATA_DIR` | SQLite 数据库与 ACME 证书存储目录 | `./data` |
-| `MIHOB_ADMIN_USER` | 初始管理员用户名 | `admin` |
-| `MIHOB_ADMIN_PASS` | 初始管理员密码（留空时首次启动随机生成并打印至日志） | 空 |
-| `MIHOB_TRAFFIC_RETENTION_DAYS` | 小时级流量历史保留天数（`0` 表示永久保留） | `365` |
-| `MIHOB_TRUST_PROXY` | 强制信任反代 `X-Forwarded-For` / `X-Real-IP`（环回与内网反代默认已信任） | `false` |
-| `MIHOB_CORS_ORIGINS` | 额外允许的跨域 `Origin` 列表（逗号分隔；默认允许同源及 `hub_public_url`） | 空 |
-| `MIHOB_ALLOW_PRIVATE_WEBHOOK` | 允许通知渠道推送至内网/局域网 Webhook 地址（默认拦截私有网段以防 SSRF） | `false` |
-
-Agent 常用环境变量：
-
-| 变量名 | 说明 | 默认值 |
-| --- | --- | --- |
-| `MIHOB_HUB_URL` | Hub 访问地址（必填） | 无 |
-| `MIHOB_NODE_TOKEN` | 节点鉴权 Token（必填） | 无 |
-| `MIHOB_DATA_DIR` | Agent 运行数据目录 | `./agent-data` |
-| `MIHOB_MIHOMO_BIN` | Mihomo 可执行文件路径 | `mihomo` |
-
-### 本地调试
-
-```bash
-# 安装前端依赖
-cd web && pnpm install --frozen-lockfile
-
-# 终端 1：启动 Hub 后端（监听 0.0.0.0:8080）
-go run ./cmd/mihob hub --host 0.0.0.0 --port 8080 --data ./data
-
-# 终端 2：启动前端开发服务器（监听 :5173，自动代理后端接口）
-cd web && pnpm dev
-```
-
-## 构建与部署
-
-### 生产构建
-
-```bash
-# 构建前端静态产物（将内嵌至 Go 二进制）
-cd web && pnpm install --frozen-lockfile && pnpm build
-
-# 编译单二进制可执行文件
-cd ..
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
-```
-
-### 二进制方式运行
-
-可从 [GitHub Releases](https://github.com/tom2almighty/mihob/releases) 下载对应平台预编译压缩包（或按上方「生产构建」自行编译）：
-
-- **Hub**（`mihob_<version>_<os>_<arch>.tar.gz` / `.zip`）：
-
-```bash
-tar -xzf mihob_<version>_linux_amd64.tar.gz
-chmod +x ./mihob
-
-# 直接启动（也可通过环境变量 MIHOB_HOST / MIHOB_PORT / MIHOB_DATA_DIR / MIHOB_ADMIN_PASS 配置）
-./mihob hub --host 0.0.0.0 --port 8080 --data ./data
-```
-
-首次启动未指定 `MIHOB_ADMIN_PASS` 时，控制台日志会打印自动生成的初始管理员密码；生产环境建议配合 `systemd` 守护运行并通过反代提供 HTTPS。
-
-- **Agent**（`mihob-agent_<version>_linux_<arch>.tar.gz`）：
-  - **推荐**：在 Hub 控制台「节点管理 → 部署 → 二进制脚本」中复制一键命令，自动安装 `mihomo`、`mihob-agent` 并注册 `systemd` 服务（同样支持 `--update` 更新与 `--uninstall` 卸载）。
-  - **手动运行**（节点需先安装 `mihomo` 可执行文件）：
-
-```bash
-tar -xzf mihob-agent_<version>_linux_amd64.tar.gz
-chmod +x ./mihob-agent
-
-./mihob-agent \
-  --hub "https://hub.example.com" \
-  --token "<NODE_TOKEN>" \
-  --data ./agent-data \
-  --mihomo-bin /usr/local/bin/mihomo
-```
+| 镜像与 Tag | 说明 |
+| --- | --- |
+| `ghcr.io/tom2almighty/mihob-hub:latest` / `:vX.Y.Z` | Hub 控制平面（内嵌 Web 控制台） |
+| `ghcr.io/tom2almighty/mihob-agent:latest` / `:vX.Y.Z` | 标准轻量 Agent 镜像（内置 `mihob-agent` + `mihomo`） |
+| `ghcr.io/tom2almighty/mihob-agent:latest-cf` / `:vX.Y.Z-cf` | Cloudflare Tunnel 增强版 Agent 镜像（额外内置 `cloudflared`，设置 `CF_TUNNEL_TOKEN` 即可由 Agent 同容器托管隧道，无需单独部署 sidecar） |
 
 ### Docker Compose 启动（Hub）
 
@@ -185,8 +98,6 @@ services:
       - ./hub-data:/data
 ```
 
-启动命令：
-
 ```bash
 docker compose -f deploy/docker-compose.hub.yml up -d
 ```
@@ -196,7 +107,7 @@ docker compose -f deploy/docker-compose.hub.yml up -d
 ```yaml
 services:
   mihob-agent:
-    image: ghcr.io/tom2almighty/mihob-agent:latest
+    image: ghcr.io/tom2almighty/mihob-agent:latest # 如需内置 Cloudflare Tunnel，可改为 latest-cf
     container_name: mihob-agent
     restart: unless-stopped
     network_mode: host
@@ -204,16 +115,89 @@ services:
       MIHOB_HUB_URL: "${MIHOB_HUB_URL:?Set MIHOB_HUB_URL}"
       MIHOB_NODE_TOKEN: "${MIHOB_NODE_TOKEN:?Set MIHOB_NODE_TOKEN}"
       MIHOB_DATA_DIR: "/data"
+      # 使用 latest-cf 镜像时可按需开启：
+      # CF_TUNNEL_TOKEN: "<CLOUDFLARE_TUNNEL_TOKEN>"
       TZ: "Asia/Shanghai"
     volumes:
       - ./agent-data:/data
 ```
 
-启动命令：
-
 ```bash
 MIHOB_HUB_URL="https://hub.example.com" MIHOB_NODE_TOKEN="<token>" \
   docker compose -f deploy/docker-compose.agent.yml up -d
+```
+
+### 二进制部署
+
+可从 [GitHub Releases](https://github.com/tom2almighty/mihob/releases) 下载预编译压缩包：
+
+- **Hub**（`mihob_<version>_<os>_<arch>.tar.gz` / `.zip`）：
+
+```bash
+tar -xzf mihob_<version>_linux_amd64.tar.gz
+chmod +x ./mihob
+./mihob hub --host 0.0.0.0 --port 8080 --data ./data
+```
+
+首次启动若未设置 `MIHOB_ADMIN_PASS`，将随机生成管理员密码并输出至控制台日志。
+
+- **Agent**（`mihob-agent_<version>_linux_<arch>.tar.gz`）：
+  - **推荐**：在控制台「节点管理 → 部署 → Linux 二进制」复制一键安装命令，自动安装 `mihomo`、`mihob-agent`（可选 `--cf-token` 同时安装并托管 `cloudflared`）并注册 `systemd` 服务，支持 `--update` 与 `--uninstall`。
+  - **手动运行**：
+
+```bash
+tar -xzf mihob-agent_<version>_linux_amd64.tar.gz
+chmod +x ./mihob-agent
+./mihob-agent --hub "https://hub.example.com" --token "<NODE_TOKEN>" --data ./agent-data --mihomo-bin /usr/local/bin/mihomo
+```
+
+## 配置文件与环境变量
+
+Hub 首次启动会自动生成 `{data_dir}/config.yaml`（可用 `--config` 或 `MIHOB_CONFIG` 指定）。优先级：**命令行参数 > 环境变量 > `config.yaml` > 默认值**；业务设置（公网地址、订阅路径、主题等）均可在 Web 控制台热更新。
+
+### Hub 常用环境变量
+
+| 变量名 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MIHOB_CONFIG` | `<data_dir>/config.yaml` | Hub YAML 配置文件路径 |
+| `MIHOB_HOST` | `0.0.0.0` | HTTP 监听主机地址（如 `127.0.0.1` 或 `0.0.0.0`） |
+| `MIHOB_PORT` | `8080` | HTTP 监听端口 |
+| `MIHOB_DATA_DIR` | `./data` | SQLite 数据库与 ACME 证书存储目录 |
+| `MIHOB_ADMIN_USER` | `admin` | 初始管理员用户名 |
+| `MIHOB_ADMIN_PASS` | 空 | 初始管理员密码（留空时首次启动随机生成并打印至日志） |
+| `MIHOB_TRAFFIC_RETENTION_DAYS` | `365` | 小时级流量历史保留天数（`0` 表示永久保留） |
+| `MIHOB_TRUST_PROXY` | `false` | 强制信任反代 `X-Forwarded-For` / `X-Real-IP`（环回与内网反代默认已信任） |
+| `MIHOB_CORS_ORIGINS` | 空 | 额外允许的跨域 `Origin` 列表（逗号分隔；默认允许同源及 `hub_public_url`） |
+| `MIHOB_ALLOW_PRIVATE_WEBHOOK` | `false` | 允许通知渠道推送至内网/局域网 Webhook 地址（默认拦截私有网段以防 SSRF） |
+
+### Agent 常用环境变量
+
+| 变量名 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MIHOB_HUB_URL` | 无（必填） | Hub 访问地址 |
+| `MIHOB_NODE_TOKEN` | 无（必填） | 节点鉴权 Token |
+| `MIHOB_DATA_DIR` | `./agent-data` | Agent 运行数据目录 |
+| `MIHOB_MIHOMO_BIN` | `mihomo` | Mihomo 可执行文件路径 |
+| `CF_TUNNEL_TOKEN` | 空 | Cloudflare Tunnel Token（设置后自动托管 `cloudflared`；兼容 `TUNNEL_TOKEN`） |
+| `CF_TUNNEL_PROTOCOL` | 自动 | Tunnel 传输协议（`quic` 或 `http2`） |
+| `CF_TUNNEL_EDGE_IP` | 自动 | Tunnel 边缘 IP 版本（`4` 或 `6`） |
+| `CF_TUNNEL_HA_CONNECTIONS` | `4` | Tunnel 高可用连接数（`1` / `2` / `4`） |
+| `CF_TUNNEL_LOGLEVEL` | `info` | `cloudflared` 日志级别（`info` / `warn` / `error` / `debug`） |
+| `CF_TUNNEL_BIN` | `cloudflared` | `cloudflared` 可执行文件路径 |
+
+## 本地开发与构建
+
+**环境要求**：Go 1.27+ · Node.js 24+ · pnpm 12+
+
+```bash
+# 本地开发
+cd web && pnpm install --frozen-lockfile
+go run ./cmd/mihob hub --host 0.0.0.0 --port 8080 --data ./data   # 终端 1：Hub (:8080)
+cd web && pnpm dev                                                 # 终端 2：Vite (:5173)
+
+# 生产构建（前端产物内嵌至 Go 二进制）
+cd web && pnpm install --frozen-lockfile && pnpm build
+cd .. && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/mihob ./cmd/mihob
 ```
 
 ## 开源许可证

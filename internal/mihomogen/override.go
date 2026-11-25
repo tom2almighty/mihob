@@ -115,6 +115,15 @@ func PreviewInboundYAML(
 	in *model.Inbound,
 	certs map[int64]*model.Certificate,
 ) (string, string, error) {
+	return PreviewInboundYAMLWithEndpoints(node, in, certs, nil)
+}
+
+func PreviewInboundYAMLWithEndpoints(
+	node *model.Node,
+	in *model.Inbound,
+	certs map[int64]*model.Certificate,
+	endpoints []model.ResolvedEndpoint,
+) (string, string, error) {
 	if err := ValidateExtraYAML(in.Settings.ExtraServerYAML); err != nil {
 		return "", "", fmt.Errorf("server extra YAML: %w", err)
 	}
@@ -149,6 +158,40 @@ func PreviewInboundYAML(
 			displayName = fmt.Sprintf("%s · %s", node.Name, strings.ToUpper(in.Protocol))
 		}
 	}
+
+	if len(endpoints) > 0 {
+		proxies := make([]map[string]any, 0, len(endpoints))
+		nameCount := map[string]int{}
+		for idx, ep := range endpoints {
+			inCopy := *in
+			inCopy.Settings.ClientServer = ep.Host
+			if ep.Port > 0 {
+				inCopy.Settings.ClientPort = ep.Port
+			}
+			candidate := displayName
+			if lbl := strings.TrimSpace(ep.Label); lbl != "" {
+				candidate = fmt.Sprintf("%s · %s", displayName, lbl)
+			} else if len(endpoints) > 1 {
+				candidate = fmt.Sprintf("%s · %d", displayName, idx+1)
+			}
+			nameCount[candidate]++
+			if nameCount[candidate] > 1 {
+				candidate = fmt.Sprintf("%s #%d", candidate, nameCount[candidate])
+			}
+			if p := buildClientProxy(candidate, node, &inCopy, &sampleUser, certs); p != nil {
+				proxies = append(proxies, p)
+			}
+		}
+		if len(proxies) == 0 {
+			return string(serverBytes), "", nil
+		}
+		clientBytes, err := yaml.Marshal(proxies)
+		if err != nil {
+			return "", "", err
+		}
+		return string(serverBytes), string(clientBytes), nil
+	}
+
 	proxy := buildClientProxy(displayName, node, in, &sampleUser, certs)
 	if proxy == nil {
 		return string(serverBytes), "", nil

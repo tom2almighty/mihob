@@ -21,9 +21,29 @@ func RenderUserSubscription(
 	certs map[int64]*model.Certificate,
 	templateYAML string,
 ) (string, error) {
+	return RenderUserSubscriptionWithEndpoints(user, nodes, certs, templateYAML, nil)
+}
+
+// RenderUserSubscriptionWithEndpoints generates the final Mihomo client YAML for a user,
+// expanding any inbounds that have dynamically resolved optimal endpoints (e.g. CF optimal IP APIs).
+func RenderUserSubscriptionWithEndpoints(
+	user *model.User,
+	nodes []NodeWithInbounds,
+	certs map[int64]*model.Certificate,
+	templateYAML string,
+	resolvedEndpoints map[int64][]model.ResolvedEndpoint,
+) (string, error) {
 	proxies := make([]map[string]any, 0)
 	proxyNames := make([]string, 0)
 	nameCount := map[string]int{}
+
+	uniqueName := func(base string) string {
+		nameCount[base]++
+		if nameCount[base] > 1 {
+			return fmt.Sprintf("%s #%d", base, nameCount[base])
+		}
+		return base
+	}
 
 	for _, nw := range nodes {
 		if !nw.Node.Enabled || nw.Node.IsQuotaExceeded() {
@@ -43,20 +63,40 @@ func RenderUserSubscription(
 			allowedInbounds = append(allowedInbounds, in)
 		}
 		for _, in := range allowedInbounds {
-			displayName := strings.TrimSpace(in.Settings.ProxyName)
-			if displayName == "" {
-				displayName = nw.Node.Name
+			baseName := strings.TrimSpace(in.Settings.ProxyName)
+			if baseName == "" {
+				baseName = nw.Node.Name
 				if in.Tag != "" {
-					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, in.Tag)
+					baseName = fmt.Sprintf("%s · %s", nw.Node.Name, in.Tag)
 				} else if len(allowedInbounds) > 1 {
-					displayName = fmt.Sprintf("%s · %s", nw.Node.Name, strings.ToUpper(in.Protocol))
+					baseName = fmt.Sprintf("%s · %s", nw.Node.Name, strings.ToUpper(in.Protocol))
 				}
 			}
-			nameCount[displayName]++
-			if nameCount[displayName] > 1 {
-				displayName = fmt.Sprintf("%s #%d", displayName, nameCount[displayName])
+
+			if eps := resolvedEndpoints[in.ID]; len(eps) > 0 {
+				for idx, ep := range eps {
+					inCopy := in
+					inCopy.Settings.ClientServer = ep.Host
+					if ep.Port > 0 {
+						inCopy.Settings.ClientPort = ep.Port
+					}
+					candidate := baseName
+					if strings.TrimSpace(ep.Label) != "" {
+						candidate = fmt.Sprintf("%s · %s", baseName, strings.TrimSpace(ep.Label))
+					} else if len(eps) > 1 {
+						candidate = fmt.Sprintf("%s · %d", baseName, idx+1)
+					}
+					finalName := uniqueName(candidate)
+					p := buildClientProxy(finalName, &nw.Node, &inCopy, user, certs)
+					if p != nil {
+						proxies = append(proxies, p)
+						proxyNames = append(proxyNames, finalName)
+					}
+				}
+				continue
 			}
 
+			displayName := uniqueName(baseName)
 			p := buildClientProxy(displayName, &nw.Node, &in, user, certs)
 			if p != nil {
 				proxies = append(proxies, p)

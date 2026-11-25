@@ -288,6 +288,7 @@ export function UsersPage() {
                 <TableHead className="w-56">{t("users.colTraffic")}</TableHead>
                 <TableHead>{t("users.colExpire")}</TableHead>
                 <TableHead>{t("users.colNodes")}</TableHead>
+                <TableHead className="w-16 text-center">{t("users.colEnabled")}</TableHead>
                 <TableHead className="text-right">{t("users.colActions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -368,54 +369,47 @@ export function UsersPage() {
                         )
                       })()}
                     </TableCell>
+                    <TableCell className="text-center">
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="inline-flex items-center justify-center">
+                              <Switch
+                                size="sm"
+                                checked={u.enabled}
+                                disabled={
+                                  toggleMutation.isPending && toggleMutation.variables?.id === u.id
+                                }
+                                onCheckedChange={(checked) =>
+                                  toggleMutation.mutate({ id: u.id, enabled: checked })
+                                }
+                                aria-label={t("users.toggleAria")}
+                              />
+                            </span>
+                          }
+                        />
+                        <TooltipContent>
+                          {u.enabled ? t("users.disableTooltip") : t("users.enableTooltip")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span className="inline-flex items-center">
-                                <Switch
-                                  size="sm"
-                                  checked={u.enabled}
-                                  disabled={
-                                    toggleMutation.isPending &&
-                                    toggleMutation.variables?.id === u.id
-                                  }
-                                  onCheckedChange={(checked) =>
-                                    toggleMutation.mutate({ id: u.id, enabled: checked })
-                                  }
-                                  aria-label={t("users.toggleAria")}
-                                />
-                              </span>
-                            }
-                          />
-                          <TooltipContent>
-                            {u.enabled ? t("users.disableTooltip") : t("users.enableTooltip")}
-                          </TooltipContent>
-                        </Tooltip>
                         <Button variant="outline" size="sm" onClick={() => setSubUserId(u.id)}>
                           <Link2 className="mr-1.5 size-3.5" />
                           {t("users.btnSub")}
                         </Button>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-8"
-                                aria-label={t("users.editUser")}
-                                onClick={() => {
-                                  setEditing(u)
-                                  setFormOpen(true)
-                                }}
-                              >
-                                <Pencil className="size-3.5" />
-                              </Button>
-                            }
-                          />
-                          <TooltipContent>{t("users.editUser")}</TooltipContent>
-                        </Tooltip>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditing(u)
+                            setFormOpen(true)
+                          }}
+                        >
+                          <Pencil className="mr-1.5 size-3.5" />
+                          {t("common.edit")}
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={

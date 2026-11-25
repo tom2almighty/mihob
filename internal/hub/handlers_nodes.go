@@ -759,7 +759,8 @@ func (s *Server) handlePreviewInbound(w http.ResponseWriter, r *http.Request) {
 		Enabled:  true,
 		Settings: req.Settings,
 	}
-	serverYAML, clientYAML, err := mihomogen.PreviewInboundYAML(node, in, certsMap)
+	resolved := s.endpoints.ResolveForInbound(r.Context(), in)
+	serverYAML, clientYAML, err := mihomogen.PreviewInboundYAMLWithEndpoints(node, in, certsMap, resolved)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

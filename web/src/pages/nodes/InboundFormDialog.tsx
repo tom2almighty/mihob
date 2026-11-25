@@ -46,6 +46,7 @@ const DEFAULT_VALUES: InboundFormValues = {
   client_server: "",
   client_port: 0,
   client_tls: false,
+  client_endpoint_apis: [],
   protocol: "vless",
   port: 443,
   listen: "0.0.0.0",
@@ -174,6 +175,15 @@ function buildInboundPayload(v: InboundFormValues): Record<string, unknown> {
       client_server: v.client_server || "",
       client_port: v.client_port || 0,
       client_tls: Boolean(v.client_tls),
+      client_endpoint_apis: (v.client_endpoint_apis ?? [])
+        .map((item) => ({
+          url: item.url.trim(),
+          name: (item.name || "").trim(),
+          count: item.count || 0,
+          port: item.port || 0,
+          enabled: Boolean(item.enabled),
+        }))
+        .filter((item) => item.url !== ""),
       security: resolvedSecurity,
       sni: v.sni || "",
       alpn: splitCSV(v.alpn),
@@ -320,6 +330,13 @@ export function InboundFormView({
         client_server: s.client_server || "",
         client_port: s.client_port || 0,
         client_tls: Boolean(s.client_tls),
+        client_endpoint_apis: (s.client_endpoint_apis ?? []).map((item) => ({
+          url: item.url || "",
+          name: item.name || "",
+          count: item.count ?? 5,
+          port: item.port ?? 0,
+          enabled: item.enabled !== false,
+        })),
         protocol: inbound.protocol,
         port: inbound.port,
         listen: inbound.listen || "0.0.0.0",

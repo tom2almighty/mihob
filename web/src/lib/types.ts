@@ -150,11 +150,32 @@ export interface Node {
   inbound_count: number
 }
 
+export interface ClientEndpointSource {
+  url: string
+  name?: string
+  count?: number
+  port?: number
+  enabled: boolean
+}
+
+export interface ResolvedEndpoint {
+  host: string
+  port: number
+  label?: string
+}
+
+export interface ClientEndpointTestResult {
+  total: number
+  applied: number
+  endpoints: ResolvedEndpoint[]
+}
+
 export interface InboundSettings {
   proxy_name?: string
   client_server?: string
   client_port?: number
   client_tls?: boolean
+  client_endpoint_apis?: ClientEndpointSource[]
   // Security
   security?: "none" | "tls" | "reality"
   sni?: string
@@ -354,9 +375,11 @@ export interface EntityTrafficSeries {
   points: TrafficPoint[]
 }
 
+export type DashboardTrafficDimension = "node" | "user" | "user_node"
+
 export interface DashboardTrafficSeriesResponse {
   range: DashboardRange
-  dimension: "node" | "user"
+  dimension: DashboardTrafficDimension
   series: EntityTrafficSeries[]
 }
 

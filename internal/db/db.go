@@ -195,6 +195,15 @@ CREATE TABLE IF NOT EXISTS traffic_user_hourly (
 	PRIMARY KEY(bucket, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS traffic_user_node_hourly (
+	bucket TEXT NOT NULL,
+	user_id INTEGER NOT NULL DEFAULT 0,
+	node_id INTEGER NOT NULL DEFAULT 0,
+	upload INTEGER NOT NULL DEFAULT 0,
+	download INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY(bucket, user_id, node_id)
+);
+
 CREATE TABLE IF NOT EXISTS traffic_protocol_hourly (
 	bucket TEXT NOT NULL,
 	protocol TEXT NOT NULL,
@@ -251,6 +260,9 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 CREATE INDEX IF NOT EXISTS idx_inbounds_node ON inbounds(node_id);
 CREATE INDEX IF NOT EXISTS idx_traffic_hourly_bucket ON traffic_hourly(bucket);
 CREATE INDEX IF NOT EXISTS idx_traffic_user_hourly_bucket ON traffic_user_hourly(bucket);
+CREATE INDEX IF NOT EXISTS idx_traffic_user_node_hourly_bucket ON traffic_user_node_hourly(bucket);
+CREATE INDEX IF NOT EXISTS idx_traffic_user_node_hourly_user ON traffic_user_node_hourly(user_id, bucket);
+CREATE INDEX IF NOT EXISTS idx_traffic_user_node_hourly_node ON traffic_user_node_hourly(node_id, bucket);
 CREATE INDEX IF NOT EXISTS idx_traffic_protocol_hourly_bucket ON traffic_protocol_hourly(bucket);
 CREATE INDEX IF NOT EXISTS idx_notification_logs_created ON notification_logs(created_at DESC);
 `

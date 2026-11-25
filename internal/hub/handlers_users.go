@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -893,7 +894,8 @@ func (s *Server) renderSubscriptionForUser(u *model.User, templateYAML string) (
 			Inbounds: filtered,
 		})
 	}
-	return mihomogen.RenderUserSubscription(u, nodesWithInbounds, certsMap, templateYAML)
+	resolved := s.endpoints.ResolveForInbounds(context.Background(), nodesWithInbounds)
+	return mihomogen.RenderUserSubscriptionWithEndpoints(u, nodesWithInbounds, certsMap, templateYAML, resolved)
 }
 
 // --- Settings ---

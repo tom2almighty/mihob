@@ -372,6 +372,7 @@ func (m *WSManager) processTrafficReport(nodeID int64, report *protocol.TrafficR
 		scaledDown := int64(math.Round(float64(uDelta.Download) * mult))
 		_ = m.store.AddUserTraffic(user.ID, scaledUp, scaledDown)
 		_ = m.store.RecordUserTrafficHourly(user.ID, scaledUp, scaledDown)
+		_ = m.store.RecordUserNodeTrafficHourly(user.ID, nodeID, scaledUp, scaledDown)
 
 		// Re-check quota immediately
 		user.TrafficUsed += scaledUp + scaledDown

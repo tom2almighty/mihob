@@ -232,7 +232,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDashboardTrafficSeries(w http.ResponseWriter, r *http.Request) {
 	rangeKey := db.NormalizeDashboardRange(r.URL.Query().Get("range"))
 	dimension := strings.TrimSpace(r.URL.Query().Get("dimension"))
-	if dimension != "node" && dimension != "user" {
+	if dimension != "node" && dimension != "user" && dimension != "user_node" {
 		writeError(w, http.StatusBadRequest, "invalid dimension")
 		return
 	}
@@ -244,6 +244,18 @@ func (s *Server) handleDashboardTrafficSeries(w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
+	var userID, nodeID int64
+	if rawUID := strings.TrimSpace(r.URL.Query().Get("user_id")); rawUID != "" {
+		if id, err := strconv.ParseInt(rawUID, 10, 64); err == nil && id > 0 {
+			userID = id
+		}
+	}
+	if rawNID := strings.TrimSpace(r.URL.Query().Get("node_id")); rawNID != "" {
+		if id, err := strconv.ParseInt(rawNID, 10, 64); err == nil && id > 0 {
+			nodeID = id
+		}
+	}
+
 	baseSeries, err := s.store.QueryTrafficSeries(rangeKey)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -255,9 +267,12 @@ func (s *Server) handleDashboardTrafficSeries(w http.ResponseWriter, r *http.Req
 	}
 
 	var entitySeries []model.EntityTrafficSeries
-	if dimension == "user" {
+	switch dimension {
+	case "user":
 		entitySeries, err = s.store.QueryUserTrafficSeries(rangeKey, buckets, ids, 5)
-	} else {
+	case "user_node":
+		entitySeries, err = s.store.QueryUserNodeTrafficSeries(rangeKey, buckets, userID, nodeID, ids, 5)
+	default:
 		entitySeries, err = s.store.QueryNodeTrafficSeries(rangeKey, buckets, ids, 5)
 	}
 	if err != nil {

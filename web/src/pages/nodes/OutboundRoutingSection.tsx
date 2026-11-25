@@ -45,10 +45,7 @@ export function OutboundRoutingSection({
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3.5">
-      <div className="space-y-0.5">
-        <div className="text-sm font-medium">{t("nodes.form.outbound.routingTitle")}</div>
-        <p className="text-xs text-muted-foreground">{t("nodes.form.outbound.routingDesc")}</p>
-      </div>
+      <div className="text-sm font-medium">{t("nodes.form.outbound.routingTitle")}</div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">

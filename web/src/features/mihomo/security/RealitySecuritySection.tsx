@@ -16,6 +16,7 @@ import {
 import type { Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
 import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
+import { ClientEndpointApisEditor } from "./ClientEndpointApisEditor"
 
 export function NoneSecuritySection({
   form,
@@ -144,6 +145,8 @@ export function NoneSecuritySection({
                   )}
                 />
               </div>
+
+              <ClientEndpointApisEditor form={form} />
 
               <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs">
                 <div className="min-w-0">

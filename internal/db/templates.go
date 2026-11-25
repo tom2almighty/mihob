@@ -182,6 +182,19 @@ func (s *Store) RecordUserTrafficHourly(userID, up, down int64) error {
 	return err
 }
 
+func (s *Store) RecordUserNodeTrafficHourly(userID, nodeID, up, down int64) error {
+	if userID <= 0 || nodeID <= 0 || (up <= 0 && down <= 0) {
+		return nil
+	}
+	bucket := time.Now().UTC().Format("2006-01-02 15:00")
+	_, err := s.db.Exec(
+		`INSERT INTO traffic_user_node_hourly(bucket, user_id, node_id, upload, download) VALUES(?, ?, ?, ?, ?)
+		 ON CONFLICT(bucket, user_id, node_id) DO UPDATE SET upload = upload + excluded.upload, download = download + excluded.download`,
+		bucket, userID, nodeID, up, down,
+	)
+	return err
+}
+
 func (s *Store) RecordProtocolTrafficHourly(protocol string, up, down int64) error {
 	if protocol == "" || (up <= 0 && down <= 0) {
 		return nil
@@ -200,7 +213,7 @@ func (s *Store) PruneOldTrafficHourly(keepDays int) error {
 		keepDays = 95
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -keepDays).Format("2006-01-02 15:00")
-	for _, tbl := range []string{"traffic_hourly", "traffic_user_hourly", "traffic_protocol_hourly"} {
+	for _, tbl := range []string{"traffic_hourly", "traffic_user_hourly", "traffic_user_node_hourly", "traffic_protocol_hourly"} {
 		if _, err := s.db.Exec(`DELETE FROM `+tbl+` WHERE bucket < ?`, cutoff); err != nil {
 			return err
 		}
@@ -652,6 +665,294 @@ func (s *Store) queryEntityTrafficSeries(kind, rangeKey string, buckets []string
 	}
 
 	// Keep Top-N individually and fold the rest into an aggregated "Other" bucket
+	out := make([]model.EntityTrafficSeries, 0, topN+1)
+	for _, acc := range list[:topN] {
+		out = append(out, model.EntityTrafficSeries{
+			ID:     acc.id,
+			Name:   acc.name,
+			Total:  acc.total,
+			Points: toOrderedPoints(acc.points),
+		})
+	}
+	otherPoints := map[string]model.TrafficPoint{}
+	var otherTotal int64
+	rest := list[topN:]
+	for _, acc := range rest {
+		otherTotal += acc.total
+		for bkt, pt := range acc.points {
+			agg := otherPoints[bkt]
+			agg.Bucket = bkt
+			agg.Upload += pt.Upload
+			agg.Download += pt.Download
+			otherPoints[bkt] = agg
+		}
+	}
+	if otherTotal > 0 {
+		out = append(out, model.EntityTrafficSeries{
+			ID:         0,
+			Name:       "__other__",
+			Total:      otherTotal,
+			IsOther:    true,
+			OtherCount: len(rest),
+			Points:     toOrderedPoints(otherPoints),
+		})
+	}
+	return out, nil
+}
+
+// QueryUserNodeTrafficSeries queries hourly/daily traffic trends from traffic_user_node_hourly:
+//   - userID > 0: breakdown by node for that user (optional filterIDs = node IDs)
+//   - nodeID > 0: breakdown by user for that node (optional filterIDs = user IDs)
+//   - both 0: Top-N (user · node) pairs across the cluster + aggregated Others
+func (s *Store) QueryUserNodeTrafficSeries(rangeKey string, buckets []string, userID, nodeID int64, filterIDs []int64, topN int) ([]model.EntityTrafficSeries, error) {
+	if topN <= 0 {
+		topN = 5
+	}
+	norm := NormalizeDashboardRange(rangeKey)
+	since, _, byDay := rangeSinceBucket(norm, time.Now().UTC())
+
+	bucketExpr := "t.bucket"
+	if byDay {
+		bucketExpr = "substr(t.bucket, 1, 10)"
+	}
+
+	// Sanitize and cap explicit secondary ID filters
+	cleanIDs := make([]int64, 0, len(filterIDs))
+	seenIDs := make(map[int64]bool, len(filterIDs))
+	for _, id := range filterIDs {
+		if id > 0 && !seenIDs[id] {
+			seenIDs[id] = true
+			cleanIDs = append(cleanIDs, id)
+			if len(cleanIDs) >= 12 {
+				break
+			}
+		}
+	}
+
+	type accItem struct {
+		id     int64
+		name   string
+		total  int64
+		points map[string]model.TrafficPoint
+	}
+
+	bucketSet := make(map[string]bool, len(buckets))
+	for _, b := range buckets {
+		bucketSet[b] = true
+	}
+
+	byEntity := map[int64]*accItem{}
+
+	if userID > 0 || nodeID > 0 {
+		var (
+			fixedCol   string
+			fixedVal   int64
+			splitCol   string
+			joinSQL    string
+			nameExpr   string
+			lookupSQL  string
+		)
+		if userID > 0 {
+			fixedCol = "user_id"
+			fixedVal = userID
+			splitCol = "node_id"
+			joinSQL = "LEFT JOIN nodes n ON n.id = t.node_id"
+			nameExpr = "COALESCE(n.name, '#' || t.node_id)"
+			lookupSQL = "SELECT name FROM nodes WHERE id = ?"
+		} else {
+			fixedCol = "node_id"
+			fixedVal = nodeID
+			splitCol = "user_id"
+			joinSQL = "LEFT JOIN users u ON u.id = t.user_id"
+			nameExpr = "COALESCE(u.username, '#' || t.user_id)"
+			lookupSQL = "SELECT username FROM users WHERE id = ?"
+		}
+
+		conds := []string{fmt.Sprintf("t.%s = ?", fixedCol), fmt.Sprintf("t.%s > 0", splitCol)}
+		args := []any{fixedVal}
+		if norm != "all" {
+			conds = append(conds, "t.bucket >= ?")
+			args = append(args, since)
+		}
+		if len(cleanIDs) > 0 {
+			placeholders := make([]string, len(cleanIDs))
+			for i, id := range cleanIDs {
+				placeholders[i] = "?"
+				args = append(args, id)
+			}
+			conds = append(conds, fmt.Sprintf("t.%s IN (%s)", splitCol, strings.Join(placeholders, ",")))
+		}
+
+		query := fmt.Sprintf(
+			`SELECT t.%s, %s, %s AS bkt, SUM(t.upload), SUM(t.download)
+			 FROM traffic_user_node_hourly t
+			 %s
+			 WHERE %s
+			 GROUP BY t.%s, bkt
+			 ORDER BY bkt ASC`,
+			splitCol, nameExpr, bucketExpr, joinSQL, strings.Join(conds, " AND "), splitCol,
+		)
+		rows, err := s.db.Query(query, args...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var (
+				id   int64
+				name string
+				bkt  string
+				up   int64
+				down int64
+			)
+			if err := rows.Scan(&id, &name, &bkt, &up, &down); err != nil {
+				return nil, err
+			}
+			if len(bucketSet) > 0 && !bucketSet[bkt] {
+				continue
+			}
+			if up <= 0 && down <= 0 {
+				continue
+			}
+			acc, ok := byEntity[id]
+			if !ok {
+				acc = &accItem{id: id, name: name, points: map[string]model.TrafficPoint{}}
+				byEntity[id] = acc
+			}
+			p := acc.points[bkt]
+			p.Bucket = bkt
+			p.Upload += up
+			p.Download += down
+			acc.points[bkt] = p
+			acc.total += up + down
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		if len(cleanIDs) > 0 {
+			for _, id := range cleanIDs {
+				if _, exists := byEntity[id]; exists {
+					continue
+				}
+				var name string
+				_ = s.db.QueryRow(lookupSQL, id).Scan(&name)
+				if name == "" {
+					continue
+				}
+				byEntity[id] = &accItem{id: id, name: name, points: map[string]model.TrafficPoint{}}
+			}
+		}
+	} else {
+		conds := []string{"t.user_id > 0", "t.node_id > 0"}
+		args := []any{}
+		if norm != "all" {
+			conds = append(conds, "t.bucket >= ?")
+			args = append(args, since)
+		}
+		query := fmt.Sprintf(
+			`SELECT t.user_id, t.node_id,
+			        COALESCE(u.username, '#' || t.user_id),
+			        COALESCE(n.name, '#' || t.node_id),
+			        %s AS bkt, SUM(t.upload), SUM(t.download)
+			 FROM traffic_user_node_hourly t
+			 LEFT JOIN users u ON u.id = t.user_id
+			 LEFT JOIN nodes n ON n.id = t.node_id
+			 WHERE %s
+			 GROUP BY t.user_id, t.node_id, bkt
+			 ORDER BY bkt ASC`,
+			bucketExpr, strings.Join(conds, " AND "),
+		)
+		rows, err := s.db.Query(query, args...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var (
+				uid      int64
+				nid      int64
+				username string
+				nodeName string
+				bkt      string
+				up       int64
+				down     int64
+			)
+			if err := rows.Scan(&uid, &nid, &username, &nodeName, &bkt, &up, &down); err != nil {
+				return nil, err
+			}
+			if len(bucketSet) > 0 && !bucketSet[bkt] {
+				continue
+			}
+			if up <= 0 && down <= 0 {
+				continue
+			}
+			pairID := uid*1_000_000 + nid
+			acc, ok := byEntity[pairID]
+			if !ok {
+				acc = &accItem{
+					id:     pairID,
+					name:   fmt.Sprintf("%s · %s", username, nodeName),
+					points: map[string]model.TrafficPoint{},
+				}
+				byEntity[pairID] = acc
+			}
+			p := acc.points[bkt]
+			p.Bucket = bkt
+			p.Upload += up
+			p.Download += down
+			acc.points[bkt] = p
+			acc.total += up + down
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		cleanIDs = nil
+	}
+
+	list := make([]*accItem, 0, len(byEntity))
+	for _, acc := range byEntity {
+		list = append(list, acc)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].total != list[j].total {
+			return list[i].total > list[j].total
+		}
+		return list[i].id < list[j].id
+	})
+
+	toOrderedPoints := func(pm map[string]model.TrafficPoint) []model.TrafficPoint {
+		pts := make([]model.TrafficPoint, 0, len(pm))
+		if len(buckets) > 0 {
+			for _, b := range buckets {
+				if p, ok := pm[b]; ok && (p.Upload > 0 || p.Download > 0) {
+					pts = append(pts, p)
+				}
+			}
+			return pts
+		}
+		for _, p := range pm {
+			pts = append(pts, p)
+		}
+		sort.Slice(pts, func(i, j int) bool { return pts[i].Bucket < pts[j].Bucket })
+		return pts
+	}
+
+	if len(cleanIDs) > 0 || len(list) <= topN {
+		out := make([]model.EntityTrafficSeries, 0, len(list))
+		for _, acc := range list {
+			out = append(out, model.EntityTrafficSeries{
+				ID:     acc.id,
+				Name:   acc.name,
+				Total:  acc.total,
+				Points: toOrderedPoints(acc.points),
+			})
+		}
+		return out, nil
+	}
+
 	out := make([]model.EntityTrafficSeries, 0, topN+1)
 	for _, acc := range list[:topN] {
 		out = append(out, model.EntityTrafficSeries{

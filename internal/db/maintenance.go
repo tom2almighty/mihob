@@ -94,13 +94,15 @@ func (s *Store) VacuumAndCheckpoint() (beforeBytes, afterBytes int64, err error)
 // CleanupMaintenanceData prunes old hourly traffic records and/or clears notification logs.
 func (s *Store) CleanupMaintenanceData(trafficOlderThanDays int, clearNotificationLogs bool) (trafficDeleted, logsDeleted int64, err error) {
 	if trafficOlderThanDays > 0 {
-		cutoff := time.Now().UTC().AddDate(0, 0, -trafficOlderThanDays).Truncate(time.Hour)
-		res, execErr := s.db.Exec(`DELETE FROM traffic_hourly WHERE bucket < ?`, cutoff)
-		if execErr != nil {
-			return 0, 0, fmt.Errorf("prune traffic_hourly: %w", execErr)
-		}
-		if n, _ := res.RowsAffected(); n > 0 {
-			trafficDeleted = n
+		cutoff := time.Now().UTC().AddDate(0, 0, -trafficOlderThanDays).Truncate(time.Hour).Format("2006-01-02 15:00")
+		for _, tbl := range []string{"traffic_hourly", "traffic_user_hourly", "traffic_user_node_hourly", "traffic_protocol_hourly"} {
+			res, execErr := s.db.Exec(`DELETE FROM `+tbl+` WHERE bucket < ?`, cutoff)
+			if execErr != nil {
+				return trafficDeleted, 0, fmt.Errorf("prune %s: %w", tbl, execErr)
+			}
+			if n, _ := res.RowsAffected(); n > 0 {
+				trafficDeleted += n
+			}
 		}
 	}
 	if clearNotificationLogs {

@@ -371,10 +371,7 @@ export function NodeOutboundEditor({
       {/* Outbound definitions list */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-0.5">
-            <div className="text-sm font-medium">{t("nodes.form.outbound.listTitle")}</div>
-            <p className="text-xs text-muted-foreground">{t("nodes.form.outbound.listDesc")}</p>
-          </div>
+          <div className="text-sm font-medium">{t("nodes.form.outbound.listTitle")}</div>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={

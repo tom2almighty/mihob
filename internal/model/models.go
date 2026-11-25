@@ -124,14 +124,29 @@ type Node struct {
 	InboundCount      int     `json:"inbound_count"`
 }
 
+type ClientEndpointSource struct {
+	URL     string `json:"url"`
+	Name    string `json:"name,omitempty"`
+	Count   int    `json:"count,omitempty"`
+	Port    int    `json:"port,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+type ResolvedEndpoint struct {
+	Host  string `json:"host"`
+	Port  int    `json:"port"`
+	Label string `json:"label,omitempty"`
+}
+
 type InboundSettings struct {
 	// Custom client proxy display name (overrides "<NodeName> · <Tag>" when non-empty)
 	ProxyName string `json:"proxy_name,omitempty"`
 
 	// Client endpoint overrides (for Cloudflare Tunnel / CDN / reverse proxy)
-	ClientServer string `json:"client_server,omitempty"`
-	ClientPort   int    `json:"client_port,omitempty"`
-	ClientTLS    bool   `json:"client_tls,omitempty"`
+	ClientServer       string                 `json:"client_server,omitempty"`
+	ClientPort         int                    `json:"client_port,omitempty"`
+	ClientTLS          bool                   `json:"client_tls,omitempty"`
+	ClientEndpointAPIs []ClientEndpointSource `json:"client_endpoint_apis,omitempty"`
 
 	// Security: "none" | "tls" | "reality"
 	Security          string   `json:"security,omitempty"`

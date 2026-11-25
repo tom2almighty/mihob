@@ -29,6 +29,7 @@ type Server struct {
 	mihomo       *MihomoReleaseManager
 	notify       *notify.Service
 	scheduler    *Scheduler
+	endpoints    *EndpointResolver
 	loginLimiter *loginRateLimiter
 	jwtMu        sync.RWMutex
 	jwtSecret    string
@@ -69,6 +70,7 @@ func NewServer(cfg Config) (*Server, error) {
 		mihomo:       mihomoMgr,
 		notify:       notifySvc,
 		scheduler:    sched,
+		endpoints:    NewEndpointResolver(),
 		loginLimiter: newLoginRateLimiter(),
 		jwtSecret:    jwtSecret,
 		webFS:        cfg.WebFS,
@@ -218,6 +220,7 @@ func (s *Server) Router() http.Handler {
 			pr.Delete("/inbounds/{id}", s.handleDeleteInbound)
 			pr.Post("/tools/keygen", s.handleKeygen)
 			pr.Post("/tools/warp-register", s.handleWARPRegister)
+			pr.Post("/tools/cf-endpoints/test", s.handleTestClientEndpointAPI)
 
 			// Certificates
 			pr.Get("/certificates", s.handleListCertificates)

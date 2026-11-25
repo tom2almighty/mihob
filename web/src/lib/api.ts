@@ -3,8 +3,10 @@ import type {
   Admin,
   BatchUpgradeResult,
   Certificate,
+  ClientEndpointTestResult,
   DashboardData,
   DashboardRange,
+  DashboardTrafficDimension,
   DashboardTrafficSeriesResponse,
   DatabaseCleanupResult,
   DatabaseStatsResponse,
@@ -94,8 +96,13 @@ export const queryKeys = {
   me: ["auth", "me"] as const,
   dashboard: ["dashboard"] as const,
   dashboardRange: (range: DashboardRange) => ["dashboard", range] as const,
-  dashboardTrafficSeries: (range: DashboardRange, dimension: "node" | "user", idsKey: string) =>
-    ["dashboard", "traffic-series", range, dimension, idsKey] as const,
+  dashboardTrafficSeries: (
+    range: DashboardRange,
+    dimension: DashboardTrafficDimension,
+    idsKey: string,
+    userId = 0,
+    nodeId = 0
+  ) => ["dashboard", "traffic-series", range, dimension, userId, nodeId, idsKey] as const,
   nodes: ["nodes"] as const,
   mihomoLatest: ["mihomo", "latest"] as const,
   nodeInstall: (id: number) => ["nodes", id, "install"] as const,
@@ -130,10 +137,21 @@ export const api = {
 
   dashboard: (range: DashboardRange = "24h") =>
     request<DashboardData>(`/api/dashboard?range=${encodeURIComponent(range)}`),
-  dashboardTrafficSeries: (range: DashboardRange, dimension: "node" | "user", ids: number[]) => {
+  dashboardTrafficSeries: (
+    range: DashboardRange,
+    dimension: DashboardTrafficDimension,
+    ids: number[],
+    opts?: { userId?: number; nodeId?: number }
+  ) => {
     const params = new URLSearchParams({ range, dimension })
     if (ids.length > 0) {
       params.set("ids", ids.join(","))
+    }
+    if (opts?.userId && opts.userId > 0) {
+      params.set("user_id", String(opts.userId))
+    }
+    if (opts?.nodeId && opts.nodeId > 0) {
+      params.set("node_id", String(opts.nodeId))
     }
     return request<DashboardTrafficSeriesResponse>(
       `/api/dashboard/traffic-series?${params.toString()}`
@@ -236,6 +254,11 @@ export const api = {
     source?: "auto" | "agent" | "hub"
   }) =>
     request<WARPRegisterResult>("/api/tools/warp-register", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  testClientEndpointAPI: (body: { url: string; name?: string; count?: number; port?: number }) =>
+    request<ClientEndpointTestResult>("/api/tools/cf-endpoints/test", {
       method: "POST",
       body: JSON.stringify(body),
     }),

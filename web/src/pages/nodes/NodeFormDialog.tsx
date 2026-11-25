@@ -669,7 +669,6 @@ export function NodeFormDialog({
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormDescription>{t("nodes.form.serverTemplateDesc")}</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -10,6 +10,17 @@ export function createInboundSchema(t: TFunction) {
     client_server: z.string().trim().optional(),
     client_port: z.coerce.number().int().min(0).max(65535).optional(),
     client_tls: z.boolean().optional(),
+    client_endpoint_apis: z
+      .array(
+        z.object({
+          url: z.string().trim(),
+          name: z.string().trim().optional(),
+          count: z.coerce.number().int().min(0).max(50).optional(),
+          port: z.coerce.number().int().min(0).max(65535).optional(),
+          enabled: z.boolean(),
+        })
+      )
+      .optional(),
     protocol: z.enum([
       "vless",
       "vmess",
