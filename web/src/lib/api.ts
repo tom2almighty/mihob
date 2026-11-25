@@ -22,6 +22,7 @@ import type {
   Template,
   ThemeConfig,
   User,
+  WARPRegisterResult,
 } from "./types"
 
 const TOKEN_KEY = "mihob_admin_token"
@@ -200,6 +201,8 @@ export const api = {
   keygen: (
     type:
       | "reality"
+      | "wireguard"
+      | "masque"
       | "ss2022_128"
       | "ss2022_256"
       | "short_id"
@@ -210,6 +213,11 @@ export const api = {
     request<Record<string, string>>("/api/tools/keygen", {
       method: "POST",
       body: JSON.stringify({ type }),
+    }),
+  registerWARP: (body: { protocol: "wireguard" | "masque"; license?: string }) =>
+    request<WARPRegisterResult>("/api/tools/warp-register", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Certificates

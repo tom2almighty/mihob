@@ -726,7 +726,7 @@ func (s *Server) handleDeleteInbound(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleKeygen(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Type string `json:"type"` // "reality" | "ss2022_128" | "ss2022_256" | "short_id" | "password"
+		Type string `json:"type"` // "reality" | "wireguard" | "masque" | "ss2022_128" | "ss2022_256" | "short_id" | "snell_psk" | "sudoku_key" | "password"
 	}
 	_ = decodeJSON(r, &req)
 	switch req.Type {
@@ -740,6 +740,26 @@ func (s *Server) handleKeygen(w http.ResponseWriter, r *http.Request) {
 			"private_key": priv,
 			"public_key":  pub,
 			"short_id":    crypto.GenerateShortID(),
+		})
+	case "wireguard":
+		priv, pub, err := crypto.GenerateWireGuardKeyPair()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{
+			"private_key": priv,
+			"public_key":  pub,
+		})
+	case "masque":
+		priv, pub, err := crypto.GenerateMASQUEKeyPair()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{
+			"private_key": priv,
+			"public_key":  pub,
 		})
 	case "ss2022_128":
 		writeJSON(w, http.StatusOK, map[string]string{"password": crypto.RandomBase64(16)})

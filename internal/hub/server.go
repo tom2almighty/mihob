@@ -159,6 +159,7 @@ func (s *Server) Router() http.Handler {
 			pr.Put("/inbounds/{id}", s.handleUpdateInbound)
 			pr.Delete("/inbounds/{id}", s.handleDeleteInbound)
 			pr.Post("/tools/keygen", s.handleKeygen)
+			pr.Post("/tools/warp-register", s.handleWARPRegister)
 
 			// Certificates
 			pr.Get("/certificates", s.handleListCertificates)

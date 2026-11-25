@@ -10,6 +10,7 @@ import (
 const (
 	OutboundTypeWARP      = "warp"
 	OutboundTypeWireGuard = "wireguard"
+	OutboundTypeMASQUE    = "masque"
 	OutboundTypeSocks5    = "socks5"
 	OutboundTypeHTTP      = "http"
 	OutboundTypeNode      = "mihob-node"
@@ -22,10 +23,14 @@ const (
 )
 
 const (
-	DefaultWARPServer    = "engage.cloudflareclient.com"
-	DefaultWARPPort      = 2408
-	DefaultWARPPublicKey = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-	DefaultWARPMTU       = 1280
+	DefaultWARPServer       = "engage.cloudflareclient.com"
+	DefaultWARPPort         = 2408
+	DefaultWARPPublicKey    = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+	DefaultWARPMTU          = 1280
+	DefaultWARPMASQUEServer = "162.159.198.1"
+	DefaultWARPMASQUEPort   = 443
+	DefaultWARPMASQUESNI    = "consumer-masque.cloudflareclient.com"
+	DefaultWARPMASQUEMTU    = 1280
 )
 
 type NodeOutboundConfig struct {
@@ -49,7 +54,7 @@ type NodeOutbound struct {
 	SkipCertVerify bool   `json:"skip_cert_verify,omitempty"`
 	UDP            *bool  `json:"udp,omitempty"`
 
-	// WireGuard / Cloudflare WARP fields
+	// WireGuard / Cloudflare WARP / MASQUE fields
 	IP               string   `json:"ip,omitempty"`
 	IPv6             string   `json:"ipv6,omitempty"`
 	PrivateKey       string   `json:"private_key,omitempty"`
@@ -60,11 +65,20 @@ type NodeOutbound struct {
 	RemoteDNSResolve bool     `json:"remote_dns_resolve,omitempty"`
 	DNS              []string `json:"dns,omitempty"`
 
+	// MASQUE specific fields
+	SNI                  string `json:"sni,omitempty"`
+	Network              string `json:"network,omitempty"` // "" | "quic" | "h2" | "h3-l4proxy"
+	CongestionController string `json:"congestion_controller,omitempty"`
+	BBRProfile           string `json:"bbr_profile,omitempty"`
+	HandshakeTimeout     int    `json:"handshake_timeout,omitempty"`
+	URI                  string `json:"uri,omitempty"`
+
 	// Cluster node reference (type: "mihob-node")
 	NodeRef    string `json:"node_ref,omitempty"`
 	InboundRef string `json:"inbound_ref,omitempty"`
 
-	// Optional chaining
+	// Common proxy options
+	IPVersion   string `json:"ip_version,omitempty"` // "" | "dual" | "ipv4" | "ipv6" | "ipv4-prefer" | "ipv6-prefer"
 	DialerProxy string `json:"dialer_proxy,omitempty"`
 }
 
@@ -85,7 +99,25 @@ var reservedOutboundNames = map[string]bool{
 
 func IsValidOutboundType(t string) bool {
 	switch t {
-	case OutboundTypeWARP, OutboundTypeWireGuard, OutboundTypeSocks5, OutboundTypeHTTP, OutboundTypeNode:
+	case OutboundTypeWARP, OutboundTypeWireGuard, OutboundTypeMASQUE, OutboundTypeSocks5, OutboundTypeHTTP, OutboundTypeNode:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidOutboundIPVersion(v string) bool {
+	switch v {
+	case "", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer":
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidMASQUENetwork(n string) bool {
+	switch n {
+	case "", "quic", "h2", "h3-l4proxy":
 		return true
 	default:
 		return false
@@ -153,8 +185,14 @@ func (c *NodeOutboundConfig) Normalize() {
 		o.PublicKey = strings.TrimSpace(o.PublicKey)
 		o.PreSharedKey = strings.TrimSpace(o.PreSharedKey)
 		o.Reserved = strings.TrimSpace(o.Reserved)
+		o.SNI = strings.TrimSpace(o.SNI)
+		o.Network = strings.ToLower(strings.TrimSpace(o.Network))
+		o.CongestionController = strings.ToLower(strings.TrimSpace(o.CongestionController))
+		o.BBRProfile = strings.ToLower(strings.TrimSpace(o.BBRProfile))
+		o.URI = strings.TrimSpace(o.URI)
 		o.NodeRef = strings.TrimSpace(o.NodeRef)
 		o.InboundRef = strings.TrimSpace(o.InboundRef)
+		o.IPVersion = strings.ToLower(strings.TrimSpace(o.IPVersion))
 		o.DialerProxy = strings.TrimSpace(o.DialerProxy)
 		if len(o.DNS) > 0 {
 			cleaned := make([]string, 0, len(o.DNS))
@@ -219,6 +257,9 @@ func (c *NodeOutboundConfig) Validate() error {
 		if !IsValidOutboundType(o.Type) {
 			return fmt.Errorf("outbound %q: unsupported type %q", o.Name, o.Type)
 		}
+		if !IsValidOutboundIPVersion(o.IPVersion) {
+			return fmt.Errorf("outbound %q: unsupported ip_version %q", o.Name, o.IPVersion)
+		}
 		if !o.Enabled {
 			continue
 		}
@@ -256,6 +297,22 @@ func (c *NodeOutboundConfig) Validate() error {
 				if _, err := ParseWireGuardReserved(o.Reserved); err != nil {
 					return fmt.Errorf("outbound %q: %w", o.Name, err)
 				}
+			}
+		case OutboundTypeMASQUE:
+			if o.Server == "" {
+				return fmt.Errorf("outbound %q: MASQUE server is required", o.Name)
+			}
+			if o.Port < 1 || o.Port > 65535 {
+				return fmt.Errorf("outbound %q: MASQUE port must be between 1 and 65535", o.Name)
+			}
+			if o.PrivateKey == "" || o.PublicKey == "" {
+				return fmt.Errorf("outbound %q: MASQUE private key and public key are required", o.Name)
+			}
+			if !IsValidMASQUENetwork(o.Network) {
+				return fmt.Errorf("outbound %q: unsupported MASQUE network %q", o.Name, o.Network)
+			}
+			if o.Network != "h3-l4proxy" && o.IP == "" && o.IPv6 == "" {
+				return fmt.Errorf("outbound %q: MASQUE IPv4 or IPv6 address is required", o.Name)
 			}
 		case OutboundTypeSocks5, OutboundTypeHTTP:
 			if o.Server == "" {

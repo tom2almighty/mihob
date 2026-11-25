@@ -86,6 +86,16 @@ func stripCIDR(addr string) string {
 // buildNodeOutboundProxy converts a structured NodeOutbound into a Mihomo proxy map.
 // For `mihob-node`, it emits a directive map expanded later by ExpandServerProxyRefs.
 func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
+	attachCommon := func(p map[string]any) map[string]any {
+		if o.IPVersion != "" && o.IPVersion != "dual" {
+			p["ip-version"] = o.IPVersion
+		}
+		if o.DialerProxy != "" {
+			p["dialer-proxy"] = o.DialerProxy
+		}
+		return p
+	}
+
 	switch o.Type {
 	case model.OutboundTypeWARP, model.OutboundTypeWireGuard:
 		server := o.Server
@@ -158,10 +168,73 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		} else if len(dnsList) > 0 {
 			p["dns"] = dnsList
 		}
-		if o.DialerProxy != "" {
-			p["dialer-proxy"] = o.DialerProxy
+		return attachCommon(p), nil
+
+	case model.OutboundTypeMASQUE:
+		port := o.Port
+		if port <= 0 {
+			port = model.DefaultWARPMASQUEPort
 		}
-		return p, nil
+		p := map[string]any{
+			"name":        o.Name,
+			"type":        "masque",
+			"server":      o.Server,
+			"port":        port,
+			"private-key": o.PrivateKey,
+			"public-key":  o.PublicKey,
+		}
+		if o.Network != "" && o.Network != "quic" {
+			p["network"] = o.Network
+		}
+		if o.Network != "h3-l4proxy" {
+			if o.IP != "" {
+				p["ip"] = o.IP
+			}
+			if o.IPv6 != "" {
+				p["ipv6"] = o.IPv6
+			}
+		}
+		if o.SNI != "" {
+			p["sni"] = o.SNI
+		}
+		if o.MTU > 0 {
+			p["mtu"] = o.MTU
+		}
+		if o.Network == "h3-l4proxy" {
+			p["udp"] = false
+		} else {
+			udp := true
+			if o.UDP != nil {
+				udp = *o.UDP
+			}
+			p["udp"] = udp
+		}
+		if o.SkipCertVerify {
+			p["skip-cert-verify"] = true
+		}
+		if o.CongestionController != "" {
+			p["congestion-controller"] = o.CongestionController
+		}
+		if o.BBRProfile != "" {
+			p["bbr-profile"] = o.BBRProfile
+		}
+		if o.HandshakeTimeout > 0 {
+			p["handshake-timeout"] = o.HandshakeTimeout
+		}
+		if o.URI != "" {
+			p["uri"] = o.URI
+		}
+		if o.RemoteDNSResolve {
+			p["remote-dns-resolve"] = true
+			if len(o.DNS) > 0 {
+				p["dns"] = o.DNS
+			} else {
+				p["dns"] = []string{"1.1.1.1", "1.0.0.1"}
+			}
+		} else if len(o.DNS) > 0 {
+			p["dns"] = o.DNS
+		}
+		return attachCommon(p), nil
 
 	case model.OutboundTypeSocks5:
 		udp := true
@@ -187,10 +260,7 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 				p["skip-cert-verify"] = true
 			}
 		}
-		if o.DialerProxy != "" {
-			p["dialer-proxy"] = o.DialerProxy
-		}
-		return p, nil
+		return attachCommon(p), nil
 
 	case model.OutboundTypeHTTP:
 		p := map[string]any{
@@ -211,10 +281,7 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 				p["skip-cert-verify"] = true
 			}
 		}
-		if o.DialerProxy != "" {
-			p["dialer-proxy"] = o.DialerProxy
-		}
-		return p, nil
+		return attachCommon(p), nil
 
 	case model.OutboundTypeNode:
 		p := map[string]any{
@@ -225,10 +292,7 @@ func buildNodeOutboundProxy(o model.NodeOutbound) (map[string]any, error) {
 		if o.InboundRef != "" {
 			p["inbound"] = o.InboundRef
 		}
-		if o.DialerProxy != "" {
-			p["dialer-proxy"] = o.DialerProxy
-		}
-		return p, nil
+		return attachCommon(p), nil
 
 	default:
 		return nil, fmt.Errorf("outbound %q: unsupported type %q", o.Name, o.Type)

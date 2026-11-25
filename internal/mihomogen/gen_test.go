@@ -895,3 +895,88 @@ rules:
 		t.Fatalf("unexpected global routing rules: %+v", gRules)
 	}
 }
+
+func TestNodeMASQUEOutboundAndIPVersion(t *testing.T) {
+	node := &model.Node{
+		ID:      2,
+		Name:    "US-01",
+		Host:    "us.example.com",
+		Enabled: true,
+		OutboundConfig: model.NodeOutboundConfig{
+			Outbounds: []model.NodeOutbound{
+				{
+					Name:                 "WARP-MASQUE",
+					Type:                 model.OutboundTypeMASQUE,
+					Enabled:              true,
+					Server:               "162.159.198.1",
+					Port:                 443,
+					PrivateKey:           "ec-private-b64",
+					PublicKey:            "ec-public-b64",
+					IP:                   "172.16.0.2/32",
+					IPv6:                 "2606:4700:110::2/128",
+					SNI:                  model.DefaultWARPMASQUESNI,
+					Network:              "quic",
+					CongestionController: "bbr",
+					MTU:                  1280,
+					IPVersion:            "ipv4-prefer",
+					RemoteDNSResolve:     true,
+				},
+				{
+					Name:       "MASQUE-L4",
+					Type:       model.OutboundTypeMASQUE,
+					Enabled:    true,
+					Server:     "masque.example.com",
+					Port:       443,
+					PrivateKey: "ec-private-b64",
+					PublicKey:  "ec-public-b64",
+					Network:    "h3-l4proxy",
+					IPVersion:  "ipv6",
+				},
+			},
+			Routing: model.NodeOutboundRouting{
+				Mode:   model.OutboundRouteNone,
+				Target: "",
+			},
+		},
+	}
+	node.OutboundConfig.Normalize()
+	if err := node.OutboundConfig.Validate(); err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+
+	inbounds := []model.Inbound{
+		{
+			ID: 1, NodeID: 2, Name: "mixed-in", Protocol: model.ProtoMixed,
+			Port: 1080, Enabled: true, Settings: model.InboundSettings{Security: "none"},
+		},
+	}
+	user := model.User{
+		ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw",
+		SSKey16: crypto.RandomBase64(16), SSKey32: crypto.RandomBase64(32),
+		Enabled: true, AccessPolicy: model.DefaultAccessPolicy(),
+	}
+
+	bundle, err := GenerateServerConfig(node, inbounds, []model.User{user}, map[int64]*model.Certificate{}, "", nil, time.Now())
+	if err != nil {
+		t.Fatalf("GenerateServerConfig: %v", err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(bundle.ConfigYAML), &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	proxies := parsed["proxies"].([]any)
+	if len(proxies) != 2 {
+		t.Fatalf("expected 2 masque proxies, got %+v", proxies)
+	}
+	p0 := proxies[0].(map[string]any)
+	if p0["type"] != "masque" || p0["sni"] != model.DefaultWARPMASQUESNI || p0["ip-version"] != "ipv4-prefer" || p0["congestion-controller"] != "bbr" || p0["udp"] != true {
+		t.Fatalf("unexpected masque proxy[0]: %+v", p0)
+	}
+	if _, hasNet := p0["network"]; hasNet {
+		t.Fatalf("expected default quic network omitted, got %v", p0["network"])
+	}
+	p1 := proxies[1].(map[string]any)
+	if p1["network"] != "h3-l4proxy" || p1["udp"] != false || p1["ip-version"] != "ipv6" {
+		t.Fatalf("unexpected h3-l4proxy masque proxy[1]: %+v", p1)
+	}
+}

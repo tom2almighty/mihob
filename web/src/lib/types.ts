@@ -40,8 +40,10 @@ export interface Admin {
   updated_at: string
 }
 
-export type OutboundType = "warp" | "wireguard" | "socks5" | "http" | "mihob-node"
+export type OutboundType = "warp" | "masque" | "wireguard" | "socks5" | "http" | "mihob-node"
 export type OutboundRouteMode = "none" | "split" | "global"
+export type OutboundIPVersion = "" | "dual" | "ipv4" | "ipv6" | "ipv4-prefer" | "ipv6-prefer"
+export type MASQUENetwork = "" | "quic" | "h2" | "h3-l4proxy"
 
 export interface NodeOutbound {
   name: string
@@ -63,9 +65,31 @@ export interface NodeOutbound {
   mtu?: number
   remote_dns_resolve?: boolean
   dns?: string[]
+  sni?: string
+  network?: MASQUENetwork
+  congestion_controller?: string
+  bbr_profile?: string
+  handshake_timeout?: number
+  uri?: string
   node_ref?: string
   inbound_ref?: string
+  ip_version?: OutboundIPVersion
   dialer_proxy?: string
+}
+
+export interface WARPRegisterResult {
+  protocol: "wireguard" | "masque"
+  private_key: string
+  public_key: string
+  ip: string
+  ipv6: string
+  server: string
+  server_v4?: string
+  server_v6?: string
+  port: number
+  reserved?: string
+  sni?: string
+  mtu: number
 }
 
 export interface NodeOutboundRouting {

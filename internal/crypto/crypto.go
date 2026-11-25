@@ -62,9 +62,50 @@ func SHA256Hex(data string) string {
 // GenerateRealityKeyPair generates an X25519 keypair encoded with RawURLEncoding,
 // matching `mihomo generate reality-keypair`.
 func GenerateRealityKeyPair() (privateKey string, publicKey string, err error) {
+	priv, pub, err := generateX25519KeyPair()
+	if err != nil {
+		return "", "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(priv[:]),
+		base64.RawURLEncoding.EncodeToString(pub),
+		nil
+}
+
+// GenerateWireGuardKeyPair generates a standard Curve25519 WireGuard keypair in StdEncoding Base64.
+func GenerateWireGuardKeyPair() (privateKey string, publicKey string, err error) {
+	priv, pub, err := generateX25519KeyPair()
+	if err != nil {
+		return "", "", err
+	}
+	return base64.StdEncoding.EncodeToString(priv[:]),
+		base64.StdEncoding.EncodeToString(pub),
+		nil
+}
+
+// GenerateMASQUEKeyPair generates an ECDSA P-256 keypair encoded in Base64 DER
+// (SEC1 ECPrivateKey for private_key, PKIX SPKI for public_key), matching Mihomo / usque MASQUE expectations.
+func GenerateMASQUEKeyPair() (privateKey string, publicKey string, err error) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", "", err
+	}
+	privDER, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		return "", "", err
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		return "", "", err
+	}
+	return base64.StdEncoding.EncodeToString(privDER),
+		base64.StdEncoding.EncodeToString(pubDER),
+		nil
+}
+
+func generateX25519KeyPair() ([32]byte, []byte, error) {
 	var priv [32]byte
 	if _, err := rand.Read(priv[:]); err != nil {
-		return "", "", err
+		return priv, nil, err
 	}
 	// Standard Curve25519 clamping
 	priv[0] &= 248
@@ -73,11 +114,9 @@ func GenerateRealityKeyPair() (privateKey string, publicKey string, err error) {
 
 	pub, err := curve25519.X25519(priv[:], curve25519.Basepoint)
 	if err != nil {
-		return "", "", err
+		return priv, nil, err
 	}
-	return base64.RawURLEncoding.EncodeToString(priv[:]),
-		base64.RawURLEncoding.EncodeToString(pub),
-		nil
+	return priv, pub, nil
 }
 
 func GenerateShortID() string {

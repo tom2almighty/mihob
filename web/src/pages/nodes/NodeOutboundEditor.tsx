@@ -1,7 +1,20 @@
 import { useMemo, useState } from "react"
+import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { ChevronDown, ChevronUp, ClipboardPaste, Plus, Trash2 } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronUp,
+  ClipboardPaste,
+  Eye,
+  KeyRound,
+  Loader2,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
+import { CopyButton } from "@/components/common/CommonUI"
+import { YamlCodeBlock } from "@/components/common/YamlEditor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,14 +29,18 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { api } from "@/lib/api"
 import type {
   Inbound,
+  MASQUENetwork,
   Node,
   NodeOutbound,
   NodeOutboundConfig,
+  OutboundIPVersion,
   OutboundRouteMode,
   OutboundType,
 } from "@/lib/types"
+import { parseMASQUEConfig, parseWireGuardConf } from "./outboundParsers"
 
 const RULE_PRESET_KEYS = [
   "ai",
@@ -35,13 +52,36 @@ const RULE_PRESET_KEYS = [
   "google",
 ] as const
 
+const OUTBOUND_TYPES: OutboundType[] = [
+  "warp",
+  "masque",
+  "wireguard",
+  "socks5",
+  "http",
+  "mihob-node",
+]
+
 const DEFAULT_OUTBOUND_NAMES: Record<OutboundType, string> = {
   warp: "WARP",
+  masque: "WARP-MASQUE",
   wireguard: "WG-OUT",
   socks5: "SOCKS5-OUT",
   http: "HTTP-OUT",
   "mihob-node": "UNLOCK-NODE",
 }
+
+const WARP_WG_ENDPOINTS = [
+  { key: "auto", server: "engage.cloudflareclient.com", port: 2408 },
+  { key: "v4", server: "162.159.192.1", port: 2408 },
+  { key: "v6", server: "2606:4700:d0::a29f:c001", port: 2408 },
+] as const
+
+const WARP_MASQUE_ENDPOINTS = [
+  { key: "v4", server: "162.159.198.1", port: 443 },
+  { key: "v6", server: "2606:4700:103::1", port: 443 },
+  { key: "v4Alt", server: "162.159.198.2", port: 443 },
+  { key: "v6Alt", server: "2606:4700:104::1", port: 443 },
+] as const
 
 function nextUniqueName(existing: NodeOutbound[], base: string): string {
   const taken = new Set(existing.map((o) => o.name.trim().toLowerCase()))
@@ -68,6 +108,24 @@ function createDefaultOutbound(type: OutboundType, existing: NodeOutbound[]): No
         private_key: "",
         public_key: "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
         reserved: "",
+        mtu: 1280,
+        udp: true,
+        remote_dns_resolve: true,
+        dns: ["1.1.1.1", "1.0.0.1"],
+      }
+    case "masque":
+      return {
+        name,
+        type: "masque",
+        enabled: true,
+        server: "162.159.198.1",
+        port: 443,
+        ip: "172.16.0.2/32",
+        ipv6: "",
+        private_key: "",
+        public_key: "",
+        sni: "consumer-masque.cloudflareclient.com",
+        network: "quic",
         mtu: 1280,
         udp: true,
         remote_dns_resolve: true,
@@ -116,91 +174,24 @@ function createDefaultOutbound(type: OutboundType, existing: NodeOutbound[]): No
   }
 }
 
-function parseWireGuardConf(raw: string): Partial<NodeOutbound> {
-  const patch: Partial<NodeOutbound> = {}
-  const lines = raw.split(/\r?\n/)
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("[")) continue
-    const eqIdx = trimmed.indexOf("=")
-    if (eqIdx <= 0) continue
-    const key = trimmed.slice(0, eqIdx).trim().toLowerCase()
-    const val = trimmed.slice(eqIdx + 1).trim()
-    if (!val) continue
-
-    switch (key) {
-      case "privatekey":
-        patch.private_key = val
-        break
-      case "publickey":
-        patch.public_key = val
-        break
-      case "presharedkey":
-        patch.pre_shared_key = val
-        break
-      case "mtu": {
-        const n = Number.parseInt(val, 10)
-        if (!Number.isNaN(n) && n > 0) patch.mtu = n
-        break
-      }
-      case "reserved":
-        patch.reserved = val
-        break
-      case "dns": {
-        const dnsList = val
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-        if (dnsList.length > 0) patch.dns = dnsList
-        break
-      }
-      case "address": {
-        const addrs = val
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-        for (const addr of addrs) {
-          if (addr.includes(":")) {
-            patch.ipv6 = addr
-          } else {
-            patch.ip = addr
-          }
-        }
-        break
-      }
-      case "endpoint": {
-        // Supports IPv4:port, host:port, and [IPv6]:port
-        const bracketMatch = val.match(/^\[([^\]]+)\]:(\d+)$/)
-        if (bracketMatch) {
-          patch.server = bracketMatch[1]
-          patch.port = Number.parseInt(bracketMatch[2], 10)
-        } else {
-          const lastColon = val.lastIndexOf(":")
-          if (lastColon > 0) {
-            patch.server = val.slice(0, lastColon).trim()
-            const p = Number.parseInt(val.slice(lastColon + 1).trim(), 10)
-            if (!Number.isNaN(p) && p > 0) patch.port = p
-          }
-        }
-        break
-      }
-    }
-  }
-  return patch
-}
-
 export function NodeOutboundEditor({
   value,
   onChange,
   nodes,
   inbounds,
   excludeNodeId,
+  previewYAML,
+  previewPending,
+  onPreview,
 }: {
   value: NodeOutboundConfig
   onChange: (next: NodeOutboundConfig) => void
   nodes: Node[]
   inbounds: Inbound[]
   excludeNodeId?: number
+  previewYAML?: string
+  previewPending?: boolean
+  onPreview?: () => void
 }) {
   const { t } = useTranslation()
   const outbounds = value.outbounds ?? []
@@ -212,8 +203,12 @@ export function NodeOutboundEditor({
   }
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
-  const [wgPasteIdx, setWgPasteIdx] = useState<number | null>(null)
-  const [wgPasteText, setWgPasteText] = useState("")
+  const [importIdx, setImportIdx] = useState<number | null>(null)
+  const [importText, setImportText] = useState("")
+  const [warpLicenseIdx, setWarpLicenseIdx] = useState<number | null>(null)
+  const [warpLicense, setWarpLicense] = useState("")
+  const [generatedPubKeys, setGeneratedPubKeys] = useState<Record<number, string>>({})
+  const [cachedAddrs, setCachedAddrs] = useState<Record<number, { ip?: string; ipv6?: string }>>({})
 
   const availableNodes = useMemo(
     () => nodes.filter((n) => n.enabled && n.id !== excludeNodeId),
@@ -237,6 +232,16 @@ export function NodeOutboundEditor({
     updateOutbounds(next)
   }
 
+  const rememberAddr = (idx: number, ip?: string, ipv6?: string) => {
+    setCachedAddrs((prev) => ({
+      ...prev,
+      [idx]: {
+        ip: ip?.trim() ? ip.trim() : prev[idx]?.ip,
+        ipv6: ipv6?.trim() ? ipv6.trim() : prev[idx]?.ipv6,
+      },
+    }))
+  }
+
   const addOutbound = (type: OutboundType) => {
     const created = createDefaultOutbound(type, outbounds)
     const next = [...outbounds, created]
@@ -250,8 +255,8 @@ export function NodeOutboundEditor({
       routing: nextRouting,
     })
     setExpandedIdx(next.length - 1)
-    setWgPasteIdx(null)
-    setWgPasteText("")
+    setImportIdx(null)
+    setImportText("")
   }
 
   const removeOutbound = (idx: number) => {
@@ -293,16 +298,88 @@ export function NodeOutboundEditor({
     updateRouting({ rule_presets: next })
   }
 
-  const handleApplyWgConf = (idx: number) => {
-    const patch = parseWireGuardConf(wgPasteText)
+  const keygenMutation = useMutation({
+    mutationFn: ({ idx, type }: { idx: number; type: "wireguard" | "masque" }) =>
+      api.keygen(type).then((res) => ({ idx, type, res })),
+    onSuccess: ({ idx, res }) => {
+      updateOutboundAt(idx, { private_key: res.private_key })
+      if (res.public_key) {
+        setGeneratedPubKeys((prev) => ({ ...prev, [idx]: res.public_key }))
+      }
+      toast.success(t("nodes.form.outbound.keypairGenerated"))
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const warpRegisterMutation = useMutation({
+    mutationFn: ({
+      idx,
+      protocol,
+      license,
+    }: {
+      idx: number
+      protocol: "wireguard" | "masque"
+      license?: string
+    }) => api.registerWARP({ protocol, license }).then((res) => ({ idx, res })),
+    onSuccess: ({ idx, res }) => {
+      rememberAddr(idx, res.ip, res.ipv6)
+      const current = outbounds[idx]
+      const patch: Partial<NodeOutbound> = {
+        private_key: res.private_key,
+        public_key: res.public_key,
+        ip: res.ip,
+        ipv6: res.ipv6,
+        server: res.server || current?.server,
+        port: res.port || current?.port,
+        mtu: res.mtu || current?.mtu,
+      }
+      if (res.protocol === "wireguard" && res.reserved) {
+        patch.reserved = res.reserved
+      }
+      if (res.protocol === "masque" && res.sni) {
+        patch.sni = res.sni
+      }
+      updateOutboundAt(idx, patch)
+      setWarpLicenseIdx(null)
+      setWarpLicense("")
+      toast.success(t("nodes.form.outbound.warpRegisterSuccess"))
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const handleApplyImport = (idx: number, type: OutboundType) => {
+    const patch = type === "masque" ? parseMASQUEConfig(importText) : parseWireGuardConf(importText)
     if (!patch.private_key && !patch.ip && !patch.ipv6 && !patch.server && !patch.public_key) {
-      toast.error(t("nodes.form.outbound.wgParseEmpty"))
+      toast.error(
+        type === "masque"
+          ? t("nodes.form.outbound.masqueParseEmpty")
+          : t("nodes.form.outbound.wgParseEmpty")
+      )
       return
     }
+    rememberAddr(idx, patch.ip, patch.ipv6)
     updateOutboundAt(idx, patch)
-    setWgPasteIdx(null)
-    setWgPasteText("")
-    toast.success(t("nodes.form.outbound.wgParseSuccess"))
+    setImportIdx(null)
+    setImportText("")
+    toast.success(
+      type === "masque"
+        ? t("nodes.form.outbound.masqueParseSuccess")
+        : t("nodes.form.outbound.wgParseSuccess")
+    )
+  }
+
+  const handleTunnelStackMode = (idx: number, item: NodeOutbound, mode: "dual" | "v4" | "v6") => {
+    const cached = cachedAddrs[idx] ?? {}
+    const v4 = item.ip?.trim() || cached.ip || "172.16.0.2/32"
+    const v6 = item.ipv6?.trim() || cached.ipv6 || ""
+    rememberAddr(idx, item.ip, item.ipv6)
+    if (mode === "v4") {
+      updateOutboundAt(idx, { ip: v4, ipv6: "" })
+    } else if (mode === "v6") {
+      updateOutboundAt(idx, { ip: "", ipv6: v6 })
+    } else {
+      updateOutboundAt(idx, { ip: v4, ipv6: v6 })
+    }
   }
 
   const typeLabel = (type: OutboundType) => t(`nodes.form.outbound.types.${type}`)
@@ -315,8 +392,14 @@ export function NodeOutboundEditor({
           : o.node_ref
         : t("nodes.form.outbound.unconfigured")
     }
-    const host = o.server || (o.type === "warp" ? "engage.cloudflareclient.com" : "")
-    const port = o.port || (o.type === "warp" ? 2408 : 0)
+    const host =
+      o.server ||
+      (o.type === "warp"
+        ? "engage.cloudflareclient.com"
+        : o.type === "masque"
+          ? "162.159.198.1"
+          : "")
+    const port = o.port || (o.type === "warp" ? 2408 : o.type === "masque" ? 443 : 0)
     if (!host) return t("nodes.form.outbound.unconfigured")
     return port ? `${host}:${port}` : host
   }
@@ -334,21 +417,19 @@ export function NodeOutboundEditor({
             <p className="text-xs text-muted-foreground">{t("nodes.form.outbound.listDesc")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {(["warp", "socks5", "http", "wireguard", "mihob-node"] as OutboundType[]).map(
-              (type) => (
-                <Button
-                  key={type}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => addOutbound(type)}
-                >
-                  <Plus className="mr-1 size-3" />
-                  {typeLabel(type)}
-                </Button>
-              )
-            )}
+            {OUTBOUND_TYPES.map((type) => (
+              <Button
+                key={type}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => addOutbound(type)}
+              >
+                <Plus className="mr-1 size-3" />
+                {typeLabel(type)}
+              </Button>
+            ))}
           </div>
         </div>
 
@@ -374,6 +455,15 @@ export function NodeOutboundEditor({
                 .map((o) => o.name.trim())
                 .filter(Boolean)
 
+              const isTunnelType =
+                item.type === "warp" || item.type === "wireguard" || item.type === "masque"
+              const isL4Proxy = item.type === "masque" && item.network === "h3-l4proxy"
+              const generatedPub = generatedPubKeys[idx]
+              const isRegistering =
+                warpRegisterMutation.isPending && warpRegisterMutation.variables?.idx === idx
+              const isKeygenPending =
+                keygenMutation.isPending && keygenMutation.variables?.idx === idx
+
               return (
                 <div
                   key={`${idx}-${item.type}`}
@@ -397,6 +487,11 @@ export function NodeOutboundEditor({
                         <Badge variant="secondary" className="shrink-0 text-[11px]">
                           {typeLabel(item.type)}
                         </Badge>
+                        {item.ip_version && item.ip_version !== "dual" && (
+                          <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+                            {item.ip_version}
+                          </Badge>
+                        )}
                         <span className="hidden truncate font-mono text-xs text-muted-foreground sm:inline">
                           {summaryOf(item)}
                         </span>
@@ -454,7 +549,7 @@ export function NodeOutboundEditor({
 
                   {isExpanded && (
                     <div className="space-y-3 border-t border-border bg-muted/20 px-3 py-3">
-                      <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="grid gap-3 sm:grid-cols-4">
                         <div className="space-y-1">
                           <Label className="text-xs">{t("nodes.form.outbound.name")}</Label>
                           <Input
@@ -483,19 +578,43 @@ export function NodeOutboundEditor({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {(
-                                [
-                                  "warp",
-                                  "socks5",
-                                  "http",
-                                  "wireguard",
-                                  "mihob-node",
-                                ] as OutboundType[]
-                              ).map((tp) => (
+                              {OUTBOUND_TYPES.map((tp) => (
                                 <SelectItem key={tp} value={tp}>
                                   {typeLabel(tp)}
                                 </SelectItem>
                               ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("nodes.form.outbound.ipVersion")}</Label>
+                          <Select
+                            value={item.ip_version || "dual"}
+                            onValueChange={(v) =>
+                              updateOutboundAt(idx, {
+                                ip_version: (v === "dual" ? "" : (v ?? "")) as OutboundIPVersion,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 w-full bg-background text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dual">
+                                {t("nodes.form.outbound.ipVersions.dual")}
+                              </SelectItem>
+                              <SelectItem value="ipv4">
+                                {t("nodes.form.outbound.ipVersions.ipv4")}
+                              </SelectItem>
+                              <SelectItem value="ipv6">
+                                {t("nodes.form.outbound.ipVersions.ipv6")}
+                              </SelectItem>
+                              <SelectItem value="ipv4-prefer">
+                                {t("nodes.form.outbound.ipVersions.ipv4-prefer")}
+                              </SelectItem>
+                              <SelectItem value="ipv6-prefer">
+                                {t("nodes.form.outbound.ipVersions.ipv6-prefer")}
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -514,33 +633,146 @@ export function NodeOutboundEditor({
                         </div>
                       </div>
 
-                      {(item.type === "warp" || item.type === "wireguard") && (
+                      {isTunnelType && (
                         <div className="space-y-3">
+                          {/* Quick generate / register / import action bar */}
                           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/60 px-2.5 py-2">
                             <span className="text-xs text-muted-foreground">
-                              {t("nodes.form.outbound.wgImportHint")}
+                              {item.type === "masque"
+                                ? t("nodes.form.outbound.masqueImportHint")
+                                : t("nodes.form.outbound.wgImportHint")}
                             </span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => {
-                                setWgPasteIdx(wgPasteIdx === idx ? null : idx)
-                                setWgPasteText("")
-                              }}
-                            >
-                              <ClipboardPaste className="mr-1 size-3" />
-                              {t("nodes.form.outbound.wgImportBtn")}
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {(item.type === "warp" || item.type === "masque") && (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    disabled={isRegistering}
+                                    onClick={() =>
+                                      warpRegisterMutation.mutate({
+                                        idx,
+                                        protocol: item.type === "masque" ? "masque" : "wireguard",
+                                      })
+                                    }
+                                  >
+                                    {isRegistering ? (
+                                      <Loader2 className="mr-1 size-3 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="mr-1 size-3" />
+                                    )}
+                                    {t("nodes.form.outbound.warpRegisterBtn")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => {
+                                      setWarpLicenseIdx(warpLicenseIdx === idx ? null : idx)
+                                      setWarpLicense("")
+                                    }}
+                                  >
+                                    WARP+
+                                  </Button>
+                                </>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                disabled={isKeygenPending}
+                                onClick={() =>
+                                  keygenMutation.mutate({
+                                    idx,
+                                    type: item.type === "masque" ? "masque" : "wireguard",
+                                  })
+                                }
+                              >
+                                {isKeygenPending ? (
+                                  <Loader2 className="mr-1 size-3 animate-spin" />
+                                ) : (
+                                  <KeyRound className="mr-1 size-3" />
+                                )}
+                                {t("nodes.form.outbound.keygenBtn")}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => {
+                                  setImportIdx(importIdx === idx ? null : idx)
+                                  setImportText("")
+                                }}
+                              >
+                                <ClipboardPaste className="mr-1 size-3" />
+                                {t("nodes.form.outbound.importBtn")}
+                              </Button>
+                            </div>
                           </div>
 
-                          {wgPasteIdx === idx && (
+                          {warpLicenseIdx === idx &&
+                            (item.type === "warp" || item.type === "masque") && (
+                              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2.5">
+                                <Input
+                                  value={warpLicense}
+                                  onChange={(e) => setWarpLicense(e.target.value)}
+                                  placeholder={t("nodes.form.outbound.warpLicensePlaceholder")}
+                                  className="h-8 flex-1 font-mono text-xs"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  disabled={isRegistering}
+                                  onClick={() =>
+                                    warpRegisterMutation.mutate({
+                                      idx,
+                                      protocol: item.type === "masque" ? "masque" : "wireguard",
+                                      license: warpLicense.trim(),
+                                    })
+                                  }
+                                >
+                                  {isRegistering && (
+                                    <Loader2 className="mr-1 size-3 animate-spin" />
+                                  )}
+                                  {t("nodes.form.outbound.warpRegisterWithLicenseBtn")}
+                                </Button>
+                              </div>
+                            )}
+
+                          {generatedPub && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="shrink-0 text-muted-foreground">
+                                  {t("nodes.form.outbound.generatedLocalPubKey")}
+                                </span>
+                                <code className="truncate font-mono text-[11px] text-foreground">
+                                  {generatedPub}
+                                </code>
+                              </div>
+                              <CopyButton
+                                value={generatedPub}
+                                label={t("common.copy")}
+                                size="sm"
+                                variant="ghost"
+                              />
+                            </div>
+                          )}
+
+                          {importIdx === idx && (
                             <div className="space-y-2 rounded-md border border-border bg-background p-2.5">
                               <Textarea
-                                value={wgPasteText}
-                                onChange={(e) => setWgPasteText(e.target.value)}
-                                placeholder={t("nodes.form.outbound.wgImportPlaceholder")}
+                                value={importText}
+                                onChange={(e) => setImportText(e.target.value)}
+                                placeholder={
+                                  item.type === "masque"
+                                    ? t("nodes.form.outbound.masqueImportPlaceholder")
+                                    : t("nodes.form.outbound.wgImportPlaceholder")
+                                }
                                 className="min-h-24 font-mono text-xs"
                               />
                               <div className="flex justify-end gap-1.5">
@@ -550,8 +782,8 @@ export function NodeOutboundEditor({
                                   size="sm"
                                   className="h-7 text-xs"
                                   onClick={() => {
-                                    setWgPasteIdx(null)
-                                    setWgPasteText("")
+                                    setImportIdx(null)
+                                    setImportText("")
                                   }}
                                 >
                                   {t("common.cancel")}
@@ -560,7 +792,7 @@ export function NodeOutboundEditor({
                                   type="button"
                                   size="sm"
                                   className="h-7 text-xs"
-                                  onClick={() => handleApplyWgConf(idx)}
+                                  onClick={() => handleApplyImport(idx, item.type)}
                                 >
                                   {t("nodes.form.outbound.wgApplyBtn")}
                                 </Button>
@@ -601,37 +833,120 @@ export function NodeOutboundEditor({
                             </div>
                           </div>
 
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">{t("nodes.form.outbound.ip")}</Label>
-                              <Input
-                                value={item.ip ?? ""}
-                                onChange={(e) => updateOutboundAt(idx, { ip: e.target.value })}
-                                placeholder="172.16.0.2/32"
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">{t("nodes.form.outbound.ipv6")}</Label>
-                              <Input
-                                value={item.ipv6 ?? ""}
-                                onChange={(e) => updateOutboundAt(idx, { ipv6: e.target.value })}
-                                placeholder="2606:4700:110::2/128"
-                                className="h-8 font-mono text-xs"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">{t("nodes.form.outbound.reserved")}</Label>
-                              <Input
-                                value={item.reserved ?? ""}
-                                onChange={(e) =>
-                                  updateOutboundAt(idx, { reserved: e.target.value })
+                          {!isL4Proxy && (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[11px] text-muted-foreground">
+                                  {t("nodes.form.outbound.tunnelStackLabel")}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant={item.ip && item.ipv6 ? "secondary" : "outline"}
+                                    size="sm"
+                                    className="h-6 px-2 text-[11px]"
+                                    onClick={() => handleTunnelStackMode(idx, item, "dual")}
+                                  >
+                                    {t("nodes.form.outbound.stackDual")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={item.ip && !item.ipv6 ? "secondary" : "outline"}
+                                    size="sm"
+                                    className="h-6 px-2 text-[11px]"
+                                    onClick={() => handleTunnelStackMode(idx, item, "v4")}
+                                  >
+                                    {t("nodes.form.outbound.stackV4Only")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant={!item.ip && item.ipv6 ? "secondary" : "outline"}
+                                    size="sm"
+                                    className="h-6 px-2 text-[11px]"
+                                    onClick={() => handleTunnelStackMode(idx, item, "v6")}
+                                  >
+                                    {t("nodes.form.outbound.stackV6Only")}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div
+                                className={
+                                  item.type === "masque"
+                                    ? "grid gap-3 sm:grid-cols-2"
+                                    : "grid gap-3 sm:grid-cols-3"
                                 }
-                                placeholder={t("nodes.form.outbound.reservedPlaceholder")}
-                                className="h-8 font-mono text-xs"
-                              />
+                              >
+                                <div className="space-y-1">
+                                  <Label className="text-xs">{t("nodes.form.outbound.ip")}</Label>
+                                  <Input
+                                    value={item.ip ?? ""}
+                                    onChange={(e) => {
+                                      rememberAddr(idx, e.target.value, item.ipv6)
+                                      updateOutboundAt(idx, { ip: e.target.value })
+                                    }}
+                                    placeholder="172.16.0.2/32"
+                                    className="h-8 font-mono text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">{t("nodes.form.outbound.ipv6")}</Label>
+                                  <Input
+                                    value={item.ipv6 ?? ""}
+                                    onChange={(e) => {
+                                      rememberAddr(idx, item.ip, e.target.value)
+                                      updateOutboundAt(idx, { ipv6: e.target.value })
+                                    }}
+                                    placeholder="2606:4700:110::2/128"
+                                    className="h-8 font-mono text-xs"
+                                  />
+                                </div>
+                                {item.type !== "masque" && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">
+                                      {t("nodes.form.outbound.reserved")}
+                                    </Label>
+                                    <Input
+                                      value={item.reserved ?? ""}
+                                      onChange={(e) =>
+                                        updateOutboundAt(idx, { reserved: e.target.value })
+                                      }
+                                      placeholder={t("nodes.form.outbound.reservedPlaceholder")}
+                                      className="h-8 font-mono text-xs"
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          )}
+
+                          {(item.type === "warp" || item.type === "masque") && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[11px] text-muted-foreground">
+                                {t("nodes.form.outbound.endpointPresetsLabel")}
+                              </span>
+                              {(item.type === "warp"
+                                ? WARP_WG_ENDPOINTS
+                                : WARP_MASQUE_ENDPOINTS
+                              ).map((ep) => {
+                                const active = item.server === ep.server
+                                return (
+                                  <Button
+                                    key={ep.key}
+                                    type="button"
+                                    variant={active ? "secondary" : "outline"}
+                                    size="sm"
+                                    className="h-6 px-2 font-mono text-[11px]"
+                                    onClick={() =>
+                                      updateOutboundAt(idx, { server: ep.server, port: ep.port })
+                                    }
+                                  >
+                                    {t(`nodes.form.outbound.endpointPresets.${ep.key}`)}
+                                  </Button>
+                                )
+                              })}
+                            </div>
+                          )}
 
                           <div className="grid gap-3 sm:grid-cols-3">
                             <div className="space-y-1">
@@ -642,7 +957,9 @@ export function NodeOutboundEditor({
                                 placeholder={
                                   item.type === "warp"
                                     ? "engage.cloudflareclient.com"
-                                    : "wg.example.com"
+                                    : item.type === "masque"
+                                      ? "162.159.198.1"
+                                      : "wg.example.com"
                                 }
                                 className="h-8 font-mono text-xs"
                               />
@@ -659,7 +976,13 @@ export function NodeOutboundEditor({
                                     port: e.target.value ? Number(e.target.value) : 0,
                                   })
                                 }
-                                placeholder={item.type === "warp" ? "2408" : "51820"}
+                                placeholder={
+                                  item.type === "warp"
+                                    ? "2408"
+                                    : item.type === "masque"
+                                      ? "443"
+                                      : "51820"
+                                }
                                 className="h-8 font-mono text-xs tabular-nums"
                               />
                             </div>
@@ -675,11 +998,74 @@ export function NodeOutboundEditor({
                                     mtu: e.target.value ? Number(e.target.value) : 0,
                                   })
                                 }
-                                placeholder={item.type === "warp" ? "1280" : "1420"}
+                                placeholder={
+                                  item.type === "warp" || item.type === "masque" ? "1280" : "1420"
+                                }
                                 className="h-8 font-mono text-xs tabular-nums"
                               />
                             </div>
                           </div>
+
+                          {item.type === "masque" && (
+                            <div className="grid gap-3 sm:grid-cols-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">
+                                  {t("nodes.form.outbound.masqueNetwork")}
+                                </Label>
+                                <Select
+                                  value={item.network || "quic"}
+                                  onValueChange={(v) => {
+                                    const net = (v ?? "quic") as MASQUENetwork
+                                    updateOutboundAt(idx, {
+                                      network: net,
+                                      ...(net === "h3-l4proxy" ? { udp: false } : {}),
+                                    })
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="quic">QUIC (HTTP/3)</SelectItem>
+                                    <SelectItem value="h2">HTTP/2 (TCP)</SelectItem>
+                                    <SelectItem value="h3-l4proxy">H3-L4Proxy</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">SNI</Label>
+                                <Input
+                                  value={item.sni ?? ""}
+                                  onChange={(e) => updateOutboundAt(idx, { sni: e.target.value })}
+                                  placeholder="consumer-masque.cloudflareclient.com"
+                                  className="h-8 font-mono text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">
+                                  {t("nodes.form.outbound.congestionController")}
+                                </Label>
+                                <Select
+                                  value={item.congestion_controller || "default"}
+                                  onValueChange={(v) =>
+                                    updateOutboundAt(idx, {
+                                      congestion_controller: !v || v === "default" ? "" : v,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-full bg-background text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="default">
+                                      {t("nodes.form.outbound.ccDefault")}
+                                    </SelectItem>
+                                    <SelectItem value="bbr">BBR</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
 
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-1">
@@ -698,16 +1084,26 @@ export function NodeOutboundEditor({
                                 className="h-8 font-mono text-xs"
                               />
                             </div>
-                            <div className="flex items-center justify-between rounded-md border border-border bg-background/60 px-3 py-1.5">
-                              <Label className="text-xs">
-                                {t("nodes.form.outbound.remoteDnsResolve")}
-                              </Label>
-                              <Switch
-                                checked={Boolean(item.remote_dns_resolve)}
-                                onCheckedChange={(checked) =>
-                                  updateOutboundAt(idx, { remote_dns_resolve: checked })
-                                }
-                              />
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background/60 px-3 py-1.5">
+                              <label className="flex items-center gap-2 text-xs">
+                                <Switch
+                                  checked={Boolean(item.remote_dns_resolve)}
+                                  onCheckedChange={(checked) =>
+                                    updateOutboundAt(idx, { remote_dns_resolve: checked })
+                                  }
+                                />
+                                <span>{t("nodes.form.outbound.remoteDnsResolve")}</span>
+                              </label>
+                              <label className="flex items-center gap-2 text-xs">
+                                <Switch
+                                  disabled={isL4Proxy}
+                                  checked={!isL4Proxy && item.udp !== false}
+                                  onCheckedChange={(checked) =>
+                                    updateOutboundAt(idx, { udp: checked })
+                                  }
+                                />
+                                <span>{t("nodes.form.outbound.enableUdp")}</span>
+                              </label>
                             </div>
                           </div>
                         </div>
@@ -975,6 +1371,43 @@ export function NodeOutboundEditor({
           </div>
         )}
       </div>
+
+      {/* Inline server config preview */}
+      {onPreview && (
+        <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <div className="text-sm font-medium">{t("nodes.form.previewTitle")}</div>
+              <div className="text-xs text-muted-foreground">{t("nodes.form.previewDesc")}</div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {previewYAML && (
+                <CopyButton
+                  value={previewYAML}
+                  label={t("templates.copyYaml")}
+                  size="sm"
+                  variant="outline"
+                />
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={previewPending}
+                onClick={onPreview}
+              >
+                {previewPending ? (
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                ) : (
+                  <Eye className="mr-1.5 size-3.5" />
+                )}
+                {previewYAML ? t("nodes.form.refreshPreview") : t("nodes.form.previewBtn")}
+              </Button>
+            </div>
+          </div>
+          {previewYAML && <YamlCodeBlock value={previewYAML} className="max-h-64" />}
+        </div>
+      )}
     </div>
   )
 }
