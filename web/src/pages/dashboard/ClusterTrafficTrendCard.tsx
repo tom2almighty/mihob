@@ -26,7 +26,7 @@ import {
   YAxis,
 } from "recharts"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -194,7 +194,6 @@ export function ClusterTrafficTrendCard({
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterSearch, setFilterSearch] = useState("")
 
-  // Which entity kind the secondary multi-select filter targets
   const filterTargetKind: "node" | "user" | null =
     dimension === "node"
       ? "node"
@@ -230,7 +229,6 @@ export function ClusterTrafficTrendCard({
   const queryNodeId = dimension === "user_node" && pivot === "by_node" ? pivotNodeId : 0
   const apiDimension: DashboardTrafficDimension = dimension === "cluster" ? "node" : dimension
 
-  // Fetch full users list lazily when user picker or User×Node dimension is used
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users,
     queryFn: api.listUsers,
@@ -238,7 +236,6 @@ export function ClusterTrafficTrendCard({
     staleTime: 30_000,
   })
 
-  // Fetch custom filtered entity series or User×Node series
   const customSeriesQuery = useQuery({
     queryKey: queryKeys.dashboardTrafficSeries(
       range,
@@ -257,7 +254,6 @@ export function ClusterTrafficTrendCard({
     placeholderData: (prev) => prev,
   })
 
-  // Build searchable options for Nodes and Users (sorted by period traffic DESC)
   const nodeOptions = useMemo(() => {
     const trafficMap = new Map<number, number>()
     for (const item of nodeTraffic) {
@@ -315,7 +311,6 @@ export function ClusterTrafficTrendCard({
     )
   }, [pickerOptions, filterSearch])
 
-  // Resolve active entity series (custom selection / User×Node or default Top 5 + Others)
   const activeEntitySeries: EntityTrafficSeries[] = useMemo(() => {
     if (dimension === "cluster") return []
     if (dimension === "user_node") {
@@ -333,7 +328,6 @@ export function ClusterTrafficTrendCard({
     userTrafficSeries,
   ])
 
-  // Build series descriptors for legend, colors, and tooltip
   const seriesDescriptors: SeriesDescriptor[] = useMemo(() => {
     if (dimension === "cluster") {
       const out: SeriesDescriptor[] = []
@@ -393,7 +387,6 @@ export function ClusterTrafficTrendCard({
     return map
   }, [seriesDescriptors])
 
-  // Merge time buckets with series values
   const chartData = useMemo(() => {
     const spansMultiYear =
       range === "all" &&
@@ -445,6 +438,11 @@ export function ClusterTrafficTrendCard({
     [seriesDescriptors, hiddenKeys]
   )
 
+  const periodTotal = useMemo(
+    () => visibleSeries.reduce((acc, s) => acc + s.total, 0),
+    [visibleSeries]
+  )
+
   const handleDimensionChange = (next: TrendDimension) => {
     setDimension(next)
     setHiddenKeys(new Set())
@@ -458,7 +456,6 @@ export function ClusterTrafficTrendCard({
       if (next.has(key)) {
         next.delete(key)
       } else if (seriesDescriptors.length - next.size > 1) {
-        // Keep at least 1 series visible
         next.add(key)
       }
       return next
@@ -467,23 +464,16 @@ export function ClusterTrafficTrendCard({
 
   const toggleEntitySelection = (id: number) => {
     const updater = (prev: number[]) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id)
-      }
+      if (prev.includes(id)) return prev.filter((item) => item !== id)
       if (prev.length >= MAX_SELECTED_ENTITIES) return prev
       return [...prev, id]
     }
     setHiddenKeys(new Set())
-    if (dimension === "node") {
-      setSelectedNodeIds(updater)
-    } else if (dimension === "user") {
-      setSelectedUserIds(updater)
-    } else if (dimension === "user_node") {
-      if (pivot === "by_user") {
-        setPivotFilterNodeIds(updater)
-      } else {
-        setPivotFilterUserIds(updater)
-      }
+    if (dimension === "node") setSelectedNodeIds(updater)
+    else if (dimension === "user") setSelectedUserIds(updater)
+    else if (dimension === "user_node") {
+      if (pivot === "by_user") setPivotFilterNodeIds(updater)
+      else setPivotFilterUserIds(updater)
     }
   }
 
@@ -508,321 +498,290 @@ export function ClusterTrafficTrendCard({
   const hasEntityData = dimension === "cluster" || seriesDescriptors.length > 0
 
   return (
-    <Card className={cn("gap-3 py-4", className)}>
-      <CardHeader className="gap-2.5 px-5 pb-0">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
-              <Activity className="size-3.5 text-muted-foreground" />
-              {t("dashboard.chartTitle")}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {dimension === "node"
-                ? t("dashboard.trend.descByNode")
-                : dimension === "user"
-                  ? t("dashboard.trend.descByUser")
-                  : dimension === "user_node"
-                    ? t("dashboard.trend.descUserNode")
-                    : t("dashboard.chartDescription")}
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Dimension Tabs: Cluster / By Node / By User / User×Node */}
-            <Tabs
-              value={dimension}
-              onValueChange={(v) => handleDimensionChange((v as TrendDimension) || "cluster")}
-            >
-              <TabsList size="xs">
-                <TabsTrigger value="cluster" className="whitespace-nowrap">
-                  {t("dashboard.trend.dimCluster")}
-                </TabsTrigger>
-                <TabsTrigger value="node" className="whitespace-nowrap">
-                  {t("dashboard.trend.dimNode")}
-                </TabsTrigger>
-                <TabsTrigger value="user" className="whitespace-nowrap">
-                  {t("dashboard.trend.dimUser")}
-                </TabsTrigger>
-                <TabsTrigger value="user_node" className="whitespace-nowrap">
-                  {t("dashboard.trend.dimUserNode")}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Metric Tabs: Total / Download / Upload */}
-            <Tabs
-              value={metric}
-              onValueChange={(v) => setMetric((v as TrendTrafficMetric) || "total")}
-            >
-              <TabsList size="xs">
-                <TabsTrigger value="total">{t("dashboard.metricTotal")}</TabsTrigger>
-                <TabsTrigger value="download">{t("dashboard.metricDownload")}</TabsTrigger>
-                <TabsTrigger value="upload">{t("dashboard.metricUpload")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {/* Chart Type Tabs: Line / Bar */}
-            <Tabs
-              value={chartType}
-              onValueChange={(v) => setChartType((v as TrendChartType) || "line")}
-            >
-              <TabsList size="xs" aria-label={t("dashboard.trend.chartTypeAria")}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <TabsTrigger
-                        value="line"
-                        className="px-2"
-                        aria-label={t("dashboard.trend.chartLine")}
-                      >
-                        <TrendingUp className="size-3.5" />
-                      </TabsTrigger>
-                    }
-                  />
-                  <TooltipContent>{t("dashboard.trend.chartLine")}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <TabsTrigger
-                        value="bar"
-                        className="px-2"
-                        aria-label={t("dashboard.trend.chartBar")}
-                      >
-                        <BarChart3 className="size-3.5" />
-                      </TabsTrigger>
-                    }
-                  />
-                  <TooltipContent>{t("dashboard.trend.chartBar")}</TooltipContent>
-                </Tooltip>
-              </TabsList>
-            </Tabs>
-          </div>
+    <Card className={cn("gap-0 overflow-hidden py-0", className)}>
+      {/* Band 1: Unified Card Header — Title + Total KPI on left, Primary Dimension Tabs on right */}
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-5 py-3.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <CardTitle className="flex items-center gap-1.5 text-sm font-semibold">
+            <Activity className="size-3.5 text-muted-foreground" />
+            {t("dashboard.chartTitle")}
+          </CardTitle>
+          {!chartLoading && (
+            <span className="rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+              {formatBytes(periodTotal)}
+            </span>
+          )}
         </div>
 
-        {/* Interactive Legend + Inline Pivot / Filter Controls (fixed min-height prevents layout jump) */}
-        {!loading && (
-          <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 pt-0.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {seriesDescriptors.map((item) => {
-                const isHidden = hiddenKeys.has(item.key)
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => toggleSeriesVisibility(item.key)}
-                    title={`${item.label} · ${formatBytes(item.total)}`}
-                    className={cn(
-                      "inline-flex max-w-44 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors",
-                      isHidden
-                        ? "border-border/50 bg-transparent text-muted-foreground/50 line-through"
-                        : "border-border/70 bg-muted/40 text-foreground hover:bg-muted/80"
-                    )}
-                  >
-                    <span
-                      className="size-2 shrink-0 rounded-full"
-                      style={{
-                        backgroundColor: item.color,
-                        opacity: isHidden ? 0.35 : 1,
-                      }}
-                    />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-              {dimension === "user_node" && (
-                <>
-                  <Tabs
-                    value={pivot}
-                    onValueChange={(v) => handlePivotChange((v as UserNodePivot) || "by_user")}
-                  >
-                    <TabsList size="xs">
-                      <TabsTrigger value="by_user" className="whitespace-nowrap">
-                        {t("dashboard.trend.pivotByUser")}
-                      </TabsTrigger>
-                      <TabsTrigger value="by_node" className="whitespace-nowrap">
-                        {t("dashboard.trend.pivotByNode")}
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-
-                  {pivot === "by_user" ? (
-                    <Select
-                      value={String(pivotUserId)}
-                      onValueChange={(v) => {
-                        setPivotUserId(Number(v) || 0)
-                        setPivotFilterNodeIds([])
-                        setHiddenKeys(new Set())
-                      }}
-                    >
-                      <SelectTrigger className="h-6.5 w-40 text-[11px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">{t("dashboard.trend.allUsersTop5")}</SelectItem>
-                        {userOptions.map((opt) => (
-                          <SelectItem key={opt.id} value={String(opt.id)}>
-                            <span className="truncate">{opt.name}</span>
-                            {opt.traffic > 0 && (
-                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                                ({formatBytesCompact(opt.traffic)})
-                              </span>
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Select
-                      value={String(pivotNodeId)}
-                      onValueChange={(v) => {
-                        setPivotNodeId(Number(v) || 0)
-                        setPivotFilterUserIds([])
-                        setHiddenKeys(new Set())
-                      }}
-                    >
-                      <SelectTrigger className="h-6.5 w-40 text-[11px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">{t("dashboard.trend.allNodesTop5")}</SelectItem>
-                        {nodeOptions.map((opt) => (
-                          <SelectItem key={opt.id} value={String(opt.id)}>
-                            <span className="truncate">{opt.name}</span>
-                            {opt.traffic > 0 && (
-                              <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
-                                ({formatBytesCompact(opt.traffic)})
-                              </span>
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </>
-              )}
-
-              {filterTargetKind !== null && (
-                <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-                  <PopoverTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="h-6.5 gap-1.5 px-2 text-[11px]"
-                      />
-                    }
-                  >
-                    <SlidersHorizontal className="size-3 text-muted-foreground" />
-                    <span>
-                      {activeSelectedIds.length > 0
-                        ? filterTargetKind === "node"
-                          ? t("dashboard.trend.selectedNodes", { count: activeSelectedIds.length })
-                          : t("dashboard.trend.selectedUsers", { count: activeSelectedIds.length })
-                        : t("dashboard.trend.top5Default")}
-                    </span>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-68 gap-2 p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground">
-                        {filterTargetKind === "node"
-                          ? t("dashboard.trend.filterNodesTitle")
-                          : t("dashboard.trend.filterUsersTitle")}
-                      </span>
-                      {activeSelectedIds.length > 0 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          className="h-6 px-1.5 text-[11px] text-muted-foreground"
-                          onClick={resetEntitySelection}
-                        >
-                          <RotateCcw className="mr-1 size-3" />
-                          {t("dashboard.trend.resetTop5")}
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={filterSearch}
-                        onChange={(e) => setFilterSearch(e.target.value)}
-                        placeholder={
-                          filterTargetKind === "node"
-                            ? t("dashboard.trend.searchNodesPlaceholder")
-                            : t("dashboard.trend.searchUsersPlaceholder")
-                        }
-                        className="h-7 pr-7 pl-8 text-xs"
-                      />
-                      {filterSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setFilterSearch("")}
-                          aria-label={t("common.clearSearch")}
-                          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="max-h-52 space-y-0.5 overflow-y-auto pr-0.5">
-                      {filteredPickerOptions.length === 0 ? (
-                        <div className="py-5 text-center text-xs text-muted-foreground">
-                          {t("dashboard.trend.noMatchOptions")}
-                        </div>
-                      ) : (
-                        filteredPickerOptions.map((opt) => {
-                          const checked = activeSelectedIds.includes(opt.id)
-                          const disabled =
-                            !checked && activeSelectedIds.length >= MAX_SELECTED_ENTITIES
-                          return (
-                            <label
-                              key={opt.id}
-                              className={cn(
-                                "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/60",
-                                disabled && "cursor-not-allowed opacity-50"
-                              )}
-                            >
-                              <div className="flex min-w-0 items-center gap-2">
-                                <Checkbox
-                                  checked={checked}
-                                  disabled={disabled}
-                                  onCheckedChange={() => toggleEntitySelection(opt.id)}
-                                />
-                                <span className="truncate text-foreground">{opt.name}</span>
-                              </div>
-                              <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                                {opt.traffic > 0 ? formatBytesCompact(opt.traffic) : "0 B"}
-                              </span>
-                            </label>
-                          )
-                        })
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-border/70 pt-1.5 text-[11px] text-muted-foreground">
-                      <span>
-                        {t("dashboard.trend.filterLimitHint", { max: MAX_SELECTED_ENTITIES })}
-                      </span>
-                      <span className="tabular-nums">
-                        {activeSelectedIds.length} / {MAX_SELECTED_ENTITIES}
-                      </span>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-          </div>
-        )}
+        <Tabs
+          value={dimension}
+          onValueChange={(v) => handleDimensionChange((v as TrendDimension) || "cluster")}
+        >
+          <TabsList variant="line" size="sm">
+            <TabsTrigger value="cluster" className="whitespace-nowrap">
+              {t("dashboard.trend.dimCluster")}
+            </TabsTrigger>
+            <TabsTrigger value="node" className="whitespace-nowrap">
+              {t("dashboard.trend.dimNode")}
+            </TabsTrigger>
+            <TabsTrigger value="user" className="whitespace-nowrap">
+              {t("dashboard.trend.dimUser")}
+            </TabsTrigger>
+            <TabsTrigger value="user_node" className="whitespace-nowrap">
+              {t("dashboard.trend.dimUserNode")}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </CardHeader>
 
-      <CardContent className="px-5">
+      {/* Band 2: Consistent Fixed-Height Control Strip — Scope/Filter on left, Metric & Chart Type on right */}
+      <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border-y border-border/60 bg-muted/20 px-5 py-1.5">
+        {/* Left: Scope & Filter controls (uniform height across every dimension) */}
+        <div className="flex min-h-7 flex-wrap items-center gap-1.5">
+          {dimension === "cluster" && (
+            <span className="text-xs text-muted-foreground">
+              {t("dashboard.trend.scopeCluster")}
+            </span>
+          )}
+
+          {dimension === "user_node" && (
+            <>
+              <Tabs
+                value={pivot}
+                onValueChange={(v) => handlePivotChange((v as UserNodePivot) || "by_user")}
+              >
+                <TabsList size="xs">
+                  <TabsTrigger value="by_user" className="whitespace-nowrap">
+                    {t("dashboard.trend.pivotByUser")}
+                  </TabsTrigger>
+                  <TabsTrigger value="by_node" className="whitespace-nowrap">
+                    {t("dashboard.trend.pivotByNode")}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {pivot === "by_user" ? (
+                <Select
+                  value={String(pivotUserId)}
+                  onValueChange={(v) => {
+                    setPivotUserId(Number(v) || 0)
+                    setPivotFilterNodeIds([])
+                    setHiddenKeys(new Set())
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-40 bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">{t("dashboard.trend.allUsersTop5")}</SelectItem>
+                    {userOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={String(opt.id)}>
+                        <span className="truncate">{opt.name}</span>
+                        {opt.traffic > 0 && (
+                          <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                            ({formatBytesCompact(opt.traffic)})
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select
+                  value={String(pivotNodeId)}
+                  onValueChange={(v) => {
+                    setPivotNodeId(Number(v) || 0)
+                    setPivotFilterUserIds([])
+                    setHiddenKeys(new Set())
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-40 bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">{t("dashboard.trend.allNodesTop5")}</SelectItem>
+                    {nodeOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={String(opt.id)}>
+                        <span className="truncate">{opt.name}</span>
+                        {opt.traffic > 0 && (
+                          <span className="ml-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+                            ({formatBytesCompact(opt.traffic)})
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
+
+          {filterTargetKind !== null && (
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="h-7 gap-1.5 bg-background px-2.5 text-xs"
+                  />
+                }
+              >
+                <SlidersHorizontal className="size-3 text-muted-foreground" />
+                <span>
+                  {activeSelectedIds.length > 0
+                    ? filterTargetKind === "node"
+                      ? t("dashboard.trend.selectedNodes", { count: activeSelectedIds.length })
+                      : t("dashboard.trend.selectedUsers", { count: activeSelectedIds.length })
+                    : t("dashboard.trend.top5Default")}
+                </span>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-68 gap-2 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-foreground">
+                    {filterTargetKind === "node"
+                      ? t("dashboard.trend.filterNodesTitle")
+                      : t("dashboard.trend.filterUsersTitle")}
+                  </span>
+                  {activeSelectedIds.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="h-6 px-1.5 text-[11px] text-muted-foreground"
+                      onClick={resetEntitySelection}
+                    >
+                      <RotateCcw className="mr-1 size-3" />
+                      {t("dashboard.trend.resetTop5")}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={filterSearch}
+                    onChange={(e) => setFilterSearch(e.target.value)}
+                    placeholder={
+                      filterTargetKind === "node"
+                        ? t("dashboard.trend.searchNodesPlaceholder")
+                        : t("dashboard.trend.searchUsersPlaceholder")
+                    }
+                    className="h-7 pr-7 pl-8 text-xs"
+                  />
+                  {filterSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterSearch("")}
+                      aria-label={t("common.clearSearch")}
+                      className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-52 space-y-0.5 overflow-y-auto pr-0.5">
+                  {filteredPickerOptions.length === 0 ? (
+                    <div className="py-5 text-center text-xs text-muted-foreground">
+                      {t("dashboard.trend.noMatchOptions")}
+                    </div>
+                  ) : (
+                    filteredPickerOptions.map((opt) => {
+                      const checked = activeSelectedIds.includes(opt.id)
+                      const disabled = !checked && activeSelectedIds.length >= MAX_SELECTED_ENTITIES
+                      return (
+                        <label
+                          key={opt.id}
+                          className={cn(
+                            "flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-muted/60",
+                            disabled && "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Checkbox
+                              checked={checked}
+                              disabled={disabled}
+                              onCheckedChange={() => toggleEntitySelection(opt.id)}
+                            />
+                            <span className="truncate text-foreground">{opt.name}</span>
+                          </div>
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                            {opt.traffic > 0 ? formatBytesCompact(opt.traffic) : "0 B"}
+                          </span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-border/70 pt-1.5 text-[11px] text-muted-foreground">
+                  <span>
+                    {t("dashboard.trend.filterLimitHint", { max: MAX_SELECTED_ENTITIES })}
+                  </span>
+                  <span className="tabular-nums">
+                    {activeSelectedIds.length} / {MAX_SELECTED_ENTITIES}
+                  </span>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+
+        {/* Right: Metric + Chart Type (anchored identically on all 4 dimensions) */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Tabs
+            value={metric}
+            onValueChange={(v) => setMetric((v as TrendTrafficMetric) || "total")}
+          >
+            <TabsList size="xs">
+              <TabsTrigger value="total">{t("dashboard.metricTotal")}</TabsTrigger>
+              <TabsTrigger value="download">{t("dashboard.metricDownload")}</TabsTrigger>
+              <TabsTrigger value="upload">{t("dashboard.metricUpload")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Tabs
+            value={chartType}
+            onValueChange={(v) => setChartType((v as TrendChartType) || "line")}
+          >
+            <TabsList size="xs" aria-label={t("dashboard.trend.chartTypeAria")}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TabsTrigger
+                      value="line"
+                      className="px-2"
+                      aria-label={t("dashboard.trend.chartLine")}
+                    >
+                      <TrendingUp className="size-3.5" />
+                    </TabsTrigger>
+                  }
+                />
+                <TooltipContent>{t("dashboard.trend.chartLine")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TabsTrigger
+                      value="bar"
+                      className="px-2"
+                      aria-label={t("dashboard.trend.chartBar")}
+                    >
+                      <BarChart3 className="size-3.5" />
+                    </TabsTrigger>
+                  }
+                />
+                <TooltipContent>{t("dashboard.trend.chartBar")}</TooltipContent>
+              </Tooltip>
+            </TabsList>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Band 3: Fixed-Position Chart Canvas + Footer Interactive Legend */}
+      <CardContent className="space-y-2.5 px-5 py-4">
         {chartLoading ? (
           <Skeleton className="h-56 w-full" />
         ) : !hasEntityData ? (
@@ -998,6 +957,40 @@ export function ClusterTrafficTrendCard({
             )}
           </div>
         )}
+
+        {/* Fixed-height footer interactive legend strip (keeps chart canvas anchored across all tabs) */}
+        <div className="flex min-h-6 flex-wrap items-center gap-1.5">
+          {!chartLoading &&
+            seriesDescriptors.map((item) => {
+              const isHidden = hiddenKeys.has(item.key)
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => toggleSeriesVisibility(item.key)}
+                  title={`${item.label} · ${formatBytes(item.total)}`}
+                  className={cn(
+                    "inline-flex max-w-44 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] transition-colors",
+                    isHidden
+                      ? "border-border/50 bg-transparent text-muted-foreground/50 line-through"
+                      : "border-border/70 bg-muted/40 text-foreground hover:bg-muted/80"
+                  )}
+                >
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: item.color,
+                      opacity: isHidden ? 0.35 : 1,
+                    }}
+                  />
+                  <span className="truncate">{item.label}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                    {formatBytesCompact(item.total)}
+                  </span>
+                </button>
+              )
+            })}
+        </div>
       </CardContent>
     </Card>
   )

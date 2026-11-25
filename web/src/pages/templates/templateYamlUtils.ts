@@ -30,8 +30,14 @@ export function extractPolicyTargets(yamlText: string, isServer: boolean): strin
   return found
 }
 
-/** Insert rule strings into `rules:` right before any `MATCH,...` line (deduplicating exact matches). */
-export function insertRulesBeforeMatch(yamlText: string, newRules: string[]): string {
+export type RuleInsertPosition = "before-match" | "top" | "bottom"
+
+/** Insert rule strings into `rules:` at the chosen position (deduplicating exact matches). */
+export function insertRulesAtPosition(
+  yamlText: string,
+  newRules: string[],
+  position: RuleInsertPosition = "before-match"
+): string {
   const cleaned = newRules.map((r) => r.trim()).filter(Boolean)
   if (cleaned.length === 0) return yamlText
 
@@ -44,8 +50,9 @@ export function insertRulesBeforeMatch(yamlText: string, newRules: string[]): st
     return base ? `${base}\n\n${block}\n` : `${block}\n`
   }
 
-  // Find end of `rules:` section and any `- MATCH,...` line
   let sectionEnd = lines.length
+  let firstItemIdx = -1
+  let lastItemIdx = -1
   let matchIdx = -1
   let indent = "  "
   const existingSet = new Set<string>()
@@ -59,6 +66,8 @@ export function insertRulesBeforeMatch(yamlText: string, newRules: string[]): st
     const itemMatch = line.match(/^(\s*)-\s*(.+)$/)
     if (itemMatch) {
       indent = itemMatch[1] || "  "
+      if (firstItemIdx === -1) firstItemIdx = i
+      lastItemIdx = i
       const val = itemMatch[2].trim()
       existingSet.add(val)
       if (matchIdx === -1 && /^MATCH\s*,/i.test(val)) {
@@ -67,12 +76,31 @@ export function insertRulesBeforeMatch(yamlText: string, newRules: string[]): st
     }
   }
 
-  const toInsert = cleaned.filter((r) => !existingSet.has(r)).map((r) => `${indent}- ${r}`)
+  const seen = new Set<string>()
+  const toInsert: string[] = []
+  for (const rule of cleaned) {
+    if (existingSet.has(rule) || seen.has(rule)) continue
+    seen.add(rule)
+    toInsert.push(`${indent}- ${rule}`)
+  }
   if (toInsert.length === 0) return yamlText
 
-  const insertAt = matchIdx !== -1 ? matchIdx : sectionEnd
+  let insertAt: number
+  if (position === "top") {
+    insertAt = firstItemIdx !== -1 ? firstItemIdx : rulesHeaderIdx + 1
+  } else if (position === "bottom") {
+    insertAt = lastItemIdx !== -1 ? lastItemIdx + 1 : sectionEnd
+  } else {
+    insertAt = matchIdx !== -1 ? matchIdx : lastItemIdx !== -1 ? lastItemIdx + 1 : sectionEnd
+  }
+
   const next = [...lines.slice(0, insertAt), ...toInsert, ...lines.slice(insertAt)]
   return next.join("\n")
+}
+
+/** Insert rule strings into `rules:` right before any `MATCH,...` line (deduplicating exact matches). */
+export function insertRulesBeforeMatch(yamlText: string, newRules: string[]): string {
+  return insertRulesAtPosition(yamlText, newRules, "before-match")
 }
 
 export interface RuleProviderSpec {

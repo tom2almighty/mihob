@@ -1,29 +1,20 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router-dom"
-import { Container, Database, FolderGit2, Globe, Globe2, Palette, ShieldCheck } from "lucide-react"
+import { Database, FolderGit2, Globe, Globe2, Palette, ShieldCheck } from "lucide-react"
 import { PageHeader } from "@/components/common/CommonUI"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AppearanceTab } from "./settings/AppearanceTab"
 import { DatabaseTab } from "./settings/DatabaseTab"
-import { DeploymentTab } from "./settings/DeploymentTab"
 import { GeneralTab } from "./settings/GeneralTab"
 import { GeoDataTab } from "./settings/GeoDataTab"
 import { ProjectsTab } from "./settings/ProjectsTab"
 import { SecurityTab } from "./settings/SecurityTab"
 
-type SettingsTab =
-  | "general"
-  | "deployment"
-  | "geodata"
-  | "appearance"
-  | "security"
-  | "database"
-  | "projects"
+type SettingsTab = "general" | "geodata" | "appearance" | "security" | "database" | "projects"
 
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   "general",
-  "deployment",
   "geodata",
   "appearance",
   "security",
@@ -70,10 +61,6 @@ export function SettingsPage() {
             <Globe className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.general")}</span>
           </TabsTrigger>
-          <TabsTrigger value="deployment">
-            <Container className="size-3.5 shrink-0" />
-            <span className="truncate">{t("settings.tabs.deployment")}</span>
-          </TabsTrigger>
           <TabsTrigger value="geodata">
             <Globe2 className="size-3.5 shrink-0" />
             <span className="truncate">{t("settings.tabs.geodata")}</span>
@@ -98,9 +85,6 @@ export function SettingsPage() {
 
         <TabsContent value="general" className="mt-0">
           <GeneralTab />
-        </TabsContent>
-        <TabsContent value="deployment" className="mt-0">
-          <DeploymentTab />
         </TabsContent>
         <TabsContent value="geodata" className="mt-0">
           <GeoDataTab />

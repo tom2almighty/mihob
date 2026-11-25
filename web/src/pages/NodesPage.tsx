@@ -729,7 +729,7 @@ export function NodesPage() {
           </AlertDialogHeader>
           {latestMihomoQuery.isError && (
             <p className="text-xs text-muted-foreground">
-              <Link to="/settings?tab=deployment" className="underline hover:text-foreground">
+              <Link to="/settings?tab=geodata" className="underline hover:text-foreground">
                 {t("nodes.mihomo.configureTokenHint")}
               </Link>
             </p>
