@@ -219,7 +219,6 @@ export function GeneralTab() {
                               {...field}
                             />
                           </FormControl>
-                          <FormDescription>{t("settings.siteTitleDesc")}</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -237,7 +236,6 @@ export function GeneralTab() {
                               {...field}
                             />
                           </FormControl>
-                          <FormDescription>{t("settings.siteDescriptionDesc")}</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

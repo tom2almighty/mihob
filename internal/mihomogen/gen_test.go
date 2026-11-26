@@ -1080,6 +1080,9 @@ func TestClientCertFingerprintModes(t *testing.T) {
 	if len(fpSelf) != 64 || len(fpAcme) != 64 {
 		t.Fatalf("expected 64-char sha256 fingerprints, got %q and %q", fpSelf, fpAcme)
 	}
+	if meta, err := crypto.ParseCertPEM(cPEM1, kPEM1); err != nil || meta.Issuer != "self.example.com" {
+		t.Fatalf("expected clean self-signed issuer without panel branding, got %+v (err=%v)", meta, err)
+	}
 
 	selfID := int64(1)
 	acmeID := int64(2)

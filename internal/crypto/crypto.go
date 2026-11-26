@@ -143,8 +143,7 @@ func GenerateSelfSignedCert(domain string, sans []string, validDays int) (certPE
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName:   domain,
-			Organization: []string{"mihob self-signed"},
+			CommonName: domain,
 		},
 		NotBefore:             now,
 		NotAfter:              expiry,

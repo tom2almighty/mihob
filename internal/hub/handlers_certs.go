@@ -106,7 +106,7 @@ func (s *Server) handleCreateCertificate(w http.ResponseWriter, r *http.Request)
 		}
 		cert.CertPEM = cPEM
 		cert.KeyPEM = kPEM
-		cert.Issuer = "mihob self-signed"
+		cert.Issuer = req.Domain
 		cert.NotBefore = &nb
 		cert.NotAfter = &na
 
@@ -218,6 +218,7 @@ func (s *Server) handleRenewCertificate(w http.ResponseWriter, r *http.Request) 
 		}
 		cert.CertPEM = cPEM
 		cert.KeyPEM = kPEM
+		cert.Issuer = cert.Domain
 		cert.NotBefore = &nb
 		cert.NotAfter = &na
 		cert.LastError = ""
