@@ -188,11 +188,53 @@ func GenerateSelfSignedCert(domain string, sans []string, validDays int) (certPE
 }
 
 type CertMetadata struct {
-	CommonName string
-	SANs       []string
-	Issuer     string
-	NotBefore  time.Time
-	NotAfter   time.Time
+	CommonName  string
+	SANs        []string
+	Issuer      string
+	NotBefore   time.Time
+	NotAfter    time.Time
+	Fingerprint string
+}
+
+// CertFingerprintSHA256 returns the lowercase hex SHA-256 fingerprint of the leaf
+// X.509 certificate in certPEM, matching Mihomo's TLS `fingerprint` field.
+func CertFingerprintSHA256(certPEM string) string {
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		return ""
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(cert.Raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// NormalizeCertFingerprint cleans a user-supplied SHA-256 certificate fingerprint
+// (e.g. output from `openssl x509 -noout -fingerprint -sha256` or Chrome's viewer)
+// into a compact lowercase hex string suitable for Mihomo's `fingerprint` field.
+func NormalizeCertFingerprint(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	lower := strings.ToLower(s)
+	for _, prefix := range []string{"sha256 fingerprint=", "sha-256 fingerprint=", "sha256:", "sha-256:"} {
+		if strings.HasPrefix(lower, prefix) {
+			s = strings.TrimSpace(s[len(prefix):])
+			break
+		}
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == ':' || r == ' ' || r == '\t' || r == '\r' || r == '\n' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.ToLower(b.String())
 }
 
 func ParseCertPEM(certPEM, keyPEM string) (*CertMetadata, error) {
@@ -219,12 +261,14 @@ func ParseCertPEM(certPEM, keyPEM string) (*CertMetadata, error) {
 	if issuer == "" && len(cert.Issuer.Organization) > 0 {
 		issuer = cert.Issuer.Organization[0]
 	}
+	sum := sha256.Sum256(cert.Raw)
 	return &CertMetadata{
-		CommonName: cert.Subject.CommonName,
-		SANs:       sans,
-		Issuer:     issuer,
-		NotBefore:  cert.NotBefore,
-		NotAfter:   cert.NotAfter,
+		CommonName:  cert.Subject.CommonName,
+		SANs:        sans,
+		Issuer:      issuer,
+		NotBefore:   cert.NotBefore,
+		NotAfter:    cert.NotAfter,
+		Fingerprint: hex.EncodeToString(sum[:]),
 	}, nil
 }
 

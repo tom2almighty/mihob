@@ -56,6 +56,8 @@ const DEFAULT_VALUES: InboundFormValues = {
   sni: "",
   alpn: "",
   skip_cert_verify: false,
+  cert_fingerprint_mode: "auto",
+  cert_fingerprint: "",
   client_fingerprint: "",
   ech_key: "",
   ech_enable: false,
@@ -191,6 +193,11 @@ function buildInboundPayload(v: InboundFormValues): Record<string, unknown> {
       sni: v.sni || "",
       alpn: splitCSV(v.alpn),
       skip_cert_verify: v.skip_cert_verify,
+      cert_fingerprint_mode:
+        v.cert_fingerprint_mode && v.cert_fingerprint_mode !== "auto"
+          ? v.cert_fingerprint_mode
+          : "",
+      cert_fingerprint: v.cert_fingerprint || "",
       client_fingerprint: v.client_fingerprint || "",
       ech_key: v.ech_key || "",
       ech_enable: Boolean(v.ech_enable),
@@ -352,6 +359,13 @@ export function InboundFormView({
         sni: s.sni || "",
         alpn: (s.alpn || []).join(", "),
         skip_cert_verify: Boolean(s.skip_cert_verify),
+        cert_fingerprint_mode:
+          s.cert_fingerprint_mode === "pin" ||
+          s.cert_fingerprint_mode === "custom" ||
+          s.cert_fingerprint_mode === "off"
+            ? s.cert_fingerprint_mode
+            : "auto",
+        cert_fingerprint: s.cert_fingerprint || "",
         client_fingerprint: s.client_fingerprint || "",
         ech_key: s.ech_key || "",
         ech_enable: Boolean(s.ech_enable),

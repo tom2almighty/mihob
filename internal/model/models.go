@@ -152,11 +152,13 @@ type InboundSettings struct {
 	ClientEndpointAPIs []ClientEndpointSource `json:"client_endpoint_apis,omitempty"`
 
 	// Security: "none" | "tls" | "reality"
-	Security          string   `json:"security,omitempty"`
-	SNI               string   `json:"sni,omitempty"`
-	ALPN              []string `json:"alpn,omitempty"`
-	SkipCertVerify    bool     `json:"skip_cert_verify,omitempty"`
-	ClientFingerprint string   `json:"client_fingerprint,omitempty"`
+	Security            string   `json:"security,omitempty"`
+	SNI                 string   `json:"sni,omitempty"`
+	ALPN                []string `json:"alpn,omitempty"`
+	SkipCertVerify      bool     `json:"skip_cert_verify,omitempty"`
+	CertFingerprintMode string   `json:"cert_fingerprint_mode,omitempty"` // "" | "auto" | "pin" | "custom" | "off"
+	CertFingerprint     string   `json:"cert_fingerprint,omitempty"`
+	ClientFingerprint   string   `json:"client_fingerprint,omitempty"`
 	ECHKey            string   `json:"ech_key,omitempty"`
 	ECHEnable         bool     `json:"ech_enable,omitempty"`
 	ECHConfig         string   `json:"ech_config,omitempty"`
@@ -297,6 +299,7 @@ type Certificate struct {
 	ACMECredentials map[string]string `json:"acme_credentials,omitempty"`
 	CertPEM         string            `json:"cert_pem,omitempty"`
 	KeyPEM          string            `json:"key_pem,omitempty"`
+	Fingerprint     string            `json:"fingerprint,omitempty"`
 	Issuer          string            `json:"issuer"`
 	NotBefore       *time.Time        `json:"not_before"`
 	NotAfter        *time.Time        `json:"not_after"`
@@ -415,6 +418,8 @@ func DefaultGeoXURLs() GeoXURLs {
 
 type SystemSettings struct {
 	HubPublicURL      string   `json:"hub_public_url"`
+	SiteTitle         string   `json:"site_title"`
+	SiteDescription   string   `json:"site_description"`
 	ACMEEmail         string   `json:"acme_email"`
 	AgentImage        string   `json:"agent_image"`
 	SubPath           string   `json:"sub_path"`
@@ -482,6 +487,8 @@ type ThemeConfig struct {
 type PublicThemeResponse struct {
 	ActiveThemeID     string       `json:"active_theme_id"`
 	ActiveCustomTheme *CustomTheme `json:"active_custom_theme,omitempty"`
+	SiteTitle         string       `json:"site_title,omitempty"`
+	SiteDescription   string       `json:"site_description,omitempty"`
 }
 
 type PublicSubNode struct {

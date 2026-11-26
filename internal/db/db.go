@@ -566,6 +566,12 @@ func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 	if v, err := s.GetSetting("hub_public_url"); err == nil {
 		out.HubPublicURL = v
 	}
+	if v, err := s.GetSetting("site_title"); err == nil {
+		out.SiteTitle = v
+	}
+	if v, err := s.GetSetting("site_description"); err == nil {
+		out.SiteDescription = v
+	}
 	if v, err := s.GetSetting("acme_email"); err == nil {
 		out.ACMEEmail = v
 	}
@@ -612,6 +618,12 @@ func (s *Store) GetSystemSettings() (*model.SystemSettings, error) {
 
 func (s *Store) SaveSystemSettings(st *model.SystemSettings) error {
 	if err := s.SetSetting("hub_public_url", st.HubPublicURL); err != nil {
+		return err
+	}
+	if err := s.SetSetting("site_title", st.SiteTitle); err != nil {
+		return err
+	}
+	if err := s.SetSetting("site_description", st.SiteDescription); err != nil {
 		return err
 	}
 	if err := s.SetSetting("acme_email", st.ACMEEmail); err != nil {

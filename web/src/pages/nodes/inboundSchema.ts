@@ -53,6 +53,8 @@ export function createInboundSchema(t: TFunction) {
     sni: z.string().trim().optional(),
     alpn: z.string().trim().optional(),
     skip_cert_verify: z.boolean(),
+    cert_fingerprint_mode: z.enum(["auto", "pin", "custom", "off"]).optional(),
+    cert_fingerprint: z.string().trim().optional(),
     client_fingerprint: z.string().trim().optional(),
     ech_key: z.string().optional(),
     ech_enable: z.boolean().optional(),

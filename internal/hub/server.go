@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"io/fs"
 	"log"
 	"net/http"
@@ -330,8 +331,9 @@ func (s *Server) handleFallback(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serveSPA(w http.ResponseWriter, r *http.Request) {
 	clean := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
-	if clean == "" || clean == "." {
-		clean = "index.html"
+	if clean == "" || clean == "." || clean == "index.html" {
+		s.serveSPAIndex(w, r)
+		return
 	}
 	if f, err := s.webFS.Open(clean); err == nil {
 		stat, _ := f.Stat()
@@ -350,8 +352,36 @@ func (s *Server) serveSPAIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	doc := string(b)
+	siteTitle := "Console"
+	siteDesc := ""
+	if st, err := s.store.GetSystemSettings(); err == nil && st != nil {
+		if t := strings.TrimSpace(st.SiteTitle); t != "" {
+			siteTitle = t
+		}
+		siteDesc = strings.TrimSpace(st.SiteDescription)
+	}
+	if start := strings.Index(doc, "<title>"); start >= 0 {
+		if end := strings.Index(doc[start:], "</title>"); end >= 0 {
+			doc = doc[:start] + "<title>" + html.EscapeString(siteTitle) + "</title>" + doc[start+end+len("</title>"):]
+		}
+	}
+	for _, descPlaceholder := range []string{
+		`<meta name="description" content="" />`,
+		`<meta name="description" content="">`,
+	} {
+		if strings.Contains(doc, descPlaceholder) {
+			if siteDesc != "" {
+				doc = strings.Replace(doc, descPlaceholder, `<meta name="description" content="`+html.EscapeString(siteDesc)+`" />`, 1)
+			} else {
+				doc = strings.Replace(doc, descPlaceholder, "", 1)
+			}
+			break
+		}
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(b)
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(doc))
 }
 
 type ctxKey string

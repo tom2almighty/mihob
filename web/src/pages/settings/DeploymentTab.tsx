@@ -69,6 +69,8 @@ export function DeploymentTab() {
     mutationFn: (v: DeploymentFormValues) =>
       api.updateSettings({
         hub_public_url: query.data?.hub_public_url || "",
+        site_title: query.data?.site_title || "",
+        site_description: query.data?.site_description || "",
         sub_path: query.data?.sub_path || "sub",
         agent_image: v.agent_image,
         acme_email: v.acme_email || "",

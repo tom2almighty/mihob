@@ -1,6 +1,6 @@
 {
   "meta": {
-    "pageTitle": "mihob · Multi-Node Mihomo Control Plane"
+    "pageTitle": "Console"
   },
   "common": {
     "cancel": "Cancel",
@@ -109,8 +109,8 @@
     "langEn": "English"
   },
   "login": {
-    "title": "mihob",
-    "subtitle": "Sign in to manage nodes, inbound protocols, and user subscriptions",
+    "title": "Console",
+    "subtitle": "Sign in to continue",
     "username": "Username",
     "usernamePlaceholder": "Enter admin username",
     "password": "Password",
@@ -659,6 +659,17 @@
         "certDesc": "Certificates are securely synced from Hub to Agent's ./certs directory",
         "clientSni": "Client SNI (Optional)",
         "clientSniPlaceholder": "Defaults to certificate domain",
+        "certFingerprintMode": "Server Cert Fingerprint Pinning (fingerprint)",
+        "certFingerprintAuto": "Auto (pin self-signed certs; CA verify others)",
+        "certFingerprintPin": "Always pin bound cert SHA-256",
+        "certFingerprintCustom": "Custom SHA-256 fingerprint (CDN / CA)",
+        "certFingerprintOff": "Disabled (omit fingerprint)",
+        "certFingerprintDesc": "Maps to Mihomo's TLS fingerprint field. Self-signed certs use SHA-256 pinning automatically without skip-cert-verify; note ACME leaf certs rotate on renewal",
+        "customCertFingerprint": "Custom Cert SHA-256 Fingerprint",
+        "customCertFingerprintOptional": "Cert SHA-256 Fingerprint (Optional, fingerprint)",
+        "customCertFingerprintPlaceholder": "64-char hex or AA:BB:... (openssl output supported)",
+        "certFingerprintActive": "Will emit fingerprint:",
+        "certFingerprintBound": "Bound cert fingerprint:",
         "skipCertVerify": "Skip cert verify on client",
         "upMbps": "Up (Mbps)",
         "downMbps": "Down (Mbps)",
@@ -776,6 +787,8 @@
     "autoRenew": "Auto-Renew",
     "expired": "Expired",
     "daysLeft": "{{days}}d left",
+    "fingerprintLabel": "SHA-256:",
+    "copyFingerprintAria": "Copy certificate SHA-256 fingerprint",
     "renewAria": "Renew certificate now",
     "renewTooltip": "Renew Now",
     "deleteAria": "Delete certificate",
@@ -813,7 +826,7 @@
       "autoRenew": "Enable Auto-Renewal",
       "autoRenewDesc": "Automatically renew 30 days before expiry and push to bound nodes",
       "validDays": "Validity (Days)",
-      "validDaysDesc": "Client subscriptions automatically enable skip-cert-verify for self-signed certs",
+      "validDaysDesc": "Self-signed certs automatically emit SHA-256 fingerprint pinning in subscriptions (adjustable per inbound)",
       "certPem": "Certificate (Fullchain PEM)",
       "keyPem": "Private Key (PEM)",
       "submitAcme": "Issue Certificate",
@@ -1226,6 +1239,12 @@
     "hubPublicUrl": "Hub Public URL",
     "hubPublicUrlDesc": "Uses current browser origin when empty; HTTPS domain recommended in production",
     "useCurrentOrigin": "Use Current Origin",
+    "siteTitle": "Site Title (Optional)",
+    "siteTitlePlaceholder": "Default: Console",
+    "siteTitleDesc": "Used for page title, login heading, and sidebar brand to reduce scanner fingerprinting",
+    "siteDescription": "Site Description (Optional)",
+    "siteDescriptionPlaceholder": "Default: Sign in to continue",
+    "siteDescriptionDesc": "Used for HTML meta description and login subtitle; leave blank for clean default copy",
     "subPath": "Subscription Sub-Path",
     "subPathDesc": "Single or multi-segment path (e.g. sub or custom/s); applies immediately",
     "subPreviewLabel": "Subscription URL Format Preview",

@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/mihob/mihob/internal/crypto"
 	"github.com/mihob/mihob/internal/model"
 )
 
@@ -212,20 +213,30 @@ func buildClientProxyBase(
 	user *model.User,
 	certs map[int64]*model.Certificate,
 ) map[string]any {
+	var boundCert *model.Certificate
 	sni := in.Settings.SNI
 	skipVerify := in.Settings.SkipCertVerify
 	if in.CertID != nil {
 		if c, ok := certs[*in.CertID]; ok {
+			boundCert = c
 			if sni == "" && c.Domain != "" {
 				sni = strings.TrimPrefix(c.Domain, "*.")
-			}
-			if c.Source == "self_signed" {
-				skipVerify = true
 			}
 		}
 	}
 	if sni == "" {
 		sni = node.Host
+	}
+
+	hasEndpointOverride := strings.TrimSpace(in.Settings.ClientServer) != "" || len(in.Settings.ClientEndpointAPIs) > 0
+	isDirectBoundCert := boundCert != nil &&
+		in.Settings.Security != "reality" &&
+		!(in.Settings.Security == "none" && in.Settings.ClientTLS) &&
+		!hasEndpointOverride
+
+	certFP := resolveClientCertFingerprint(in, boundCert, isDirectBoundCert)
+	if boundCert != nil && boundCert.Source == "self_signed" && isDirectBoundCert && certFP == "" {
+		skipVerify = true
 	}
 
 	clientServer := nonEmpty(in.Settings.ClientServer, node.Host)
@@ -330,6 +341,9 @@ func buildClientProxyBase(
 			p["servername"] = sni
 			p["client-fingerprint"] = fp
 			p["skip-cert-verify"] = skipVerify
+			if certFP != "" {
+				p["fingerprint"] = certFP
+			}
 			if len(in.Settings.ALPN) > 0 {
 				p["alpn"] = in.Settings.ALPN
 			}
@@ -360,6 +374,9 @@ func buildClientProxyBase(
 			p["servername"] = sni
 			p["client-fingerprint"] = fp
 			p["skip-cert-verify"] = skipVerify
+			if certFP != "" {
+				p["fingerprint"] = certFP
+			}
 			if len(in.Settings.ALPN) > 0 {
 				p["alpn"] = in.Settings.ALPN
 			}
@@ -385,6 +402,9 @@ func buildClientProxyBase(
 			p["sni"] = sni
 			p["client-fingerprint"] = fp
 			p["skip-cert-verify"] = skipVerify
+			if certFP != "" {
+				p["fingerprint"] = certFP
+			}
 			if len(in.Settings.ALPN) > 0 {
 				p["alpn"] = in.Settings.ALPN
 			}
@@ -401,6 +421,9 @@ func buildClientProxyBase(
 			"sni":              sni,
 			"skip-cert-verify": skipVerify,
 			"alpn":             nonEmptySlice(in.Settings.ALPN, []string{"h3"}),
+		}
+		if certFP != "" {
+			p["fingerprint"] = certFP
 		}
 		if in.Settings.HopPorts != "" {
 			p["ports"] = in.Settings.HopPorts
@@ -432,6 +455,9 @@ func buildClientProxyBase(
 			"udp-relay-mode":        nonEmpty(in.Settings.UDPRelayMode, "native"),
 			"reduce-rtt":            true,
 		}
+		if certFP != "" {
+			p["fingerprint"] = certFP
+		}
 		return p
 
 	case model.ProtoAnyTLS:
@@ -445,6 +471,9 @@ func buildClientProxyBase(
 			"client-fingerprint": fp,
 			"skip-cert-verify":   skipVerify,
 			"udp":                true,
+		}
+		if certFP != "" {
+			p["fingerprint"] = certFP
 		}
 		if len(in.Settings.ALPN) > 0 {
 			p["alpn"] = in.Settings.ALPN
@@ -513,6 +542,9 @@ func buildClientProxyBase(
 			"client-fingerprint": fp,
 			"skip-cert-verify":   skipVerify,
 			"udp":                true,
+		}
+		if certFP != "" {
+			p["fingerprint"] = certFP
 		}
 		if len(in.Settings.ALPN) > 0 {
 			p["alpn"] = in.Settings.ALPN
@@ -662,6 +694,9 @@ func buildClientProxyBase(
 			p["tls"] = true
 			p["sni"] = sni
 			p["skip-cert-verify"] = skipVerify
+			if certFP != "" {
+				p["fingerprint"] = certFP
+			}
 		}
 		return p
 
@@ -678,10 +713,36 @@ func buildClientProxyBase(
 		if in.Settings.Security == "tls" {
 			p["tls"] = true
 			p["skip-cert-verify"] = skipVerify
+			if certFP != "" {
+				p["fingerprint"] = certFP
+			}
 		}
 		return p
 	}
 	return nil
+}
+
+func resolveClientCertFingerprint(in *model.Inbound, boundCert *model.Certificate, isDirectBoundCert bool) string {
+	mode := strings.ToLower(strings.TrimSpace(in.Settings.CertFingerprintMode))
+	switch mode {
+	case "off":
+		return ""
+	case "custom":
+		return crypto.NormalizeCertFingerprint(in.Settings.CertFingerprint)
+	case "pin":
+		if boundCert != nil {
+			return crypto.CertFingerprintSHA256(boundCert.CertPEM)
+		}
+		return ""
+	default: // "" or "auto"
+		if isDirectBoundCert && boundCert != nil && boundCert.Source == "self_signed" {
+			return crypto.CertFingerprintSHA256(boundCert.CertPEM)
+		}
+		if boundCert == nil && in.Settings.ClientTLS {
+			return crypto.NormalizeCertFingerprint(in.Settings.CertFingerprint)
+		}
+		return ""
+	}
 }
 
 func nonEmpty(v, fallback string) string {

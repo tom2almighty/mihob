@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, queryKeys } from "@/lib/api"
+import { useTheme } from "@/lib/theme"
 import { DeploymentTab } from "./DeploymentTab"
 
 type GeneralSubTab = "hub" | "deployment"
@@ -55,12 +56,15 @@ export function isValidSubPath(raw: string): boolean {
 
 type GeneralFormValues = {
   hub_public_url?: string
+  site_title?: string
+  site_description?: string
   sub_path: string
 }
 
 export function GeneralTab() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const { updateSiteMeta } = useTheme()
   const [subTab, setSubTab] = useState<GeneralSubTab>("hub")
 
   const query = useQuery({
@@ -72,6 +76,8 @@ export function GeneralTab() {
     () =>
       z.object({
         hub_public_url: z.string().trim().optional(),
+        site_title: z.string().trim().max(80).optional(),
+        site_description: z.string().trim().max(200).optional(),
         sub_path: z.string().trim().refine(isValidSubPath, t("settings.validation.subPathInvalid")),
       }),
     [t]
@@ -81,6 +87,8 @@ export function GeneralTab() {
     resolver: zodResolver(schema),
     defaultValues: {
       hub_public_url: "",
+      site_title: "",
+      site_description: "",
       sub_path: "sub",
     },
   })
@@ -89,6 +97,8 @@ export function GeneralTab() {
     if (query.data) {
       form.reset({
         hub_public_url: query.data.hub_public_url || "",
+        site_title: query.data.site_title || "",
+        site_description: query.data.site_description || "",
         sub_path: query.data.sub_path || "sub",
       })
     }
@@ -98,6 +108,8 @@ export function GeneralTab() {
     mutationFn: (v: GeneralFormValues) =>
       api.updateSettings({
         hub_public_url: v.hub_public_url || "",
+        site_title: (v.site_title || "").trim(),
+        site_description: (v.site_description || "").trim(),
         sub_path: v.sub_path.trim().replace(/^\/+|\/+$/g, "") || "sub",
         acme_email: query.data?.acme_email || "",
         agent_image: query.data?.agent_image || "ghcr.io/tom2almighty/mihob-agent:latest",
@@ -107,6 +119,8 @@ export function GeneralTab() {
     onSuccess: (updated) => {
       qc.setQueryData(queryKeys.settings, updated)
       qc.invalidateQueries({ queryKey: queryKeys.settings })
+      updateSiteMeta(updated.site_title || "", updated.site_description || "")
+      qc.invalidateQueries({ queryKey: queryKeys.publicTheme })
       toast.success(t("settings.toastSaved"))
     },
     onError: (err: Error) => toast.error(err.message),
@@ -187,6 +201,49 @@ export function GeneralTab() {
                     </FormItem>
                   )}
                 />
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="site_title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("settings.siteTitle")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("settings.siteTitlePlaceholder")}
+                              maxLength={80}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>{t("settings.siteTitleDesc")}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="site_description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("settings.siteDescription")}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t("settings.siteDescriptionPlaceholder")}
+                              maxLength={200}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>{t("settings.siteDescriptionDesc")}</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
                 <Separator />
 

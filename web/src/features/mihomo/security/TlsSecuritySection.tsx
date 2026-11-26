@@ -1,5 +1,6 @@
 import type { UseFormReturn } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { CopyButton } from "@/components/common/CommonUI"
 import { CollapsibleSection, FormSwitchCard } from "@/components/common/FormControls"
 import { FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,11 @@ import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
 import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
 import { ClientEndpointApisEditor } from "./ClientEndpointApisEditor"
 
+function shortFingerprint(fp: string): string {
+  if (fp.length <= 24) return fp
+  return `${fp.slice(0, 12)}…${fp.slice(-12)}`
+}
+
 export function TlsSecuritySection({
   form,
   certs,
@@ -28,6 +34,10 @@ export function TlsSecuritySection({
   security: "none" | "tls" | "reality"
 }) {
   const { t } = useTranslation()
+  const certId = form.watch("cert_id")
+  const certFpMode = form.watch("cert_fingerprint_mode") || "auto"
+  const selectedCert =
+    certId && certId !== "none" ? certs.find((c) => String(c.id) === certId) : undefined
   const hasAdvancedTls = Boolean(
     form.getValues("ech_enable") ||
       form.getValues("ech_key") ||
@@ -124,6 +134,78 @@ export function TlsSecuritySection({
             </FormItem>
           )}
         />
+      </div>
+
+      <div className="space-y-2.5 rounded-md border border-border bg-background/60 p-3">
+        <FormField
+          control={form.control}
+          name="cert_fingerprint_mode"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("nodes.inbound.fields.certFingerprintMode")}</FormLabel>
+              <Select
+                value={field.value || "auto"}
+                onValueChange={(v) => field.onChange(v || "auto")}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-full bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="auto">
+                    {t("nodes.inbound.fields.certFingerprintAuto")}
+                  </SelectItem>
+                  <SelectItem value="pin">
+                    {t("nodes.inbound.fields.certFingerprintPin")}
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    {t("nodes.inbound.fields.certFingerprintCustom")}
+                  </SelectItem>
+                  <SelectItem value="off">
+                    {t("nodes.inbound.fields.certFingerprintOff")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription>{t("nodes.inbound.fields.certFingerprintDesc")}</FormDescription>
+            </FormItem>
+          )}
+        />
+
+        {certFpMode === "custom" && (
+          <FormField
+            control={form.control}
+            name="cert_fingerprint"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.customCertFingerprint")}</FormLabel>
+                <FormControl>
+                  <Input
+                    className="bg-background font-mono text-xs"
+                    placeholder={t("nodes.inbound.fields.customCertFingerprintPlaceholder")}
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
+
+        {certFpMode !== "off" && certFpMode !== "custom" && selectedCert?.fingerprint && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-muted/30 px-2.5 py-1.5 text-xs">
+            <div className="min-w-0 truncate">
+              <span className="text-muted-foreground">
+                {certFpMode === "pin" || selectedCert.source === "self_signed"
+                  ? t("nodes.inbound.fields.certFingerprintActive")
+                  : t("nodes.inbound.fields.certFingerprintBound")}{" "}
+              </span>
+              <code className="font-mono text-foreground" title={selectedCert.fingerprint}>
+                {shortFingerprint(selectedCert.fingerprint)}
+              </code>
+            </div>
+            <CopyButton value={selectedCert.fingerprint} size="icon-sm" />
+          </div>
+        )}
       </div>
 
       <FormField

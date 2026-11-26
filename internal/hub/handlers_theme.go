@@ -216,6 +216,10 @@ func (s *Server) handlePublicTheme(w http.ResponseWriter, r *http.Request) {
 	resp := model.PublicThemeResponse{
 		ActiveThemeID: cfg.ActiveThemeID,
 	}
+	if st, err := s.store.GetSystemSettings(); err == nil && st != nil {
+		resp.SiteTitle = st.SiteTitle
+		resp.SiteDescription = st.SiteDescription
+	}
 	for i := range cfg.CustomThemes {
 		if cfg.CustomThemes[i].ID == cfg.ActiveThemeID {
 			ct := cfg.CustomThemes[i]

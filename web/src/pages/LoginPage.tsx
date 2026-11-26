@@ -3,9 +3,10 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Eye, EyeOff, Loader2, Network } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
+import { BrandMark } from "@/components/common/BrandMark"
 import { LanguageSwitcher, ThemeSwitcher } from "@/components/layout/AppShell"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
+import { useTheme } from "@/lib/theme"
 
 type LoginValues = {
   username: string
@@ -29,6 +31,7 @@ type LoginValues = {
 export function LoginPage() {
   const { t } = useTranslation()
   const { loginSuccess } = useAuth()
+  const { siteTitle, siteDescription } = useTheme()
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -71,11 +74,11 @@ export function LoginPage() {
       <Card className="w-full max-w-sm shadow-sm">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Network className="size-5" />
+            <BrandMark className="size-5" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-xl font-semibold">{t("login.title")}</CardTitle>
-            <CardDescription>{t("login.subtitle")}</CardDescription>
+            <CardTitle className="text-xl font-semibold">{siteTitle || t("login.title")}</CardTitle>
+            <CardDescription>{siteDescription || t("login.subtitle")}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>

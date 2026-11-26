@@ -9,9 +9,9 @@ import {
   Download,
   ExternalLink,
   Link2Off,
-  Network,
   Server,
 } from "lucide-react"
+import { BrandMark } from "@/components/common/BrandMark"
 import { CopyButton, EmptyState, TrafficProgress } from "@/components/common/CommonUI"
 import { LanguageSwitcher, ThemeSwitcher } from "@/components/layout/AppShell"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError, api, queryKeys } from "@/lib/api"
 import { daysUntil, formatBytes, formatDateTime } from "@/lib/format"
+import { useTheme } from "@/lib/theme"
 import type { PublicSubInfo } from "@/lib/types"
 
 function getStatusBadge(status: PublicSubInfo["status"], t: TFunction) {
@@ -41,6 +42,8 @@ function getStatusBadge(status: PublicSubInfo["status"], t: TFunction) {
 
 export function SubscriptionPage() {
   const { t, i18n } = useTranslation()
+  const { siteTitle } = useTheme()
+  const brandTitle = siteTitle || t("meta.pageTitle")
   const location = useLocation()
 
   const query = useQuery({
@@ -58,7 +61,7 @@ export function SubscriptionPage() {
   const remainingBytes =
     info && info.traffic_limit > 0 ? Math.max(0, info.traffic_limit - info.traffic_used) : null
   const clashImportURL = info
-    ? `clash://install-config?url=${encodeURIComponent(info.raw_url || info.sub_url)}&name=${encodeURIComponent(`mihob-${info.username}`)}`
+    ? `clash://install-config?url=${encodeURIComponent(info.raw_url || info.sub_url)}&name=${encodeURIComponent(`${siteTitle || "profile"}-${info.username}`)}`
     : ""
 
   return (
@@ -68,9 +71,9 @@ export function SubscriptionPage() {
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5">
             <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Network className="size-4" />
+              <BrandMark className="size-4" />
             </div>
-            <span className="text-base font-semibold tracking-tight">mihob</span>
+            <span className="truncate text-base font-semibold tracking-tight">{brandTitle}</span>
             <Badge variant="secondary" className="text-xs font-normal">
               {t("subPage.badge")}
             </Badge>

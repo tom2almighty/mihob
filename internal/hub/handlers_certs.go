@@ -11,6 +11,7 @@ import (
 
 func maskCertForAPI(c model.Certificate) model.Certificate {
 	// Never leak private key PEM or ACME secret credentials in list responses
+	c.Fingerprint = crypto.CertFingerprintSHA256(c.CertPEM)
 	c.KeyPEM = ""
 	if len(c.ACMECredentials) > 0 {
 		masked := make(map[string]string, len(c.ACMECredentials))

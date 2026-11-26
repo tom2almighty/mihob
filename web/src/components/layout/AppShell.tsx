@@ -12,7 +12,6 @@ import {
   Menu,
   Monitor,
   Moon,
-  Network,
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
@@ -22,6 +21,7 @@ import {
   Sun,
   Users,
 } from "lucide-react"
+import { BrandMark } from "@/components/common/BrandMark"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -374,6 +374,8 @@ function SidebarFooter({
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
+  const { siteTitle } = useTheme()
+  const brandTitle = siteTitle || t("meta.pageTitle")
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
@@ -423,10 +425,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           >
             <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Network className="size-4" />
+              <BrandMark className="size-4" />
             </div>
             <span className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">
-              mihob
+              {brandTitle}
             </span>
           </div>
 
@@ -466,9 +468,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <SheetHeader className="flex h-14 flex-row items-center gap-2.5 px-5">
             <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Network className="size-4" />
+              <BrandMark className="size-4" />
             </div>
-            <SheetTitle className="text-base font-semibold">mihob</SheetTitle>
+            <SheetTitle className="truncate text-base font-semibold">{brandTitle}</SheetTitle>
           </SheetHeader>
           <SidebarNav onNavigate={() => setMobileOpen(false)} />
           <SidebarFooter onNavigate={() => setMobileOpen(false)} />

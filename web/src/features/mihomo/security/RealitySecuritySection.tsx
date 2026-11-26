@@ -151,6 +151,23 @@ export function NoneSecuritySection({
 
               <ClientEndpointApisEditor form={form} />
 
+              <FormField
+                control={form.control}
+                name="cert_fingerprint"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("nodes.inbound.fields.customCertFingerprintOptional")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t("nodes.inbound.fields.customCertFingerprintPlaceholder")}
+                        className="bg-background font-mono text-xs"
+                        {...field}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
               <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs">
                 <div className="min-w-0">
                   <span className="text-muted-foreground">

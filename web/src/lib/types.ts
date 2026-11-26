@@ -185,6 +185,8 @@ export interface InboundSettings {
   sni?: string
   alpn?: string[]
   skip_cert_verify?: boolean
+  cert_fingerprint_mode?: "auto" | "pin" | "custom" | "off" | ""
+  cert_fingerprint?: string
   client_fingerprint?: string
   ech_key?: string
   ech_enable?: boolean
@@ -295,6 +297,7 @@ export interface Certificate {
   acme_email?: string
   acme_credentials?: Record<string, string>
   cert_pem?: string
+  fingerprint?: string
   issuer: string
   not_before: string | null
   not_after: string | null
@@ -457,6 +460,8 @@ export interface GeoXURLs {
 
 export interface SystemSettings {
   hub_public_url: string
+  site_title?: string
+  site_description?: string
   acme_email: string
   agent_image: string
   sub_path: string
@@ -579,6 +584,8 @@ export interface ThemeConfig {
 export interface PublicThemeResponse {
   active_theme_id: string
   active_custom_theme?: CustomTheme | null
+  site_title?: string
+  site_description?: string
 }
 
 export interface PublicSubNode {

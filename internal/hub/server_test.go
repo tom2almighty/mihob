@@ -615,4 +615,47 @@ func TestHubEndToEndAPIAndSubscription(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("delete channel failed: %d", resp.StatusCode)
 	}
+
+	// 15. Verify customizable site_title & site_description in settings + /api/public/theme + cert fingerprint
+	resp, raw = doJSON(http.MethodPut, "/api/settings", tok, map[string]any{
+		"hub_public_url":   "https://hub.example.com",
+		"site_title":       "Status Portal",
+		"site_description": "Internal service portal",
+		"sub_path":         "sub",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update site branding failed: %d %s", resp.StatusCode, string(raw))
+	}
+	resp, raw = doJSON(http.MethodGet, "/api/public/theme", "", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get public theme after branding update failed: %d", resp.StatusCode)
+	}
+	var pubTheme model.PublicThemeResponse
+	_ = json.Unmarshal(raw, &pubTheme)
+	if pubTheme.SiteTitle != "Status Portal" || pubTheme.SiteDescription != "Internal service portal" {
+		t.Fatalf("unexpected public site meta: %+v", pubTheme)
+	}
+	// Partial update omitting site_title/site_description must preserve them
+	resp, raw = doJSON(http.MethodPut, "/api/settings", tok, map[string]any{
+		"hub_public_url": "https://hub.example.com",
+		"sub_path":       "sub",
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("partial settings update failed: %d %s", resp.StatusCode, string(raw))
+	}
+	var preservedSt model.SystemSettings
+	_ = json.Unmarshal(raw, &preservedSt)
+	if preservedSt.SiteTitle != "Status Portal" || preservedSt.SiteDescription != "Internal service portal" {
+		t.Fatalf("expected omitted site_title/site_description to be preserved, got %+v", preservedSt)
+	}
+	// Verify certificates API exposes SHA-256 fingerprint
+	resp, raw = doJSON(http.MethodGet, "/api/certificates", tok, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list certificates failed: %d", resp.StatusCode)
+	}
+	var certList []model.Certificate
+	_ = json.Unmarshal(raw, &certList)
+	if len(certList) == 0 || len(certList[0].Fingerprint) != 64 {
+		t.Fatalf("expected certificate SHA-256 fingerprint in API response, got %+v", certList)
+	}
 }

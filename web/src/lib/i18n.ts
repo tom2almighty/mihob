@@ -12,10 +12,24 @@ export function normalizeLanguage(lng?: string): SupportedLanguage {
   return lng.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US"
 }
 
+const SITE_META_CACHE_KEY = "mihob_site_meta_cache"
+
+function readCachedSiteTitle(): string {
+  try {
+    const raw = localStorage.getItem(SITE_META_CACHE_KEY)
+    if (!raw) return ""
+    const parsed = JSON.parse(raw) as { title?: string }
+    return typeof parsed.title === "string" ? parsed.title.trim() : ""
+  } catch {
+    return ""
+  }
+}
+
 function syncDocumentMeta(lng: string) {
   const normalized = normalizeLanguage(lng)
   document.documentElement.lang = normalized
-  document.title = i18n.t("meta.pageTitle", { lng: normalized })
+  const customTitle = readCachedSiteTitle()
+  document.title = customTitle || i18n.t("meta.pageTitle", { lng: normalized })
 }
 
 i18n

@@ -1065,3 +1065,83 @@ udp: true
 		t.Fatalf("expected circular dialer_proxy chain to fail validation")
 	}
 }
+
+func TestClientCertFingerprintModes(t *testing.T) {
+	cPEM1, kPEM1, nb, na, err := crypto.GenerateSelfSignedCert("self.example.com", nil, 365)
+	if err != nil {
+		t.Fatalf("generate self-signed cert: %v", err)
+	}
+	cPEM2, kPEM2, _, _, err := crypto.GenerateSelfSignedCert("acme.example.com", nil, 90)
+	if err != nil {
+		t.Fatalf("generate second cert: %v", err)
+	}
+	fpSelf := crypto.CertFingerprintSHA256(cPEM1)
+	fpAcme := crypto.CertFingerprintSHA256(cPEM2)
+	if len(fpSelf) != 64 || len(fpAcme) != 64 {
+		t.Fatalf("expected 64-char sha256 fingerprints, got %q and %q", fpSelf, fpAcme)
+	}
+
+	selfID := int64(1)
+	acmeID := int64(2)
+	certs := map[int64]*model.Certificate{
+		selfID: {ID: selfID, Name: "self", Domain: "self.example.com", Source: "self_signed", CertPEM: cPEM1, KeyPEM: kPEM1, NotBefore: &nb, NotAfter: &na},
+		acmeID: {ID: acmeID, Name: "acme", Domain: "acme.example.com", Source: "acme", CertPEM: cPEM2, KeyPEM: kPEM2, NotBefore: &nb, NotAfter: &na},
+	}
+	node := &model.Node{ID: 1, Name: "N1", Host: "n1.example.com", Enabled: true}
+	user := &model.User{ID: 1, Username: "u1", UUID: crypto.NewUUID(), Password: "pw", Enabled: true}
+
+	// 1. Default ("auto") with direct self-signed cert -> emits fingerprint, skip-cert-verify=false
+	pAutoSelf := buildClientProxy("auto-self", node, &model.Inbound{
+		Protocol: model.ProtoHysteria2, Port: 443, CertID: &selfID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls"},
+	}, user, certs)
+	if pAutoSelf["fingerprint"] != fpSelf || pAutoSelf["skip-cert-verify"] != false {
+		t.Fatalf("expected auto self-signed to pin fingerprint with skip-cert-verify=false, got %+v", pAutoSelf)
+	}
+
+	// 2. Default ("auto") with ACME cert -> omits fingerprint (uses CA chain)
+	pAutoAcme := buildClientProxy("auto-acme", node, &model.Inbound{
+		Protocol: model.ProtoTrojan, Port: 443, CertID: &acmeID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls"},
+	}, user, certs)
+	if _, exists := pAutoAcme["fingerprint"]; exists {
+		t.Fatalf("expected auto ACME cert to omit fingerprint, got %+v", pAutoAcme)
+	}
+
+	// 3. Explicit "pin" with ACME cert -> emits bound cert fingerprint
+	pPinAcme := buildClientProxy("pin-acme", node, &model.Inbound{
+		Protocol: model.ProtoTUIC, Port: 443, CertID: &acmeID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls", CertFingerprintMode: "pin"},
+	}, user, certs)
+	if pPinAcme["fingerprint"] != fpAcme {
+		t.Fatalf("expected pin mode on ACME cert to emit %q, got %+v", fpAcme, pPinAcme["fingerprint"])
+	}
+
+	// 4. Explicit "off" with self-signed cert -> omits fingerprint, falls back to skip-cert-verify=true
+	pOffSelf := buildClientProxy("off-self", node, &model.Inbound{
+		Protocol: model.ProtoAnyTLS, Port: 443, CertID: &selfID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls", CertFingerprintMode: "off"},
+	}, user, certs)
+	if _, exists := pOffSelf["fingerprint"]; exists || pOffSelf["skip-cert-verify"] != true {
+		t.Fatalf("expected off mode on self-signed to omit fingerprint and fallback skip-cert-verify=true, got %+v", pOffSelf)
+	}
+
+	// 5. Explicit "custom" -> normalizes OpenSSL-style colon-separated fingerprint
+	rawCustom := "SHA256 Fingerprint=AA:BB:CC:DD:EE:FF:00:11"
+	pCustom := buildClientProxy("custom-fp", node, &model.Inbound{
+		Protocol: model.ProtoVLESS, Port: 443, CertID: &acmeID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls", CertFingerprintMode: "custom", CertFingerprint: rawCustom},
+	}, user, certs)
+	if pCustom["fingerprint"] != "aabbccddeeff0011" {
+		t.Fatalf("expected normalized custom fingerprint, got %+v", pCustom["fingerprint"])
+	}
+
+	// 6. CDN / ClientServer override with self-signed origin cert in auto mode -> must NOT pin origin cert
+	pCDN := buildClientProxy("cdn-override", node, &model.Inbound{
+		Protocol: model.ProtoVMess, Port: 8443, CertID: &selfID, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls", Network: "ws", ClientServer: "cdn.example.com", ClientPort: 443},
+	}, user, certs)
+	if _, exists := pCDN["fingerprint"]; exists || pCDN["skip-cert-verify"] != false {
+		t.Fatalf("expected CDN override in auto mode to omit origin self-signed fingerprint, got %+v", pCDN)
+	}
+}

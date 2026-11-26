@@ -104,6 +104,8 @@ export function GeoDataTab() {
     mutationFn: (v: GeoFormValues) =>
       api.updateSettings({
         hub_public_url: settingsQuery.data?.hub_public_url || "",
+        site_title: settingsQuery.data?.site_title || "",
+        site_description: settingsQuery.data?.site_description || "",
         sub_path: settingsQuery.data?.sub_path || "sub",
         agent_image: settingsQuery.data?.agent_image || "ghcr.io/tom2almighty/mihob-agent:latest",
         acme_email: settingsQuery.data?.acme_email || "",

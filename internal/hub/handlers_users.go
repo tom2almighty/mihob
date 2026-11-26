@@ -941,13 +941,40 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, maskSettingsForAPI(st))
 }
 
+func sanitizeSingleLine(v string, maxRunes int) string {
+	v = strings.ReplaceAll(v, "\r", " ")
+	v = strings.ReplaceAll(v, "\n", " ")
+	v = strings.TrimSpace(v)
+	runes := []rune(v)
+	if len(runes) > maxRunes {
+		return strings.TrimSpace(string(runes[:maxRunes]))
+	}
+	return v
+}
+
 func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
-	var req model.SystemSettings
-	if err := decodeJSON(r, &req); err != nil {
+	var raw struct {
+		model.SystemSettings
+		SiteTitle       *string `json:"site_title"`
+		SiteDescription *string `json:"site_description"`
+	}
+	if err := decodeJSON(r, &raw); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	req := raw.SystemSettings
 	existing, _ := s.store.GetSystemSettings()
+
+	if raw.SiteTitle != nil {
+		req.SiteTitle = sanitizeSingleLine(*raw.SiteTitle, 80)
+	} else if existing != nil {
+		req.SiteTitle = existing.SiteTitle
+	}
+	if raw.SiteDescription != nil {
+		req.SiteDescription = sanitizeSingleLine(*raw.SiteDescription, 200)
+	} else if existing != nil {
+		req.SiteDescription = existing.SiteDescription
+	}
 
 	req.HubPublicURL = strings.TrimRight(strings.TrimSpace(req.HubPublicURL), "/")
 	req.ACMEEmail = strings.TrimSpace(req.ACMEEmail)

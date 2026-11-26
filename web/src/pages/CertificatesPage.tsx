@@ -5,6 +5,7 @@ import { GripVertical, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react
 import { toast } from "sonner"
 import {
   ConfirmDeleteDialog,
+  CopyButton,
   EmptyState,
   ErrorState,
   PageHeader,
@@ -178,6 +179,22 @@ export function CertificatesPage() {
                           {c.domain}
                           {c.sans?.length > 1 ? ` (+${c.sans.length - 1})` : ""}
                         </div>
+                        {c.fingerprint && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <span className="shrink-0">{t("certificates.fingerprintLabel")}</span>
+                            <code
+                              className="font-mono text-[11px] text-foreground/80"
+                              title={c.fingerprint}
+                            >
+                              {`${c.fingerprint.slice(0, 12)}…${c.fingerprint.slice(-8)}`}
+                            </code>
+                            <CopyButton
+                              value={c.fingerprint}
+                              size="icon-sm"
+                              label={t("certificates.copyFingerprintAria")}
+                            />
+                          </div>
+                        )}
                         {c.last_error && <p className="text-xs text-destructive">{c.last_error}</p>}
                       </div>
                     </TableCell>

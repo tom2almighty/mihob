@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { api, queryKeys } from "./api"
 import { applyThemeToDOM } from "./theme-engine"
 import { BUILTIN_THEME_PRESETS, getBuiltinThemeById } from "./theme-presets"
@@ -23,9 +24,39 @@ interface ThemeContextValue {
   activeThemeId: string
   activeTheme: CustomTheme
   applyActiveTheme: (themeId: string, customTheme?: CustomTheme | null) => void
+  siteTitle: string
+  siteDescription: string
+  updateSiteMeta: (title: string, description: string) => void
 }
 
 const DEFAULT_THEME = BUILTIN_THEME_PRESETS[0]
+const SITE_META_CACHE_KEY = "mihob_site_meta_cache"
+
+function readCachedSiteMeta(): { title: string; description: string } {
+  try {
+    const raw = localStorage.getItem(SITE_META_CACHE_KEY)
+    if (!raw) return { title: "", description: "" }
+    const parsed = JSON.parse(raw) as { title?: string; description?: string }
+    return {
+      title: typeof parsed.title === "string" ? parsed.title.trim() : "",
+      description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+    }
+  } catch {
+    return { title: "", description: "" }
+  }
+}
+
+function writeCachedSiteMeta(title: string, description: string) {
+  try {
+    if (!title && !description) {
+      localStorage.removeItem(SITE_META_CACHE_KEY)
+      return
+    }
+    localStorage.setItem(SITE_META_CACHE_KEY, JSON.stringify({ title, description }))
+  } catch {
+    // ignore storage errors
+  }
+}
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "system",
@@ -34,6 +65,9 @@ const ThemeContext = createContext<ThemeContextValue>({
   activeThemeId: "default",
   activeTheme: DEFAULT_THEME,
   applyActiveTheme: () => {},
+  siteTitle: "",
+  siteDescription: "",
+  updateSiteMeta: () => {},
 })
 
 const STORAGE_KEY = "mihob_theme"
@@ -45,12 +79,16 @@ function resolveMode(mode: Theme): ResolvedThemeMode {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [theme, setThemeState] = useState<Theme>(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system"
   })
   const [resolvedMode, setResolvedMode] = useState<ResolvedThemeMode>(() => resolveMode(theme))
+  const [cachedMeta, setCachedMeta] = useState<{ title: string; description: string }>(() =>
+    readCachedSiteMeta()
+  )
 
   const publicThemeQuery = useQuery({
     queryKey: queryKeys.publicTheme,
@@ -60,6 +98,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   })
 
   const activeThemeId = publicThemeQuery.data?.active_theme_id || "default"
+  const siteTitle =
+    publicThemeQuery.data !== undefined
+      ? (publicThemeQuery.data.site_title || "").trim()
+      : cachedMeta.title
+  const siteDescription =
+    publicThemeQuery.data !== undefined
+      ? (publicThemeQuery.data.site_description || "").trim()
+      : cachedMeta.description
 
   const activeTheme = useMemo<CustomTheme>(() => {
     const builtin = getBuiltinThemeById(activeThemeId)
@@ -94,6 +140,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!publicThemeQuery.data) return
+    const nextTitle = (publicThemeQuery.data.site_title || "").trim()
+    const nextDesc = (publicThemeQuery.data.site_description || "").trim()
+    writeCachedSiteMeta(nextTitle, nextDesc)
+    setCachedMeta({ title: nextTitle, description: nextDesc })
+
     const builtin = getBuiltinThemeById(activeThemeId)
     if (builtin?.isDefault) {
       applyThemeToDOM(null)
@@ -106,6 +157,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [activeThemeId, publicThemeQuery.data])
 
+  useEffect(() => {
+    document.title = siteTitle || t("meta.pageTitle")
+    let descEl = document.querySelector('meta[name="description"]')
+    if (siteDescription) {
+      if (!descEl) {
+        descEl = document.createElement("meta")
+        descEl.setAttribute("name", "description")
+        document.head.appendChild(descEl)
+      }
+      descEl.setAttribute("content", siteDescription)
+    } else if (descEl) {
+      descEl.remove()
+    }
+  }, [siteTitle, siteDescription, t])
+
   const setTheme = useCallback((next: Theme) => {
     localStorage.setItem(STORAGE_KEY, next)
     setThemeState(next)
@@ -113,11 +179,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const applyActiveTheme = useCallback(
     (themeId: string, customTheme?: CustomTheme | null) => {
-      const nextResp: PublicThemeResponse = {
+      qc.setQueryData<PublicThemeResponse>(queryKeys.publicTheme, (prev) => ({
         active_theme_id: themeId,
         active_custom_theme: customTheme ?? null,
-      }
-      qc.setQueryData(queryKeys.publicTheme, nextResp)
+        site_title: prev?.site_title ?? cachedMeta.title,
+        site_description: prev?.site_description ?? cachedMeta.description,
+      }))
       const builtin = getBuiltinThemeById(themeId)
       if (builtin?.isDefault) {
         applyThemeToDOM(null)
@@ -129,12 +196,38 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         applyThemeToDOM(null)
       }
     },
-    [qc]
+    [qc, cachedMeta.title, cachedMeta.description]
+  )
+
+  const updateSiteMeta = useCallback(
+    (title: string, description: string) => {
+      const cleanTitle = title.trim()
+      const cleanDesc = description.trim()
+      writeCachedSiteMeta(cleanTitle, cleanDesc)
+      setCachedMeta({ title: cleanTitle, description: cleanDesc })
+      qc.setQueryData<PublicThemeResponse>(queryKeys.publicTheme, (prev) => ({
+        active_theme_id: prev?.active_theme_id ?? activeThemeId,
+        active_custom_theme: prev?.active_custom_theme ?? null,
+        site_title: cleanTitle,
+        site_description: cleanDesc,
+      }))
+    },
+    [qc, activeThemeId]
   )
 
   return (
     <ThemeContext.Provider
-      value={{ theme, resolvedMode, setTheme, activeThemeId, activeTheme, applyActiveTheme }}
+      value={{
+        theme,
+        resolvedMode,
+        setTheme,
+        activeThemeId,
+        activeTheme,
+        applyActiveTheme,
+        siteTitle,
+        siteDescription,
+        updateSiteMeta,
+      }}
     >
       {children}
     </ThemeContext.Provider>

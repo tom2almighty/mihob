@@ -1,6 +1,6 @@
 {
   "meta": {
-    "pageTitle": "mihob · Mihomo 多节点控制平面"
+    "pageTitle": "控制台"
   },
   "common": {
     "cancel": "取消",
@@ -109,13 +109,13 @@
     "langEn": "English"
   },
   "login": {
-    "title": "mihob",
-    "subtitle": "登录以管理节点、入站协议与用户订阅",
+    "title": "控制台",
+    "subtitle": "请登录以继续",
     "username": "用户名",
     "usernamePlaceholder": "输入管理员用户名",
     "password": "密码",
     "passwordPlaceholder": "输入管理员密码",
-    "submit": "登录控制台",
+    "submit": "登录",
     "success": "登录成功",
     "failed": "登录失败",
     "validation": {
@@ -659,6 +659,17 @@
         "certDesc": "证书由 Hub 统一同步到 Agent 的 ./certs 目录",
         "clientSni": "客户端 SNI（可选）",
         "clientSniPlaceholder": "留空自动取证书域名",
+        "certFingerprintMode": "服务端证书指纹校验 (fingerprint)",
+        "certFingerprintAuto": "自动（自签证书自动固定指纹，其他走 CA 校验）",
+        "certFingerprintPin": "始终固定绑定证书 SHA-256 指纹",
+        "certFingerprintCustom": "自定义 SHA-256 指纹（CDN / 根证书）",
+        "certFingerprintOff": "关闭（不输出 fingerprint）",
+        "certFingerprintDesc": "对应 Mihomo 的 fingerprint 字段，自签证书启用指纹固定后无需跳过证书校验即可防中间人攻击；ACME 证书固定叶子指纹在续期后会变化，请按需开启",
+        "customCertFingerprint": "自定义证书 SHA-256 指纹",
+        "customCertFingerprintOptional": "证书 SHA-256 指纹（可选，fingerprint）",
+        "customCertFingerprintPlaceholder": "64 位十六进制或 AA:BB:... 格式（支持直接粘贴 openssl 输出）",
+        "certFingerprintActive": "将自动输出指纹：",
+        "certFingerprintBound": "当前绑定证书指纹：",
         "skipCertVerify": "客户端跳过证书校验",
         "upMbps": "上行带宽 (Mbps)",
         "downMbps": "下行带宽 (Mbps)",
@@ -776,6 +787,8 @@
     "autoRenew": "自动续期",
     "expired": "已过期",
     "daysLeft": "剩余 {{days}} 天",
+    "fingerprintLabel": "SHA-256:",
+    "copyFingerprintAria": "复制证书 SHA-256 指纹",
     "renewAria": "立即续期证书",
     "renewTooltip": "立即续期",
     "deleteAria": "删除证书",
@@ -813,7 +826,7 @@
       "autoRenew": "开启自动续期",
       "autoRenewDesc": "到期前 30 天自动续期并同步推送给关联节点",
       "validDays": "有效天数",
-      "validDaysDesc": "自签证书客户端订阅会自动启用 skip-cert-verify",
+      "validDaysDesc": "自签证书默认在客户端订阅自动生成 SHA-256 fingerprint 校验，可在入站 TLS 配置中快捷切换",
       "certPem": "证书内容 (Fullchain PEM)",
       "keyPem": "私钥内容 (Private Key PEM)",
       "submitAcme": "申请并签发",
@@ -1226,6 +1239,12 @@
     "hubPublicUrl": "Hub 公网访问地址",
     "hubPublicUrlDesc": "留空取当前浏览器域名，生产环境建议填写 HTTPS 域名",
     "useCurrentOrigin": "填入当前访问地址",
+    "siteTitle": "站点标题（选填）",
+    "siteTitlePlaceholder": "默认：控制台",
+    "siteTitleDesc": "用于页面标题、登录页标题与侧边栏名称，自定义可减少特征识别",
+    "siteDescription": "站点描述（选填）",
+    "siteDescriptionPlaceholder": "默认：请登录以继续",
+    "siteDescriptionDesc": "用于 HTML meta description 与登录页副标题，留空使用简洁默认文案",
     "subPath": "订阅二级路径",
     "subPathDesc": "支持单段或多段路径（如 sub、custom/s），保存后立即生效",
     "subPreviewLabel": "订阅地址格式预览",
