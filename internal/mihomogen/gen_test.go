@@ -1148,3 +1148,103 @@ func TestClientCertFingerprintModes(t *testing.T) {
 		t.Fatalf("expected CDN override in auto mode to omit origin self-signed fingerprint, got %+v", pCDN)
 	}
 }
+
+func TestAllowInsecureAndAltSecurityListeners(t *testing.T) {
+	users := []model.User{
+		{ID: 1, Username: "alice", UUID: crypto.NewUUID(), Password: "pw", Enabled: true},
+	}
+	emptyCerts := map[int64]*model.Certificate{}
+
+	// 1. AnyTLS with security=none -> emits allow-insecure: true without certificate
+	l, _, err := buildListener(&model.Inbound{
+		Name: "anytls-plain", Protocol: model.ProtoAnyTLS, Port: 8443, Enabled: true,
+		Settings: model.InboundSettings{Security: "none"},
+	}, users, emptyCerts)
+	if err != nil {
+		t.Fatalf("anytls security=none should succeed: %v", err)
+	}
+	if l["allow-insecure"] != true {
+		t.Fatalf("expected allow-insecure=true on anytls security=none, got %+v", l)
+	}
+
+	// 2. AnyTLS with security=tls, no cert, allow_insecure=true -> succeeds with allow-insecure: true
+	l, _, err = buildListener(&model.Inbound{
+		Name: "anytls-insecure", Protocol: model.ProtoAnyTLS, Port: 8443, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls", AllowInsecure: true},
+	}, users, emptyCerts)
+	if err != nil || l["allow-insecure"] != true {
+		t.Fatalf("expected anytls allow_insecure=true to succeed, got %+v (err=%v)", l, err)
+	}
+
+	// 3. AnyTLS with security=tls, no cert, allow_insecure=false -> must fail with clear error
+	if _, _, err := buildListener(&model.Inbound{
+		Name: "anytls-nocert", Protocol: model.ProtoAnyTLS, Port: 8443, Enabled: true,
+		Settings: model.InboundSettings{Security: "tls"},
+	}, users, emptyCerts); err == nil {
+		t.Fatalf("expected anytls without cert or allow-insecure to fail")
+	}
+
+	// 4. AnyTLS / VLESS / Trojan with shadow-tls / res-tls / jls-config in ExtraServerYAML -> succeeds without cert or forced allow-insecure
+	for _, tc := range []struct {
+		proto string
+		extra string
+	}{
+		{model.ProtoAnyTLS, "shadow-tls:\n  enable: true\n  version: 3\n  password: p"},
+		{model.ProtoVLESS, "res-tls:\n  enable: true\n  password: p"},
+		{model.ProtoTrojan, "jls-config:\n  enable: true\n  password: p"},
+	} {
+		l, _, err := buildListener(&model.Inbound{
+			Name: tc.proto + "-alt", Protocol: tc.proto, Port: 8443, Enabled: true,
+			Settings: model.InboundSettings{Security: "tls", ExtraServerYAML: tc.extra},
+		}, users, emptyCerts)
+		if err != nil {
+			t.Fatalf("%s with alt TLS in ExtraServerYAML failed: %v", tc.proto, err)
+		}
+		if _, hasAI := l["allow-insecure"]; hasAI {
+			t.Fatalf("%s with alt TLS should not force allow-insecure: %+v", tc.proto, l)
+		}
+	}
+
+	// 5. VLESS & Trojan with security=tls, no cert, allow_insecure=true -> succeeds with allow-insecure: true
+	for _, proto := range []string{model.ProtoVLESS, model.ProtoTrojan} {
+		l, _, err := buildListener(&model.Inbound{
+			Name: proto + "-ai", Protocol: proto, Port: 8443, Enabled: true,
+			Settings: model.InboundSettings{Security: "tls", AllowInsecure: true},
+		}, users, emptyCerts)
+		if err != nil || l["allow-insecure"] != true {
+			t.Fatalf("%s allow_insecure=true failed: %+v (err=%v)", proto, l, err)
+		}
+	}
+
+	// 6. Hysteria2 / TUIC / TrustTunnel do NOT support allow-insecure -> still require cert unless manual cert+key in ExtraServerYAML
+	for _, proto := range []string{model.ProtoHysteria2, model.ProtoTUIC, model.ProtoTrustTunnel} {
+		if _, _, err := buildListener(&model.Inbound{
+			Name: proto + "-nocert", Protocol: proto, Port: 8443, Enabled: true,
+			Settings: model.InboundSettings{Security: "tls", AllowInsecure: true},
+		}, users, emptyCerts); err == nil {
+			t.Fatalf("%s must still require certificate even if allow_insecure=true", proto)
+		}
+		if _, _, err := buildListener(&model.Inbound{
+			Name: proto + "-extracert", Protocol: proto, Port: 8443, Enabled: true,
+			Settings: model.InboundSettings{
+				Security:        "tls",
+				ExtraServerYAML: "certificate: /etc/ssl/c.crt\nprivate-key: /etc/ssl/c.key",
+			},
+		}, users, emptyCerts); err != nil {
+			t.Fatalf("%s with manual cert/key in ExtraServerYAML should succeed: %v", proto, err)
+		}
+	}
+
+	// 7. AnyTLS client proxy supports ClientServer & ClientPort overrides
+	node := &model.Node{ID: 1, Name: "N1", Host: "origin.example.com", Enabled: true}
+	pAny := buildClientProxy("anytls-cdn", node, &model.Inbound{
+		Protocol: model.ProtoAnyTLS, Port: 8443, Enabled: true,
+		Settings: model.InboundSettings{
+			Security: "none", SNI: "edge.example.com",
+			ClientServer: "1.2.3.4", ClientPort: 443,
+		},
+	}, &users[0], emptyCerts)
+	if pAny["server"] != "1.2.3.4" || pAny["port"] != 443 || pAny["sni"] != "edge.example.com" {
+		t.Fatalf("expected anytls client proxy to honor ClientServer/ClientPort/SNI, got %+v", pAny)
+	}
+}

@@ -153,6 +153,7 @@ type InboundSettings struct {
 
 	// Security: "none" | "tls" | "reality"
 	Security            string   `json:"security,omitempty"`
+	AllowInsecure       bool     `json:"allow_insecure,omitempty"`
 	SNI                 string   `json:"sni,omitempty"`
 	ALPN                []string `json:"alpn,omitempty"`
 	SkipCertVerify      bool     `json:"skip_cert_verify,omitempty"`

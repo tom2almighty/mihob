@@ -14,7 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import type { Certificate, Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
-import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
+import { FINGERPRINTS, getProtocolSpec } from "../registry"
 import { ClientEndpointApisEditor } from "./ClientEndpointApisEditor"
 
 function shortFingerprint(fp: string): string {
@@ -34,7 +34,9 @@ export function TlsSecuritySection({
   security: "none" | "tls" | "reality"
 }) {
   const { t } = useTranslation()
+  const spec = getProtocolSpec(protocol)
   const certId = form.watch("cert_id")
+  const allowInsecure = Boolean(form.watch("allow_insecure"))
   const certFpMode = form.watch("cert_fingerprint_mode") || "auto"
   const selectedCert =
     certId && certId !== "none" ? certs.find((c) => String(c.id) === certId) : undefined
@@ -73,6 +75,25 @@ export function TlsSecuritySection({
           </FormItem>
         )}
       />
+
+      {spec.supportsAllowInsecure && (!certId || certId === "none" || allowInsecure) && (
+        <FormField
+          control={form.control}
+          name="allow_insecure"
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <FormSwitchCard
+                  label={t("nodes.inbound.fields.allowInsecure")}
+                  description={t("nodes.inbound.fields.allowInsecureDesc")}
+                  checked={Boolean(field.value)}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <FormField
@@ -224,7 +245,7 @@ export function TlsSecuritySection({
         )}
       />
 
-      {SUPPORTS_REALITY.includes(protocol) && security === "tls" && (
+      {spec.supportsClientEndpointOverride && security === "tls" && (
         <div className="space-y-3 border-t border-border pt-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <FormField

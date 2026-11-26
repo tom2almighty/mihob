@@ -167,6 +167,16 @@ func buildListener(
 	}
 
 	var boundCert *model.Certificate
+	extraMap := parseExtraYAMLMap(in.Settings.ExtraServerYAML)
+	hasExtraCert := hasNonEmptyString(extraMap, "certificate") && hasNonEmptyString(extraMap, "private-key")
+	hasExtraAltTLS := hasNonEmptyMap(extraMap, "shadow-tls") ||
+		hasNonEmptyMap(extraMap, "res-tls") ||
+		hasNonEmptyMap(extraMap, "jls-config")
+	hasExtraReality := hasNonEmptyMap(extraMap, "reality-config")
+	hasExtraAllowInsecure := isTrueBool(extraMap, "allow-insecure")
+	hasExtraTrojanSS := isNestedTrueBool(extraMap, "ss-option", "enabled")
+	hasExtraTLSMirror := hasNonEmptyMap(extraMap, "tlsmirror-config")
+
 	attachTLSExtras := func() {
 		if echKey := strings.TrimSpace(in.Settings.ECHKey); echKey != "" {
 			l["ech-key"] = echKey
@@ -203,8 +213,32 @@ func buildListener(
 		attachTLSExtras()
 		return nil
 	}
+	attachCertOrAllowInsecure := func(supportsAllowInsecure bool, hasAltSecurity bool) error {
+		if in.CertID != nil {
+			return attachCert(true)
+		}
+		if hasExtraCert || hasAltSecurity {
+			if hasExtraCert {
+				attachTLSExtras()
+			}
+			return nil
+		}
+		if supportsAllowInsecure && (in.Settings.AllowInsecure || hasExtraAllowInsecure) {
+			if !hasExtraAllowInsecure {
+				l["allow-insecure"] = true
+			}
+			return nil
+		}
+		if supportsAllowInsecure {
+			return fmt.Errorf("TLS certificate is required (or enable allow-insecure / configure shadow-tls, res-tls, or jls-config)")
+		}
+		return fmt.Errorf("TLS certificate is required")
+	}
 
 	attachReality := func() error {
+		if hasExtraReality {
+			return nil
+		}
 		if in.Settings.RealityDest == "" || in.Settings.RealityPrivateKey == "" {
 			return fmt.Errorf("reality dest and private key are required")
 		}
@@ -292,11 +326,14 @@ func buildListener(
 				return nil, nil, err
 			}
 		case "tls":
-			if err := attachCert(true); err != nil {
+			hasAlt := hasExtraAltTLS || hasExtraReality || strings.TrimSpace(in.Settings.VLESSDecryption) != ""
+			if err := attachCertOrAllowInsecure(true, hasAlt); err != nil {
 				return nil, nil, err
 			}
 		default:
-			l["allow-insecure"] = true
+			if in.Settings.AllowInsecure || (!hasExtraCert && !hasExtraAltTLS && !hasExtraReality && strings.TrimSpace(in.Settings.VLESSDecryption) == "") {
+				l["allow-insecure"] = true
+			}
 		}
 
 	case model.ProtoVMess:
@@ -316,7 +353,7 @@ func buildListener(
 				return nil, nil, err
 			}
 		case "tls":
-			if err := attachCert(true); err != nil {
+			if err := attachCertOrAllowInsecure(false, hasExtraAltTLS || hasExtraReality || hasExtraTLSMirror); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -337,11 +374,14 @@ func buildListener(
 				return nil, nil, err
 			}
 		case "tls", "":
-			if err := attachCert(true); err != nil {
+			hasAlt := hasExtraAltTLS || hasExtraReality || hasExtraTrojanSS
+			if err := attachCertOrAllowInsecure(true, hasAlt); err != nil {
 				return nil, nil, err
 			}
 		default:
-			l["allow-insecure"] = true
+			if in.Settings.AllowInsecure || (!hasExtraCert && !hasExtraAltTLS && !hasExtraReality && !hasExtraTrojanSS) {
+				l["allow-insecure"] = true
+			}
 		}
 
 	case model.ProtoHysteria2:
@@ -375,7 +415,7 @@ func buildListener(
 			alpn = []string{"h3"}
 		}
 		l["alpn"] = alpn
-		if err := attachCert(true); err != nil {
+		if err := attachCertOrAllowInsecure(false, false); err != nil {
 			return nil, nil, err
 		}
 
@@ -403,7 +443,7 @@ func buildListener(
 			alpn = []string{"h3"}
 		}
 		l["alpn"] = alpn
-		if err := attachCert(true); err != nil {
+		if err := attachCertOrAllowInsecure(false, false); err != nil {
 			return nil, nil, err
 		}
 
@@ -429,8 +469,15 @@ func buildListener(
 				l["padding-scheme"] = ps
 			}
 		}
-		if err := attachCert(true); err != nil {
-			return nil, nil, err
+		switch in.Settings.Security {
+		case "none":
+			if in.Settings.AllowInsecure || (!hasExtraCert && !hasExtraAltTLS) {
+				l["allow-insecure"] = true
+			}
+		default:
+			if err := attachCertOrAllowInsecure(true, hasExtraAltTLS); err != nil {
+				return nil, nil, err
+			}
 		}
 
 	case model.ProtoShadowsocks:
@@ -510,7 +557,7 @@ func buildListener(
 		if in.Settings.BBRProfile != "" {
 			l["bbr-profile"] = in.Settings.BBRProfile
 		}
-		if err := attachCert(true); err != nil {
+		if err := attachCertOrAllowInsecure(false, false); err != nil {
 			return nil, nil, err
 		}
 
@@ -653,7 +700,7 @@ func buildListener(
 		}
 		switch in.Settings.Security {
 		case "tls":
-			if err := attachCert(true); err != nil {
+			if err := attachCertOrAllowInsecure(false, false); err != nil {
 				return nil, nil, err
 			}
 		case "reality":
@@ -671,4 +718,51 @@ func buildListener(
 	}
 
 	return l, boundCert, nil
+}
+
+func parseExtraYAMLMap(raw string) map[string]any {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(trimmed), &doc); err != nil {
+		return nil
+	}
+	return doc
+}
+
+func hasNonEmptyString(m map[string]any, key string) bool {
+	if m == nil {
+		return false
+	}
+	s, ok := m[key].(string)
+	return ok && strings.TrimSpace(s) != ""
+}
+
+func hasNonEmptyMap(m map[string]any, key string) bool {
+	if m == nil {
+		return false
+	}
+	sub, ok := m[key].(map[string]any)
+	return ok && len(sub) > 0
+}
+
+func isTrueBool(m map[string]any, key string) bool {
+	if m == nil {
+		return false
+	}
+	b, ok := m[key].(bool)
+	return ok && b
+}
+
+func isNestedTrueBool(m map[string]any, parent, key string) bool {
+	if m == nil {
+		return false
+	}
+	sub, ok := m[parent].(map[string]any)
+	if !ok {
+		return false
+	}
+	return isTrueBool(sub, key)
 }

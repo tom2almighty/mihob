@@ -182,6 +182,7 @@ export interface InboundSettings {
   client_endpoint_apis?: ClientEndpointSource[]
   // Security
   security?: "none" | "tls" | "reality"
+  allow_insecure?: boolean
   sni?: string
   alpn?: string[]
   skip_cert_verify?: boolean

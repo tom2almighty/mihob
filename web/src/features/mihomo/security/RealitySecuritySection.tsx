@@ -16,7 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import type { Protocol } from "@/lib/types"
 import type { InboundFormValues } from "@/pages/nodes/inboundSchema"
-import { FINGERPRINTS, SUPPORTS_REALITY } from "../registry"
+import { FINGERPRINTS, getProtocolSpec, SUPPORTS_REALITY } from "../registry"
 import { ClientEndpointApisEditor } from "./ClientEndpointApisEditor"
 
 export function NoneSecuritySection({
@@ -27,15 +27,19 @@ export function NoneSecuritySection({
   protocol: Protocol
 }) {
   const { t } = useTranslation()
+  const spec = getProtocolSpec(protocol)
   const clientTls = Boolean(form.watch("client_tls"))
   const listenPort = form.watch("port") || 443
   const supportsStream = SUPPORTS_REALITY.includes(protocol)
+  const isAnyTLS = protocol === "anytls"
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {t("nodes.inbound.fields.securityNoneHint")}
+          {spec.supportsAllowInsecure
+            ? t("nodes.inbound.fields.securityNoneAllowInsecureHint")
+            : t("nodes.inbound.fields.securityNoneHint")}
         </p>
         {supportsStream && (
           <Button
@@ -182,6 +186,99 @@ export function NoneSecuritySection({
             </div>
           )}
         </>
+      )}
+
+      {isAnyTLS && (
+        <div className="space-y-3 pt-1">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <FormField
+              control={form.control}
+              name="sni"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.clientSni")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t("nodes.inbound.fields.clientSniPlaceholder")}
+                      className="bg-background font-mono text-xs"
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="client_port"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.clientPort")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={65535}
+                      placeholder="443"
+                      className="bg-background tabular-nums"
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="listen"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("nodes.inbound.fields.listenAddr")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="0.0.0.0"
+                      className="bg-background font-mono text-xs"
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="client_server"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.clientServer")}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={2}
+                    placeholder={t("nodes.inbound.fields.clientServerPlaceholder")}
+                    className="min-h-15 bg-background font-mono text-xs"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="cert_fingerprint"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("nodes.inbound.fields.customCertFingerprintOptional")}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t("nodes.inbound.fields.customCertFingerprintPlaceholder")}
+                    className="bg-background font-mono text-xs"
+                    {...field}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
       )}
     </div>
   )

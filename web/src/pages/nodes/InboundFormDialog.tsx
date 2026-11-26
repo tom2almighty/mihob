@@ -53,6 +53,7 @@ const DEFAULT_VALUES: InboundFormValues = {
   cert_id: "none",
   enabled: true,
   security: "reality",
+  allow_insecure: false,
   sni: "",
   alpn: "",
   skip_cert_verify: false,
@@ -190,6 +191,7 @@ function buildInboundPayload(v: InboundFormValues): Record<string, unknown> {
         }))
         .filter((item) => item.url !== ""),
       security: resolvedSecurity,
+      allow_insecure: Boolean(v.allow_insecure),
       sni: v.sni || "",
       alpn: splitCSV(v.alpn),
       skip_cert_verify: v.skip_cert_verify,
@@ -355,7 +357,10 @@ export function InboundFormView({
         listen: inbound.listen || "0.0.0.0",
         cert_id: inbound.cert_id ? String(inbound.cert_id) : "none",
         enabled: inbound.enabled,
-        security: s.security || (NEEDS_CERT_ALWAYS.includes(inbound.protocol) ? "tls" : "none"),
+        security:
+          s.security ||
+          (inbound.cert_id || NEEDS_CERT_ALWAYS.includes(inbound.protocol) ? "tls" : "none"),
+        allow_insecure: Boolean(s.allow_insecure),
         sni: s.sni || "",
         alpn: (s.alpn || []).join(", "),
         skip_cert_verify: Boolean(s.skip_cert_verify),

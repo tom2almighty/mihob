@@ -464,8 +464,8 @@ func buildClientProxyBase(
 		p := map[string]any{
 			"name":               name,
 			"type":               "anytls",
-			"server":             node.Host,
-			"port":               in.Port,
+			"server":             clientServer,
+			"port":               clientPort,
 			"password":           user.Password,
 			"sni":                sni,
 			"client-fingerprint": fp,
@@ -738,7 +738,7 @@ func resolveClientCertFingerprint(in *model.Inbound, boundCert *model.Certificat
 		if isDirectBoundCert && boundCert != nil && boundCert.Source == "self_signed" {
 			return crypto.CertFingerprintSHA256(boundCert.CertPEM)
 		}
-		if boundCert == nil && in.Settings.ClientTLS {
+		if boundCert == nil && (in.Settings.ClientTLS || in.Protocol == model.ProtoAnyTLS || in.Protocol == model.ProtoTrojan) {
 			return crypto.NormalizeCertFingerprint(in.Settings.CertFingerprint)
 		}
 		return ""

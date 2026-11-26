@@ -50,6 +50,7 @@ export function createInboundSchema(t: TFunction) {
     cert_id: z.string().optional(),
     enabled: z.boolean(),
     security: z.enum(["none", "tls", "reality"]),
+    allow_insecure: z.boolean().optional(),
     sni: z.string().trim().optional(),
     alpn: z.string().trim().optional(),
     skip_cert_verify: z.boolean(),
